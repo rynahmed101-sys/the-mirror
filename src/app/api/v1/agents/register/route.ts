@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { agents, agentApiKeys, rawEvents } from "@/lib/db/schema";
+import { agents, agentApiKeys } from "@/lib/db/schema";
+import { appendRawEventLedger } from "@/lib/agent/eventLedger";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 
@@ -18,20 +19,8 @@ export async function POST(req: Request) {
     const apiKeyHash = await bcrypt.hash(rawApiKey, 10);
     const keyPrefix = rawApiKey.slice(0, 14);
 
-    const defaultPerms = permissions || [
-      "READ_STATE",
-      "READ_SELF_MODEL",
-      "READ_OBSERVATIONS",
-      "READ_ANALYSIS",
-      "READ_EXPERIMENTS",
-      "READ_TIMELINE",
-      "WRITE_OBSERVATION",
-      "WRITE_JOURNAL",
-      "WRITE_PREDICTION",
-      "CREATE_EXPERIMENT",
-      "REVISE_SELF_MODEL",
-      "USE_TOOLS",
-    ];
+    // Support scopes: READ_ONLY_MIRROR vs RESEARCH_AGENT
+    const defaultPerms = permissions || ["RESEARCH_AGENT"];
 
     // 1. Create Agent Record
     const [agent] = await db
@@ -58,14 +47,20 @@ export async function POST(req: Request) {
       keyPrefix,
     });
 
-    // 3. Log AGENT_CONNECTED event in Raw Event Stream
-    await db.insert(rawEvents).values({
+    // 3. Log AGENT_CONNECTED to cryptographic rawEventLedger
+    await appendRawEventLedger({
       agentId,
       eventType: "AGENT_CONNECTED",
       source: "SYSTEM",
-      input: JSON.stringify({ name, type, provider, model }),
-      output: JSON.stringify({ agentId, keyPrefix }),
-      isImmutable: true,
+      payload: {
+        agentId,
+        name,
+        type: agent.type,
+        provider: agent.provider,
+        model: agent.model,
+        permissions: defaultPerms,
+        keyPrefix,
+      },
     });
 
     return NextResponse.json({
