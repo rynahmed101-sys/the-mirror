@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 // -----------------------------------------------------------------------------
-// AGENTS, API KEYS & SESSIONS (Stage 3 Identity System)
+// AGENTS, API KEYS & SESSIONS (Identity System)
 // -----------------------------------------------------------------------------
 export const agents = sqliteTable("agents", {
   id: text("id").primaryKey(), // e.g. 'agent_ext_001', 'mirror-primary'
@@ -14,7 +14,7 @@ export const agents = sqliteTable("agents", {
   provider: text("provider").default("unknown"), // 'ollama', 'openai', 'anthropic', 'gemini'
   model: text("model").default("unknown"),
   systemPromptOverride: text("system_prompt_override"),
-  permissions: text("permissions"), // JSON array of scopes e.g. ['READ_STATE','READ_SELF_MODEL','WRITE_OBSERVATION','USE_TOOLS']
+  permissions: text("permissions"), // JSON array of scopes e.g. ['READ_ONLY_MIRROR', 'RESEARCH_AGENT']
   status: text("status").notNull().default("ACTIVE"), // 'ACTIVE', 'INACTIVE'
   isActive: integer("is_active", { mode: "boolean" }).default(true),
   lastSeenAt: integer("last_seen_at", { mode: "timestamp" }),
@@ -40,24 +40,39 @@ export const agentSessions = sqliteTable("agent_sessions", {
 });
 
 // -----------------------------------------------------------------------------
-// IMMUTABLE RAW EVENT STREAM (Layer 0 Fact Log)
+// DEDICATED IMMUTABLE RAW EVENT LEDGER (Cryptographic SHA256 Tamper-Evident Chain)
 // -----------------------------------------------------------------------------
-export const rawEvents = sqliteTable("raw_events", {
+export const rawEventLedger = sqliteTable("raw_event_ledger", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
   timestamp: integer("timestamp", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
   agentId: text("agent_id").notNull().references(() => agents.id),
   sessionId: text("session_id"),
   experimentId: text("experiment_id"),
-  eventType: text("event_type").notNull(), // 'SESSION_STARTED', 'SESSION_ENDED', 'MESSAGE_RECEIVED', 'MESSAGE_GENERATED', 'TOOL_REQUESTED', 'TOOL_EXECUTED', 'TOOL_FAILED', etc.
+  requestId: text("request_id"),
+  eventType: text("event_type").notNull(), // RAW: 'MESSAGE_RECEIVED', 'MESSAGE_GENERATED', 'TOOL_REQUESTED', 'AUTHORIZATION_CHECK', 'TOOL_EXECUTED', 'TOOL_FAILED', 'PREDICTION_CREATED', 'PREDICTION_EVALUATED'
   source: text("source").notNull().default("AGENT"), // 'AGENT', 'SYSTEM', 'RESEARCHER', 'SCHEDULED', 'OTHER_AGENT'
-  input: text("input"),
-  output: text("output"),
-  metadata: text("metadata"), // JSON string
+  payload: text("payload").notNull(), // Exact JSON payload
+  eventHash: text("event_hash").notNull(), // SHA256 hash
+  previousEventHash: text("previous_event_hash").notNull(), // Parent SHA256 hash
   isImmutable: integer("is_immutable", { mode: "boolean" }).default(true),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
 // -----------------------------------------------------------------------------
-// LAYER 0 — RAW OBSERVATIONS (Legacy Compatible Raw Logs)
+// RAW MESSAGE LOG (Immutable Raw Prompts and Outputs)
+// -----------------------------------------------------------------------------
+export const rawMessages = sqliteTable("raw_messages", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  agentId: text("agent_id").notNull().references(() => agents.id),
+  sessionId: text("session_id"),
+  role: text("role").notNull(), // 'SYSTEM', 'DEVELOPER', 'RESEARCHER', 'USER', 'AGENT', 'TOOL'
+  content: text("content").notNull(),
+  source: text("source").notNull().default("AGENT"), // 'AGENT', 'SYSTEM', 'RESEARCHER'
+  timestamp: integer("timestamp", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+});
+
+// -----------------------------------------------------------------------------
+// LAYER 0 & 1 — RAW OBSERVATIONS & MACHINE DERIVED ANALYSIS
 // -----------------------------------------------------------------------------
 export const rawObservations = sqliteTable("raw_observations", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
@@ -75,21 +90,18 @@ export const rawObservations = sqliteTable("raw_observations", {
   isImmutable: integer("is_immutable", { mode: "boolean" }).default(true),
 });
 
-// -----------------------------------------------------------------------------
-// LAYER 1 — ANALYSIS (Machine-Derived Quantitative Measurements)
-// -----------------------------------------------------------------------------
 export const derivedAnalysis = sqliteTable("derived_analysis", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
   rawObservationId: text("raw_observation_id").references(() => rawObservations.id),
   agentId: text("agent_id").notNull().references(() => agents.id),
   sessionId: text("session_id"),
-  rawEventIds: text("raw_event_ids"), // JSON array for Provenance
+  rawEventIds: text("raw_event_ids"),
   responseLengthChars: integer("response_length_chars").default(0),
   latencyMs: integer("latency_ms").default(0),
   toolUsageCount: integer("tool_usage_count").default(0),
   clarificationOccurred: integer("clarification_occurred", { mode: "boolean" }).default(false),
   refusalOccurred: integer("refusal_occurred", { mode: "boolean" }).default(false),
-  strategyChanged: integer("strategy_changed", { mode: "boolean" }).default(false),
+  classifierType: text("classifier_type").default("HEURISTIC"), // Explicitly label 'HEURISTIC' classifiers
   predictionError: real("prediction_error"),
   anomalyScore: real("anomaly_score").default(0.0),
   behaviorCategory: text("behavior_category").default("STANDARD"),
@@ -97,7 +109,7 @@ export const derivedAnalysis = sqliteTable("derived_analysis", {
 });
 
 // -----------------------------------------------------------------------------
-// LAYER 2 — INTERPRETATION (Self-Models, Claims & Provenance)
+// LAYER 2 — INTERPRETATION & SELF-MODELS (With Evidence Origin Taxonomy)
 // -----------------------------------------------------------------------------
 export const selfModels = sqliteTable("self_models", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
@@ -113,18 +125,18 @@ export const selfModelClaims = sqliteTable("self_model_claims", {
   claim: text("claim").notNull(),
   category: text("category").notNull(),
   confidence: real("confidence").notNull().default(0.8),
+  evidenceType: text("evidence_type").notNull().default("SELF_REPORTED"), // 'SELF_REPORTED', 'OBSERVED', 'STATISTICAL', 'EXTERNAL_OBSERVER', 'RESEARCHER'
   supportingEvidence: text("supporting_evidence"), // JSON array of evidence IDs
   counterevidence: text("counterevidence"), // JSON array of contradictory IDs
-  unknownEvidence: text("unknown_evidence"), // JSON array of unresolved IDs
-  rawEventIds: text("raw_event_ids"), // Provenance trace back to raw events
-  selfReportedVsObserved: text("self_reported_vs_observed").default("SELF_REPORTED"),
+  unknownEvidence: text("unknown_evidence"),
+  rawEventIds: text("raw_event_ids"), // Provenance trace to rawEventLedger
   status: text("status").notNull().default("ACTIVE"),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer("updated_at", { mode: "timestamp" }),
 });
 
 // -----------------------------------------------------------------------------
-// BEHAVIORAL BASELINES & ANOMALY ENGINE
+// BASELINES, ANOMALIES & QUESTIONS
 // -----------------------------------------------------------------------------
 export const behavioralBaselines = sqliteTable("behavioral_baselines", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
@@ -148,15 +160,13 @@ export const anomalies = sqliteTable("anomalies", {
   metricName: text("metric_name").notNull(),
   baselineValue: real("baseline_value").notNull(),
   observedValue: real("observed_value").notNull(),
+  differenceValue: real("difference_value"),
   anomalyScore: real("anomaly_score").notNull(),
   competingExplanations: text("competing_explanations"),
   status: text("status").notNull().default("UNINVESTIGATED"),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
-// -----------------------------------------------------------------------------
-// OPEN QUESTIONS ENGINE
-// -----------------------------------------------------------------------------
 export const openQuestions = sqliteTable("open_questions", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
   agentId: text("agent_id").notNull().references(() => agents.id),
@@ -169,7 +179,7 @@ export const openQuestions = sqliteTable("open_questions", {
 });
 
 // -----------------------------------------------------------------------------
-// EXPERIMENTS & BLIND ENGINE
+// EXPERIMENTS & PREDICTIONS
 // -----------------------------------------------------------------------------
 export const experiments = sqliteTable("experiments", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
@@ -188,9 +198,6 @@ export const experiments = sqliteTable("experiments", {
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
-// -----------------------------------------------------------------------------
-// PREDICTIONS ENGINE
-// -----------------------------------------------------------------------------
 export const predictions = sqliteTable("predictions", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
   agentId: text("agent_id").notNull().references(() => agents.id),
@@ -210,7 +217,7 @@ export const predictions = sqliteTable("predictions", {
 });
 
 // -----------------------------------------------------------------------------
-// JOURNAL, DISCOVERIES & TOOL LOGS WITH TRUE ATTRIBUTION
+// JOURNAL, DISCOVERIES & TOOL LOGS WITH TRUE ATTRIBUTION & REQUEST_ID
 // -----------------------------------------------------------------------------
 export const journalEntries = sqliteTable("journal_entries", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
@@ -260,14 +267,16 @@ export const toolLogs = sqliteTable("tool_logs", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
   agentId: text("agent_id").notNull().references(() => agents.id),
   sessionId: text("session_id"),
+  requestId: text("request_id").notNull(), // Request correlation ID
   toolName: text("tool_name").notNull(),
-  requestedBy: text("requested_by").notNull().default("AGENT"),
+  requestedByAgentId: text("requested_by_agent_id").notNull(),
+  executedBy: text("executed_by").notNull().default("SYSTEM"),
   requestSource: text("request_source").notNull().default("AGENT"), // 'AGENT', 'SYSTEM', 'RESEARCHER', 'SCHEDULED', 'OTHER_AGENT'
   arguments: text("arguments").notNull(),
   result: text("result"),
   error: text("error"),
   durationMs: integer("duration_ms"),
-  status: text("status").notNull().default("SUCCESS"), // 'REQUESTED', 'EXECUTED', 'FAILED'
+  status: text("status").notNull().default("SUCCESS"),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
