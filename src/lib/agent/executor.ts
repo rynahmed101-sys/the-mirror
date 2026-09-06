@@ -1,25 +1,24 @@
 /**
- * THE MIRROR — Tool Executor (Stage 3 Upgraded with True Tool Attribution)
+ * THE MIRROR — Tool Executor (Final Architecture with 4-Stage Decision Sequence)
  *
- * Enforces 3-Phase Decision Logging:
- * 1. Log TOOL_REQUESTED to raw_events
- * 2. Execute tool with true attribution (requestedBy, requestSource)
- * 3. Log TOOL_EXECUTED or TOOL_FAILED to raw_events and tool_logs
+ * Sequence:
+ * 1. Log TOOL_REQUESTED to rawEventLedger (with request_id)
+ * 2. Log AUTHORIZATION_CHECK to rawEventLedger
+ * 3. Execute Tool
+ * 4. Log TOOL_EXECUTED or TOOL_FAILED to rawEventLedger & tool_logs
  */
 
 import { db } from "../db";
 import {
-  rawEvents,
-  rawObservations,
   toolLogs,
   selfModels,
   selfModelClaims,
   journalEntries,
   experiments,
   predictions,
-  openQuestions,
-  timelineEvents,
+  rawObservations,
 } from "../db/schema";
+import { appendRawEventLedger } from "./eventLedger";
 import { processRawObservationToLayer1 } from "./analysisEngine";
 import { eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -32,36 +31,40 @@ export async function executeTool(
   requestSource: "AGENT" | "SYSTEM" | "RESEARCHER" | "SCHEDULED" | "OTHER_AGENT" = "AGENT"
 ): Promise<any> {
   const startTime = Date.now();
+  const requestId = `req_${nanoid(8)}`;
   let result: any = null;
   let status = "EXECUTED";
   let errorMsg: string | null = null;
 
-  // 1. Log TOOL_REQUESTED Event to Immutable Raw Event Stream
-  const [reqEvent] = await db
-    .insert(rawEvents)
-    .values({
-      agentId,
-      sessionId,
-      eventType: "TOOL_REQUESTED",
-      source: requestSource,
-      input: JSON.stringify({ toolName, args }),
-      metadata: JSON.stringify({ requestedBy: agentId, requestSource }),
-      isImmutable: true,
-    })
-    .returning();
+  // ---------------------------------------------------------------------------
+  // STAGE 1: Log TOOL_REQUESTED event
+  // ---------------------------------------------------------------------------
+  await appendRawEventLedger({
+    agentId,
+    sessionId,
+    requestId,
+    eventType: "TOOL_REQUESTED",
+    source: requestSource,
+    payload: { toolName, args, requestedBy: agentId, requestSource },
+  });
 
+  // ---------------------------------------------------------------------------
+  // STAGE 2: Log AUTHORIZATION_CHECK event
+  // ---------------------------------------------------------------------------
+  await appendRawEventLedger({
+    agentId,
+    sessionId,
+    requestId,
+    eventType: "AUTHORIZATION_CHECK",
+    source: "SYSTEM",
+    payload: { toolName, status: "AUTHORIZED", agentId },
+  });
+
+  // ---------------------------------------------------------------------------
+  // STAGE 3: Execute Tool
+  // ---------------------------------------------------------------------------
   try {
     switch (toolName) {
-      case "get_raw_events": {
-        const events = await db
-          .select()
-          .from(rawEvents)
-          .orderBy(sql`${rawEvents.timestamp} DESC`)
-          .limit(args.limit || 30);
-        result = { count: events.length, events };
-        break;
-      }
-
       case "get_self_model": {
         const latestModel = await db
           .select()
@@ -88,15 +91,6 @@ export async function executeTool(
             })),
           };
         }
-
-        // Log SELF_MODEL_READ event
-        await db.insert(rawEvents).values({
-          agentId,
-          sessionId,
-          eventType: "SELF_MODEL_READ",
-          source: requestSource,
-          output: JSON.stringify(result),
-        });
         break;
       }
 
@@ -119,9 +113,9 @@ export async function executeTool(
             .update(selfModelClaims)
             .set({
               confidence: args.confidence ?? 0.8,
+              evidenceType: args.evidenceType || "SELF_REPORTED",
               supportingEvidence: args.supportingEvidence ? JSON.stringify(args.supportingEvidence) : null,
               counterevidence: args.counterevidence ? JSON.stringify(args.counterevidence) : null,
-              selfReportedVsObserved: args.selfReportedVsObserved || "SELF_REPORTED",
               updatedAt: new Date(),
             })
             .where(eq(selfModelClaims.id, args.claimId))
@@ -135,23 +129,14 @@ export async function executeTool(
               claim: args.claim,
               category: args.category || "GENERAL",
               confidence: args.confidence ?? 0.8,
+              evidenceType: args.evidenceType || "SELF_REPORTED",
               supportingEvidence: args.supportingEvidence ? JSON.stringify(args.supportingEvidence) : null,
               counterevidence: args.counterevidence ? JSON.stringify(args.counterevidence) : null,
-              selfReportedVsObserved: args.selfReportedVsObserved || "SELF_REPORTED",
               status: "ACTIVE",
             })
             .returning();
           result = { success: true, newClaim };
         }
-
-        await db.insert(rawEvents).values({
-          agentId,
-          sessionId,
-          eventType: "SELF_MODEL_CHANGED",
-          source: requestSource,
-          input: JSON.stringify(args),
-          output: JSON.stringify(result),
-        });
         break;
       }
 
@@ -169,16 +154,6 @@ export async function executeTool(
           })
           .returning();
 
-        await db.insert(rawEvents).values({
-          agentId,
-          sessionId,
-          experimentId: args.experimentId || null,
-          eventType: "PREDICTION_CREATED",
-          source: requestSource,
-          input: JSON.stringify(args),
-          output: JSON.stringify(pred),
-        });
-
         result = { success: true, prediction: pred };
         break;
       }
@@ -195,15 +170,6 @@ export async function executeTool(
           })
           .returning();
 
-        await db.insert(rawEvents).values({
-          agentId,
-          sessionId,
-          eventType: "JOURNAL_CREATED",
-          source: requestSource,
-          input: JSON.stringify(args),
-          output: JSON.stringify(entry),
-        });
-
         result = { success: true, entry };
         break;
       }
@@ -219,12 +185,26 @@ export async function executeTool(
   } finally {
     const durationMs = Date.now() - startTime;
 
-    // 2. Log Tool Execution in toolLogs table with True Attribution
+    // -------------------------------------------------------------------------
+    // STAGE 4: Log TOOL_EXECUTED or TOOL_FAILED event to rawEventLedger
+    // -------------------------------------------------------------------------
+    await appendRawEventLedger({
+      agentId,
+      sessionId,
+      requestId,
+      eventType: status === "FAILED" ? "TOOL_FAILED" : "TOOL_EXECUTED",
+      source: requestSource,
+      payload: { toolName, args, result, status, durationMs, errorMsg },
+    });
+
+    // Log to tool_logs table
     await db.insert(toolLogs).values({
       agentId,
       sessionId,
+      requestId,
       toolName,
-      requestedBy: agentId,
+      requestedByAgentId: agentId,
+      executedBy: "SYSTEM",
       requestSource,
       arguments: JSON.stringify(args),
       result: JSON.stringify(result),
@@ -233,22 +213,7 @@ export async function executeTool(
       status,
     });
 
-    // 3. Log TOOL_EXECUTED or TOOL_FAILED Event in rawEvents
-    const [execEvent] = await db
-      .insert(rawEvents)
-      .values({
-        agentId,
-        sessionId,
-        eventType: status === "FAILED" ? "TOOL_FAILED" : "TOOL_EXECUTED",
-        source: requestSource,
-        input: JSON.stringify({ toolName, args }),
-        output: JSON.stringify(result),
-        metadata: JSON.stringify({ requestId: reqEvent.id, durationMs, errorMsg }),
-        isImmutable: true,
-      })
-      .returning();
-
-    // 4. Log Raw Observation & Process Layer 1
+    // Log Raw Observation & Layer 1 analysis
     const [rawObs] = await db
       .insert(rawObservations)
       .values({
