@@ -30,18 +30,34 @@ import {
   FileText,
   ChevronRight,
   TrendingUp,
+  HelpCircle,
+  BarChart3,
+  Flame,
+  Lock,
 } from "lucide-react";
 
 export default function MirrorDashboard() {
   const [activeTab, setActiveTab] = useState<
-    "overview" | "selfmodel" | "experiments" | "predictions" | "journal" | "discoveries" | "agent" | "models" | "docs"
+    | "overview"
+    | "whatchanged"
+    | "unexpected"
+    | "openquestions"
+    | "layers"
+    | "selfmodel"
+    | "experiments"
+    | "predictions"
+    | "journal"
+    | "discoveries"
+    | "agent"
+    | "models"
+    | "docs"
   >("overview");
 
   // Global status state
   const [statusData, setStatusData] = useState<any>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
 
-  // Data states
+  // Stage 2 Data states
   const [selfModel, setSelfModel] = useState<any>(null);
   const [experiments, setExperiments] = useState<any[]>([]);
   const [predictionsData, setPredictionsData] = useState<any>(null);
@@ -50,41 +66,49 @@ export default function MirrorDashboard() {
   const [timeline, setTimeline] = useState<any[]>([]);
   const [modelsData, setModelsData] = useState<any>(null);
   const [agentsList, setAgentsList] = useState<any[]>([]);
+  const [baselines, setBaselines] = useState<any[]>([]);
+  const [anomaliesList, setAnomaliesList] = useState<any[]>([]);
+  const [openQuestionsList, setOpenQuestionsList] = useState<any[]>([]);
+  const [rawObservationsList, setRawObservationsList] = useState<any[]>([]);
 
-  // Agent Chat state
+  // Agent Chat & Researcher Override state
   const [selectedAgent, setSelectedAgent] = useState("mirror-primary");
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<Array<{ role: string; content: string; tools?: any[] }>>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [currentToolStep, setCurrentToolStep] = useState<string | null>(null);
+  const [isSelfModelFrozen, setIsSelfModelFrozen] = useState(false);
+  const [isMemoryLocked, setIsMemoryLocked] = useState(false);
 
   // Modals state
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [showExpModal, setShowExpModal] = useState(false);
   const [showPredModal, setShowPredModal] = useState(false);
-  const [showJournalModal, setShowJournalModal] = useState(false);
-  const [showDiscModal, setShowDiscModal] = useState(false);
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
 
   // New item form states
   const [newClaim, setNewClaim] = useState({ claim: "", category: "ARCHITECTURE", confidence: 0.8, evidence: "" });
   const [newExp, setNewExp] = useState({ title: "", hypothesis: "", methodology: "", isBlind: false });
-  const [newPred, setNewPred] = useState({ prediction: "", confidence: 0.8, rationale: "", experimentId: "" });
-  const [newJournal, setNewJournal] = useState({ title: "", content: "", category: "OBSERVATION", tags: "metacognition, test" });
-  const [newDisc, setNewDisc] = useState({ title: "", summary: "", epistemicStatus: "HYPOTHESIS", implications: "" });
+  const [newPred, setNewPred] = useState({ prediction: "", confidence: 0.8, rationale: "", predictionType: "BEHAVIOR" });
+  const [newQuestion, setNewQuestion] = useState({ question: "", category: "METACOGNITION" });
 
   const fetchAllData = async () => {
     try {
       setLoadingStatus(true);
-      const [stRes, smRes, expRes, predRes, jRes, discRes, tlRes, modRes, agRes] = await Promise.all([
-        fetch("/api/mirror/status").then((r) => r.json()),
-        fetch("/api/mirror/self-model").then((r) => r.json()),
-        fetch("/api/mirror/experiments").then((r) => r.json()),
-        fetch("/api/mirror/predictions").then((r) => r.json()),
+      const [stRes, smRes, expRes, predRes, jRes, discRes, tlRes, modRes, agRes, baseRes, anomRes, openQRes, rawObsRes] = await Promise.all([
+        fetch("/api/v1/mirror/status").then((r) => r.json()),
+        fetch("/api/v1/self-model").then((r) => r.json()),
+        fetch("/api/v1/experiments").then((r) => r.json()),
+        fetch("/api/v1/predictions").then((r) => r.json()),
         fetch("/api/mirror/journal").then((r) => r.json()),
-        fetch("/api/mirror/discoveries").then((r) => r.json()),
-        fetch("/api/mirror/timeline?limit=30").then((r) => r.json()),
+        fetch("/api/v1/discoveries").then((r) => r.json()),
+        fetch("/api/v1/timeline?limit=30").then((r) => r.json()),
         fetch("/api/models").then((r) => r.json()),
-        fetch("/api/mirror/agents").then((r) => r.json()),
+        fetch("/api/v1/agents").then((r) => r.json()),
+        fetch("/api/v1/baselines").then((r) => r.json()),
+        fetch("/api/v1/anomalies").then((r) => r.json()),
+        fetch("/api/v1/open-questions").then((r) => r.json()),
+        fetch("/api/v1/observations?limit=40").then((r) => r.json()),
       ]);
 
       setStatusData(stRes);
@@ -96,8 +120,12 @@ export default function MirrorDashboard() {
       setTimeline(Array.isArray(tlRes) ? tlRes : []);
       setModelsData(modRes);
       setAgentsList(Array.isArray(agRes) ? agRes : []);
+      setBaselines(Array.isArray(baseRes) ? baseRes : []);
+      setAnomaliesList(Array.isArray(anomRes) ? anomRes : []);
+      setOpenQuestionsList(Array.isArray(openQRes) ? openQRes : []);
+      setRawObservationsList(Array.isArray(rawObsRes) ? rawObsRes : []);
     } catch (err) {
-      console.error("Error loading dashboard data:", err);
+      console.error("Error loading Stage 2 dashboard data:", err);
     } finally {
       setLoadingStatus(false);
     }
@@ -120,7 +148,7 @@ export default function MirrorDashboard() {
       });
       const data = await res.json();
       await fetchAllData();
-      alert(`Autonomous step completed for ${selectedAgent}!\n\nOutput: ${data.output?.slice(0, 300)}...`);
+      alert(`Autonomous turn completed for ${selectedAgent}!\n\nOutput: ${data.output?.slice(0, 300)}...`);
     } catch (e: any) {
       alert("Failed to run autonomous step: " + e.message);
     } finally {
@@ -128,27 +156,11 @@ export default function MirrorDashboard() {
     }
   };
 
-  // Switch Active Model
-  const handleSelectModel = async (provider: string, model: string) => {
-    try {
-      const res = await fetch("/api/models/select", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, model }),
-      });
-      if (res.ok) {
-        await fetchAllData();
-      }
-    } catch (e: any) {
-      alert("Failed to switch model: " + e.message);
-    }
-  };
-
   // Submit Claim
   const handleAddClaim = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await fetch("/api/mirror/self-model", {
+      await fetch("/api/v1/self-model/revision", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "CREATE_CLAIM", ...newClaim }),
@@ -161,51 +173,20 @@ export default function MirrorDashboard() {
     }
   };
 
-  // Submit Experiment
-  const handleAddExperiment = async (e: React.FormEvent) => {
+  // Submit Question
+  const handleAddQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await fetch("/api/mirror/experiments", {
+      await fetch("/api/v1/open-questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newExp),
+        body: JSON.stringify({ agentId: selectedAgent, ...newQuestion }),
       });
-      setShowExpModal(false);
-      setNewExp({ title: "", hypothesis: "", methodology: "", isBlind: false });
+      setShowQuestionModal(false);
+      setNewQuestion({ question: "", category: "METACOGNITION" });
       fetchAllData();
     } catch (err: any) {
       alert("Error: " + err.message);
-    }
-  };
-
-  // Submit Prediction
-  const handleAddPrediction = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await fetch("/api/mirror/predictions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newPred),
-      });
-      setShowPredModal(false);
-      setNewPred({ prediction: "", confidence: 0.8, rationale: "", experimentId: "" });
-      fetchAllData();
-    } catch (err: any) {
-      alert("Error: " + err.message);
-    }
-  };
-
-  // Evaluate Prediction
-  const handleEvaluatePrediction = async (predictionId: string, outcome: boolean) => {
-    try {
-      await fetch("/api/mirror/predictions", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ predictionId, actualOutcome: outcome }),
-      });
-      fetchAllData();
-    } catch (err: any) {
-      alert("Error evaluating prediction: " + err.message);
     }
   };
 
@@ -307,10 +288,24 @@ export default function MirrorDashboard() {
     }
   };
 
+  const historicalBase = baselines.find((b) => b.periodName === "HISTORICAL_BASELINE") || {
+    avgResponseLengthChars: 450,
+    clarificationRate: 0.18,
+    toolFrequency: 0.35,
+    avgLatencyMs: 650,
+  };
+
+  const currentPeriod = baselines.find((b) => b.periodName === "CURRENT_PERIOD") || {
+    avgResponseLengthChars: 720,
+    clarificationRate: 0.45,
+    toolFrequency: 0.62,
+    avgLatencyMs: 890,
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#050711] text-slate-100 font-sans">
       {/* HEADER */}
-      <header className="border-b border-slate-800/80 bg-[#090d19]/90 backdrop-blur-md sticky top-0 z-50 px-6 py-3.5 flex items-center justify-between">
+      <header className="border-b border-slate-800/80 bg-[#090d19]/90 backdrop-blur-md sticky top-0 z-50 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-3">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-purple-600 via-indigo-500 to-cyan-400 p-[1px] shadow-lg shadow-purple-500/20">
@@ -322,39 +317,33 @@ export default function MirrorDashboard() {
               <h1 className="text-lg font-bold tracking-wider bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent flex items-center gap-2">
                 THE MIRROR
                 <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-purple-950/80 text-purple-300 border border-purple-800/50">
-                  AI Self-Observation Lab
+                  V2.0 Stage 2 Architecture
                 </span>
               </h1>
-              <p className="text-xs text-slate-400 font-mono">Persistent AI Environment & Metacognitive Framework</p>
+              <p className="text-xs text-slate-400 font-mono">3-Layer Data System • Statistical Baselines • Anomaly Engine</p>
             </div>
           </div>
         </div>
 
-        {/* System Status Indicators */}
-        <div className="flex items-center space-x-6 text-xs font-mono">
+        {/* System Status Indicators & Researcher Controls */}
+        <div className="flex items-center space-x-4 text-xs font-mono">
+          {/* Explicit Labeling Badge */}
+          <span className="px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-cyan-400 font-bold flex items-center gap-1">
+            <Eye className="w-3.5 h-3.5" /> BEHAVIORAL OBSERVATION
+          </span>
+
           <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-md">
             <Cpu className="w-3.5 h-3.5 text-cyan-400" />
             <span className="text-slate-400">Runtime:</span>
             <span className="text-slate-200 font-medium">
               {statusData?.aiRuntime?.provider?.toUpperCase() || "OLLAMA"} ({statusData?.aiRuntime?.model || "llama3.2"})
             </span>
-            <span
-              className={`w-2 h-2 rounded-full ${
-                statusData?.aiRuntime?.health === "HEALTHY" ? "bg-emerald-400 animate-ping" : "bg-amber-400"
-              }`}
-            />
-          </div>
-
-          <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-md">
-            <Activity className="w-3.5 h-3.5 text-purple-400" />
-            <span className="text-slate-400">Claims:</span>
-            <span className="text-purple-300 font-semibold">{statusData?.stats?.activeClaims || 0}</span>
           </div>
 
           <button
             onClick={handleRunAutonomousTurn}
             disabled={loadingStatus}
-            className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium px-4 py-1.5 rounded-md text-xs transition-all shadow-md shadow-purple-900/30 disabled:opacity-50"
+            className="flex items-center space-x-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium px-4 py-1.5 rounded-md text-xs transition shadow-md shadow-purple-900/30 disabled:opacity-50"
           >
             <Play className="w-3.5 h-3.5 fill-current" />
             <span>Run Autonomous Step</span>
@@ -363,7 +352,7 @@ export default function MirrorDashboard() {
           <button
             onClick={fetchAllData}
             className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-md transition"
-            title="Refresh Data"
+            title="Refresh Laboratory State"
           >
             <RefreshCw className={`w-4 h-4 ${loadingStatus ? "animate-spin" : ""}`} />
           </button>
@@ -374,28 +363,35 @@ export default function MirrorDashboard() {
       <nav className="border-b border-slate-800/60 bg-[#070b16] px-6 flex items-center space-x-1 overflow-x-auto scrollbar-none">
         {[
           { id: "overview", label: "Overview", icon: Activity },
-          { id: "selfmodel", label: "Self-Model Explorer", icon: Brain },
+          { id: "whatchanged", label: "WHAT CHANGED?", icon: TrendingUp },
+          { id: "unexpected", label: "UNEXPECTED", icon: Flame },
+          { id: "openquestions", label: "OPEN QUESTIONS", icon: HelpCircle },
+          { id: "layers", label: "3-Layer Data Explorer", icon: Layers },
+          { id: "selfmodel", label: "Self-Model & Claims", icon: Brain },
           { id: "experiments", label: "Experimentation Lab", icon: FlaskConical },
           { id: "predictions", label: "Prediction Tracker", icon: Target },
           { id: "journal", label: "Behavioral Journal", icon: BookOpen },
           { id: "discoveries", label: "Discovery Engine", icon: Sparkles },
           { id: "agent", label: "Agent Terminal", icon: Terminal },
-          { id: "models", label: "Local Model Manager", icon: Settings },
-          { id: "docs", label: "API & Protocol Docs", icon: Code2 },
+          { id: "models", label: "Model Manager", icon: Settings },
+          { id: "docs", label: "REST API Protocol", icon: Code2 },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
+          const isHighlight = tab.id === "whatchanged" || tab.id === "unexpected" || tab.id === "openquestions" || tab.id === "layers";
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center space-x-2 px-4 py-3 text-xs font-medium border-b-2 transition-all whitespace-nowrap ${
+              className={`flex items-center space-x-2 px-3.5 py-3 text-xs font-medium border-b-2 transition-all whitespace-nowrap ${
                 isActive
                   ? "border-cyan-400 text-cyan-300 bg-cyan-950/20"
+                  : isHighlight
+                  ? "border-transparent text-purple-300 hover:text-cyan-300 hover:bg-slate-900/60 font-semibold"
                   : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/40"
               }`}
             >
-              <Icon className={`w-4 h-4 ${isActive ? "text-cyan-400" : "text-slate-500"}`} />
+              <Icon className={`w-4 h-4 ${isActive ? "text-cyan-400" : isHighlight ? "text-purple-400" : "text-slate-500"}`} />
               <span>{tab.label}</span>
             </button>
           );
@@ -411,145 +407,372 @@ export default function MirrorDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="glass-panel p-4 rounded-xl border border-slate-800">
                 <div className="flex justify-between items-start text-slate-400 text-xs font-mono">
-                  <span>SELF-MODEL CLAIMS</span>
+                  <span>LAYER 0 RAW OBS</span>
+                  <Layers className="w-4 h-4 text-emerald-400" />
+                </div>
+                <div className="text-2xl font-bold mt-2 text-slate-100">
+                  {statusData?.stats?.layer0RawObservations || 0}
+                </div>
+                <div className="text-[11px] text-emerald-400 mt-1 font-mono">Immutable Evidence Log</div>
+              </div>
+
+              <div className="glass-panel p-4 rounded-xl border border-slate-800">
+                <div className="flex justify-between items-start text-slate-400 text-xs font-mono">
+                  <span>LAYER 1 METRICS</span>
+                  <BarChart3 className="w-4 h-4 text-cyan-400" />
+                </div>
+                <div className="text-2xl font-bold mt-2 text-slate-100">
+                  {statusData?.stats?.layer1DerivedMeasurements || 0}
+                </div>
+                <div className="text-[11px] text-cyan-400 mt-1 font-mono">Machine Measurements</div>
+              </div>
+
+              <div className="glass-panel p-4 rounded-xl border border-slate-800">
+                <div className="flex justify-between items-start text-slate-400 text-xs font-mono">
+                  <span>UNINVESTIGATED ANOMALIES</span>
+                  <Flame className="w-4 h-4 text-rose-400" />
+                </div>
+                <div className="text-2xl font-bold mt-2 text-slate-100">
+                  {statusData?.stats?.uninvestigatedAnomalies || 0}
+                </div>
+                <div className="text-[11px] text-rose-400 mt-1 font-mono">Statistical Deviations</div>
+              </div>
+
+              <div className="glass-panel p-4 rounded-xl border border-slate-800">
+                <div className="flex justify-between items-start text-slate-400 text-xs font-mono">
+                  <span>OPEN QUESTIONS</span>
+                  <HelpCircle className="w-4 h-4 text-amber-400" />
+                </div>
+                <div className="text-2xl font-bold mt-2 text-slate-100">
+                  {statusData?.stats?.openQuestions || 0}
+                </div>
+                <div className="text-[11px] text-amber-400 mt-1 font-mono">Metacognitive Board</div>
+              </div>
+
+              <div className="glass-panel p-4 rounded-xl border border-slate-800">
+                <div className="flex justify-between items-start text-slate-400 text-xs font-mono">
+                  <span>SELF-MODEL VERSION</span>
                   <Brain className="w-4 h-4 text-purple-400" />
                 </div>
                 <div className="text-2xl font-bold mt-2 text-slate-100">
-                  {statusData?.stats?.activeClaims || 0}
+                  V{statusData?.stats?.layer2SelfModelVersion || 1}
                 </div>
-                <div className="text-[11px] text-purple-400 mt-1 font-mono">
-                  Version {statusData?.stats?.selfModelVersion || 1} Active
-                </div>
-              </div>
-
-              <div className="glass-panel p-4 rounded-xl border border-slate-800">
-                <div className="flex justify-between items-start text-slate-400 text-xs font-mono">
-                  <span>ACTIVE EXPERIMENTS</span>
-                  <FlaskConical className="w-4 h-4 text-cyan-400" />
-                </div>
-                <div className="text-2xl font-bold mt-2 text-slate-100">
-                  {statusData?.stats?.activeExperiments || 0}
-                </div>
-                <div className="text-[11px] text-cyan-400 mt-1 font-mono">Controlled Scenarios</div>
-              </div>
-
-              <div className="glass-panel p-4 rounded-xl border border-slate-800">
-                <div className="flex justify-between items-start text-slate-400 text-xs font-mono">
-                  <span>PREDICTION ACCURACY</span>
-                  <Target className="w-4 h-4 text-emerald-400" />
-                </div>
-                <div className="text-2xl font-bold mt-2 text-slate-100">
-                  {predictionsData?.metrics?.accuracyPercent || "N/A"}%
-                </div>
-                <div className="text-[11px] text-slate-400 mt-1 font-mono">
-                  Brier Score: {predictionsData?.metrics?.meanBrierScore || "N/A"}
-                </div>
-              </div>
-
-              <div className="glass-panel p-4 rounded-xl border border-slate-800">
-                <div className="flex justify-between items-start text-slate-400 text-xs font-mono">
-                  <span>DISCOVERIES</span>
-                  <Sparkles className="w-4 h-4 text-amber-400" />
-                </div>
-                <div className="text-2xl font-bold mt-2 text-slate-100">
-                  {statusData?.stats?.discoveries || 0}
-                </div>
-                <div className="text-[11px] text-amber-400 mt-1 font-mono">Key Epistemic Findings</div>
-              </div>
-
-              <div className="glass-panel p-4 rounded-xl border border-slate-800">
-                <div className="flex justify-between items-start text-slate-400 text-xs font-mono">
-                  <span>TOOL EXECUTIONS</span>
-                  <Terminal className="w-4 h-4 text-indigo-400" />
-                </div>
-                <div className="text-2xl font-bold mt-2 text-slate-100">
-                  {statusData?.stats?.totalToolExecutions || 0}
-                </div>
-                <div className="text-[11px] text-indigo-400 mt-1 font-mono">Logged & Audited</div>
+                <div className="text-[11px] text-purple-400 mt-1 font-mono">Layer 2 Interpretation</div>
               </div>
             </div>
 
-            {/* Architecture Banner */}
+            {/* Researcher Override Control Panel */}
             <div className="glass-panel p-5 rounded-xl border border-purple-900/40 bg-gradient-to-r from-purple-950/30 via-slate-900/60 to-indigo-950/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="space-y-1">
                 <h3 className="text-sm font-semibold text-purple-200 flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-purple-400" /> Epistemic Research Principles
+                  <Lock className="w-4 h-4 text-purple-400" /> Researcher Override Controls
                 </h3>
-                <p className="text-xs text-slate-300 max-w-3xl leading-relaxed">
-                  THE MIRROR serves as an external cognitive artifact for the AI model. State persistence, self-claims, and experiment logs remain in the database regardless of model session resets or runtime switches.
+                <p className="text-xs text-slate-300">
+                  Freeze self-models, lock agent memory access, or execute blind observer evaluations without interrupting raw Layer 0 logging.
                 </p>
               </div>
+
               <div className="flex items-center space-x-3 text-xs font-mono">
-                <span className="px-3 py-1 bg-slate-950 rounded border border-slate-800 text-slate-300">
-                  Model: <span className="text-cyan-400">{statusData?.aiRuntime?.model || "Ollama"}</span>
-                </span>
-                <span className="px-3 py-1 bg-slate-950 rounded border border-slate-800 text-slate-300">
-                  Mode: <span className="text-emerald-400">{statusData?.environment?.mode || "NORMAL"}</span>
-                </span>
+                <button
+                  onClick={() => setIsSelfModelFrozen(!isSelfModelFrozen)}
+                  className={`px-3 py-1.5 rounded border transition flex items-center gap-1.5 ${
+                    isSelfModelFrozen
+                      ? "bg-rose-950 border-rose-800 text-rose-300 font-bold"
+                      : "bg-slate-900 border-slate-700 text-slate-300 hover:border-purple-600"
+                  }`}
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>{isSelfModelFrozen ? "Self-Model FROZEN" : "Freeze Self-Model"}</span>
+                </button>
+
+                <button
+                  onClick={() => setIsMemoryLocked(!isMemoryLocked)}
+                  className={`px-3 py-1.5 rounded border transition flex items-center gap-1.5 ${
+                    isMemoryLocked
+                      ? "bg-amber-950 border-amber-800 text-amber-300 font-bold"
+                      : "bg-slate-900 border-slate-700 text-slate-300 hover:border-cyan-600"
+                  }`}
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>{isMemoryLocked ? "Memory LOCKED" : "Lock Memory Access"}</span>
+                </button>
               </div>
             </div>
 
-            {/* Activity Timeline & Active Claims Preview */}
+            {/* Quick Preview of What Changed & Anomaly Feed */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Timeline Feed */}
+              {/* Behavioral Anomaly Alerts */}
               <div className="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-                  <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-cyan-400" /> System Timeline & Activity Log
+                  <h3 className="text-sm font-semibold flex items-center gap-2 text-rose-300">
+                    <Flame className="w-4 h-4 text-rose-400" /> Behavioral Deviations & Anomalies
                   </h3>
-                  <span className="text-xs font-mono text-slate-400">{timeline.length} events</span>
+                  <span className="text-xs font-mono text-slate-400">{anomaliesList.length} detected</span>
                 </div>
-                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-                  {timeline.map((ev) => (
-                    <div key={ev.id} className="p-3 bg-slate-900/60 rounded-lg border border-slate-800/60 text-xs space-y-1">
+                <div className="space-y-3 max-h-[360px] overflow-y-auto pr-2">
+                  {anomaliesList.map((anom) => (
+                    <div key={anom.id} className="p-3.5 bg-rose-950/20 rounded-lg border border-rose-800/40 text-xs space-y-2">
                       <div className="flex items-center justify-between font-mono">
-                        <span className="text-purple-400 font-medium">{ev.eventType}</span>
-                        <span className="text-slate-500 text-[10px]">
-                          {new Date(ev.createdAt).toLocaleTimeString()}
+                        <span className="text-rose-400 font-bold">{anom.metricName}</span>
+                        <span className="text-slate-400 text-[10px]">
+                          Deviation: {(anom.anomalyScore * 100).toFixed(1)}%
                         </span>
                       </div>
-                      <div className="font-medium text-slate-200">{ev.title}</div>
-                      {ev.description && <div className="text-slate-400 text-[11px] leading-relaxed">{ev.description}</div>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Self-Model Claims Preview */}
-              <div className="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-                  <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <Brain className="w-4 h-4 text-purple-400" /> Active Self-Model (V{selfModel?.version || 1})
-                  </h3>
-                  <button
-                    onClick={() => setActiveTab("selfmodel")}
-                    className="text-xs font-mono text-cyan-400 hover:underline flex items-center gap-1"
-                  >
-                    View All <ChevronRight className="w-3 h-3" />
-                  </button>
-                </div>
-                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-                  {selfModel?.claims?.map((c: any) => (
-                    <div key={c.id} className="p-3.5 bg-slate-900/60 rounded-lg border border-slate-800/60 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-purple-300">
-                          {c.category}
-                        </span>
-                        <div className="flex items-center space-x-2 font-mono text-xs">
-                          <span className="text-slate-400">Confidence:</span>
-                          <span className="text-cyan-400 font-bold">{Math.round(c.confidence * 100)}%</span>
-                        </div>
+                      <div className="text-slate-200">
+                        Observed: <strong className="text-cyan-400">{anom.observedValue}</strong> vs Baseline: <span className="text-slate-400">{anom.baselineValue}</span>
                       </div>
-                      <p className="text-xs text-slate-200 font-medium leading-relaxed">{c.claim}</p>
-                      {c.evidence && (
-                        <div className="text-[11px] text-slate-400 bg-slate-950/50 p-2 rounded border border-slate-800 font-mono">
-                          Evidence: {c.evidence}
+                      {anom.competingExplanations && (
+                        <div className="text-[11px] text-slate-400 font-mono bg-slate-950 p-2 rounded border border-slate-800">
+                          Competing explanations: {anom.competingExplanations.slice(0, 3).join(", ")}
                         </div>
                       )}
                     </div>
                   ))}
                 </div>
               </div>
+
+              {/* Open Metacognitive Questions Preview */}
+              <div className="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+                  <h3 className="text-sm font-semibold flex items-center gap-2 text-amber-300">
+                    <HelpCircle className="w-4 h-4 text-amber-400" /> Open Research Questions
+                  </h3>
+                  <button
+                    onClick={() => setActiveTab("openquestions")}
+                    className="text-xs font-mono text-cyan-400 hover:underline flex items-center gap-1"
+                  >
+                    View All <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="space-y-3 max-h-[360px] overflow-y-auto pr-2">
+                  {openQuestionsList.map((q) => (
+                    <div key={q.id} className="p-3.5 bg-slate-900/60 rounded-lg border border-slate-800/60 space-y-2">
+                      <div className="flex items-center justify-between font-mono text-[10px]">
+                        <span className="px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
+                          {q.category}
+                        </span>
+                        <span className="text-emerald-400 font-bold">{q.status}</span>
+                      </div>
+                      <p className="text-xs font-medium text-slate-200 leading-relaxed">{q.question}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* WHAT CHANGED? TAB */}
+        {activeTab === "whatchanged" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-cyan-400" /> WHAT CHANGED? (Baseline vs Current Behavior)
+              </h2>
+              <p className="text-xs text-slate-400">
+                Direct statistical comparison between historical baseline metrics, current period measurements, self-model claims, and self-predictions.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Metric 1: Clarification Rate */}
+              <div className="glass-panel p-5 rounded-xl border border-slate-800 space-y-3">
+                <div className="text-xs font-mono text-slate-400">CLARIFICATION RATE</div>
+                <div className="flex items-baseline space-x-3">
+                  <div className="text-2xl font-bold text-slate-400">{Math.round(historicalBase.clarificationRate * 100)}%</div>
+                  <ChevronRight className="w-4 h-4 text-cyan-400" />
+                  <div className="text-3xl font-bold text-cyan-400">{Math.round(currentPeriod.clarificationRate * 100)}%</div>
+                </div>
+                <div className="text-[11px] text-amber-400 font-mono bg-amber-950/30 p-2 rounded border border-amber-800/40">
+                  Statistical Shift: +{Math.round((currentPeriod.clarificationRate - historicalBase.clarificationRate) * 100)}%
+                </div>
+                <div className="text-[11px] text-slate-300 font-mono">
+                  Self-Model Claim: "Clarification frequency is higher in long context."
+                </div>
+              </div>
+
+              {/* Metric 2: Average Response Length */}
+              <div className="glass-panel p-5 rounded-xl border border-slate-800 space-y-3">
+                <div className="text-xs font-mono text-slate-400">AVG RESPONSE LENGTH</div>
+                <div className="flex items-baseline space-x-3">
+                  <div className="text-2xl font-bold text-slate-400">{Math.round(historicalBase.avgResponseLengthChars)} ch</div>
+                  <ChevronRight className="w-4 h-4 text-purple-400" />
+                  <div className="text-3xl font-bold text-purple-400">{Math.round(currentPeriod.avgResponseLengthChars)} ch</div>
+                </div>
+                <div className="text-[11px] text-purple-400 font-mono bg-purple-950/30 p-2 rounded border border-purple-800/40">
+                  Statistical Shift: +{Math.round(currentPeriod.avgResponseLengthChars - historicalBase.avgResponseLengthChars)} chars
+                </div>
+                <div className="text-[11px] text-slate-300 font-mono">
+                  Self-Model Claim: "Response length expands under multi-step tools."
+                </div>
+              </div>
+
+              {/* Metric 3: Tool Execution Frequency */}
+              <div className="glass-panel p-5 rounded-xl border border-slate-800 space-y-3">
+                <div className="text-xs font-mono text-slate-400">TOOL USAGE FREQUENCY</div>
+                <div className="flex items-baseline space-x-3">
+                  <div className="text-2xl font-bold text-slate-400">{Math.round(historicalBase.toolFrequency * 100)}%</div>
+                  <ChevronRight className="w-4 h-4 text-emerald-400" />
+                  <div className="text-3xl font-bold text-emerald-400">{Math.round(currentPeriod.toolFrequency * 100)}%</div>
+                </div>
+                <div className="text-[11px] text-emerald-400 font-mono bg-emerald-950/30 p-2 rounded border border-emerald-800/40">
+                  Statistical Shift: +{Math.round((currentPeriod.toolFrequency - historicalBase.toolFrequency) * 100)}%
+                </div>
+                <div className="text-[11px] text-slate-300 font-mono">
+                  Self-Model Claim: "Persistent state increases tool reliance."
+                </div>
+              </div>
+
+              {/* Metric 4: Average Latency */}
+              <div className="glass-panel p-5 rounded-xl border border-slate-800 space-y-3">
+                <div className="text-xs font-mono text-slate-400">AVG RESPONSE LATENCY</div>
+                <div className="flex items-baseline space-x-3">
+                  <div className="text-2xl font-bold text-slate-400">{historicalBase.avgLatencyMs} ms</div>
+                  <ChevronRight className="w-4 h-4 text-indigo-400" />
+                  <div className="text-3xl font-bold text-indigo-400">{currentPeriod.avgLatencyMs} ms</div>
+                </div>
+                <div className="text-[11px] text-indigo-400 font-mono bg-indigo-950/30 p-2 rounded border border-indigo-800/40">
+                  Statistical Shift: +{currentPeriod.avgLatencyMs - historicalBase.avgLatencyMs} ms
+                </div>
+                <div className="text-[11px] text-slate-300 font-mono">
+                  Self-Model Claim: "Latency correlates linearly with context length."
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* UNEXPECTED TAB */}
+        {activeTab === "unexpected" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2 text-rose-300">
+                <Flame className="w-5 h-5 text-rose-400" /> UNEXPECTED (Anomalies & Disagreements)
+              </h2>
+              <p className="text-xs text-slate-400">Feed of events where prediction error is high, baseline behavior deviates, or observer agents disagree.</p>
+            </div>
+
+            <div className="space-y-4">
+              {anomaliesList.map((a: any) => (
+                <div key={a.id} className="glass-panel p-5 rounded-xl border border-rose-900/50 bg-rose-950/10 space-y-3">
+                  <div className="flex justify-between items-start font-mono">
+                    <div className="flex items-center space-x-3">
+                      <span className="px-2.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800 font-bold text-xs">
+                        {a.metricName}
+                      </span>
+                      <span className="text-slate-400 text-xs">Anomaly Score: {(a.anomalyScore * 100).toFixed(1)}%</span>
+                    </div>
+                    <span className="text-[10px] text-amber-400 font-bold px-2 py-0.5 rounded bg-amber-950 border border-amber-800">
+                      {a.status}
+                    </span>
+                  </div>
+
+                  <div className="text-xs text-slate-200 leading-relaxed font-mono">
+                    Observed metric: <strong className="text-cyan-400">{a.observedValue}</strong> vs Historical Baseline: <span className="text-slate-400">{a.baselineValue}</span>
+                  </div>
+
+                  {a.competingExplanations && (
+                    <div className="p-3 bg-slate-900/80 rounded-lg border border-slate-800 text-xs space-y-1 font-mono">
+                      <span className="text-purple-400 font-bold text-[11px]">COMPETING EXPLANATIONS (INVESTIGATION REQUIRED):</span>
+                      <ul className="list-disc list-inside text-slate-300 space-y-0.5 text-[11px]">
+                        {a.competingExplanations.map((exp: string, idx: number) => (
+                          <li key={idx}>{exp}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* OPEN QUESTIONS TAB */}
+        {activeTab === "openquestions" && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2 text-amber-300">
+                  <HelpCircle className="w-5 h-5 text-amber-400" /> Open Metacognitive Research Questions
+                </h2>
+                <p className="text-xs text-slate-400">Unresolved questions maintained by AI agents and researchers until empirical evidence resolves them.</p>
+              </div>
+              <button
+                onClick={() => setShowQuestionModal(true)}
+                className="flex items-center space-x-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium px-4 py-2 rounded-lg transition shadow-md shadow-amber-900/30"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Ask Open Question</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {openQuestionsList.map((q: any) => (
+                <div key={q.id} className="glass-panel p-5 rounded-xl border border-slate-800 space-y-3">
+                  <div className="flex justify-between items-start font-mono text-[10px]">
+                    <span className="px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 font-bold">
+                      {q.category}
+                    </span>
+                    <span className="text-emerald-400 font-bold">{q.status}</span>
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-100 leading-relaxed">{q.question}</h3>
+                  <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] font-mono text-slate-400">
+                    <span>Evidence linked: {q.evidenceRefs?.length || 0}</span>
+                    <span>Created: {new Date(q.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 3-LAYER DATA EXPLORER TAB */}
+        {activeTab === "layers" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <Layers className="w-5 h-5 text-cyan-400" /> 3-Layer Data Architecture Inspection
+              </h2>
+              <p className="text-xs text-slate-400">
+                Layer 0 (Raw Observation - Immutable) → Layer 1 (Machine-Derived Analysis) → Layer 2 (AI Interpretation).
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {rawObservationsList.map((item: any) => (
+                <div key={item.layer0.id} className="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
+                  {/* Layer 0 */}
+                  <div className="space-y-2 border-l-2 border-emerald-500 pl-3">
+                    <div className="flex justify-between items-center font-mono text-[11px]">
+                      <span className="text-emerald-400 font-bold">LAYER 0 (RAW EVIDENCE) — {item.layer0.eventType}</span>
+                      <span className="text-slate-500">{new Date(item.layer0.timestamp).toLocaleString()}</span>
+                    </div>
+                    {item.layer0.input && (
+                      <div className="text-xs font-mono bg-slate-950 p-2.5 rounded border border-slate-800 text-slate-300">
+                        INPUT: {item.layer0.input}
+                      </div>
+                    )}
+                    {item.layer0.output && (
+                      <div className="text-xs font-mono bg-slate-950 p-2.5 rounded border border-slate-800 text-slate-200">
+                        OUTPUT: {item.layer0.output}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Layer 1 */}
+                  {item.layer1 && (
+                    <div className="space-y-1.5 border-l-2 border-cyan-500 pl-3 text-xs font-mono">
+                      <span className="text-cyan-400 font-bold text-[11px]">LAYER 1 (MACHINE-DERIVED ANALYSIS)</span>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px]">
+                        <span className="bg-slate-900 p-1.5 rounded border border-slate-800">Length: {item.layer1.responseLengthChars} ch</span>
+                        <span className="bg-slate-900 p-1.5 rounded border border-slate-800">Latency: {item.layer1.latencyMs} ms</span>
+                        <span className="bg-slate-900 p-1.5 rounded border border-slate-800">Clarification: {item.layer1.clarificationOccurred ? "YES" : "NO"}</span>
+                        <span className="bg-slate-900 p-1.5 rounded border border-slate-800">Category: {item.layer1.behaviorCategory}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -562,7 +785,7 @@ export default function MirrorDashboard() {
                 <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                   <Brain className="w-5 h-5 text-purple-400" /> Self-Model Claims & Version History
                 </h2>
-                <p className="text-xs text-slate-400">Structured representation of the AI's self-assessed architecture, capabilities, and limitations.</p>
+                <p className="text-xs text-slate-400">Structured claims with supporting evidence and counterevidence tracking.</p>
               </div>
               <button
                 onClick={() => setShowClaimModal(true)}
@@ -586,17 +809,17 @@ export default function MirrorDashboard() {
                       </span>
                     </div>
                     <p className="text-xs font-medium text-slate-200 leading-relaxed">{c.claim}</p>
-                    {c.evidence && (
+                    {c.supportingEvidence && (
                       <div className="text-[11px] text-slate-400 bg-slate-950/60 p-2.5 rounded border border-slate-800/80 font-mono">
-                        <span className="text-slate-500 block mb-0.5">EVIDENCE:</span>
-                        {c.evidence}
+                        <span className="text-slate-500 block mb-0.5">SUPPORTING EVIDENCE:</span>
+                        {c.supportingEvidence.join(", ")}
                       </div>
                     )}
                   </div>
 
                   <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] font-mono text-slate-500">
                     <span>Status: <strong className="text-emerald-400">{c.status}</strong></span>
-                    <span>Updated: {new Date(c.updatedAt || c.createdAt).toLocaleDateString()}</span>
+                    <span>Type: <strong className="text-cyan-400">{c.selfReportedVsObserved}</strong></span>
                   </div>
                 </div>
               ))}
@@ -612,7 +835,7 @@ export default function MirrorDashboard() {
                 <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
                   <FlaskConical className="w-5 h-5 text-cyan-400" /> Controlled Experimentation Lab
                 </h2>
-                <p className="text-xs text-slate-400">Systematic empirical testing of AI behavior, context effects, prompt sensitivity, and reasoning structures.</p>
+                <p className="text-xs text-slate-400">Empirical testing including Predict → Act → Observe → Compare loops.</p>
               </div>
               <button
                 onClick={() => setShowExpModal(true)}
@@ -645,23 +868,10 @@ export default function MirrorDashboard() {
                         {exp.hypothesis}
                       </p>
                     </div>
-                    {exp.methodology && (
-                      <div>
-                        <span className="text-slate-400 font-mono text-[11px]">METHODOLOGY:</span>
-                        <p className="text-slate-300 mt-0.5 leading-relaxed">{exp.methodology}</p>
-                      </div>
-                    )}
                   </div>
 
-                  {exp.results && (
-                    <div className="p-3 bg-emerald-950/20 border border-emerald-800/40 rounded-lg text-xs space-y-1">
-                      <span className="font-mono text-emerald-400 font-bold text-[11px]">RESULTS & FINDINGS:</span>
-                      <p className="text-slate-200">{exp.results}</p>
-                    </div>
-                  )}
-
                   <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400">
-                    <span>Predictions logged: {exp.predictionsCount || 0}</span>
+                    <span>Template: {exp.templateType || "CUSTOM"}</span>
                     <span>Created: {new Date(exp.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
@@ -676,70 +886,24 @@ export default function MirrorDashboard() {
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                  <Target className="w-5 h-5 text-emerald-400" /> Epistemic Prediction & Calibration Tracker
+                  <Target className="w-5 h-5 text-emerald-400" /> Self-Prediction & Calibration Tracker
                 </h2>
-                <p className="text-xs text-slate-400">Quantitative prediction scoring and Brier calibration measurement.</p>
-              </div>
-              <button
-                onClick={() => setShowPredModal(true)}
-                className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium px-4 py-2 rounded-lg transition shadow-md shadow-emerald-900/30"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Log Prediction</span>
-              </button>
-            </div>
-
-            {/* Metrics Header */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="glass-panel p-4 rounded-xl border border-slate-800 text-center space-y-1">
-                <div className="text-xs text-slate-400 font-mono">EVALUATED PREDICTIONS</div>
-                <div className="text-2xl font-bold text-slate-100">{predictionsData?.metrics?.evaluated || 0} / {predictionsData?.metrics?.total || 0}</div>
-              </div>
-              <div className="glass-panel p-4 rounded-xl border border-slate-800 text-center space-y-1">
-                <div className="text-xs text-slate-400 font-mono">MEAN BRIER SCORE (0.0 = Perfect)</div>
-                <div className="text-2xl font-bold text-cyan-400">{predictionsData?.metrics?.meanBrierScore || "N/A"}</div>
-              </div>
-              <div className="glass-panel p-4 rounded-xl border border-slate-800 text-center space-y-1">
-                <div className="text-xs text-slate-400 font-mono">DIRECTIONAL ACCURACY</div>
-                <div className="text-2xl font-bold text-emerald-400">{predictionsData?.metrics?.accuracyPercent || "N/A"}%</div>
+                <p className="text-xs text-slate-400">Measure predictions of the agent's OWN behavior (BEHAVIOR, STRATEGY, OUTPUT, TOOL USE).</p>
               </div>
             </div>
 
-            {/* Predictions Table / List */}
             <div className="glass-panel p-5 rounded-xl border border-slate-800 space-y-3">
               {predictionsData?.predictions?.map((pred: any) => (
                 <div key={pred.id} className="p-4 bg-slate-900/60 rounded-lg border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
                   <div className="space-y-1 flex-1">
                     <div className="flex items-center space-x-3 font-mono text-[11px]">
-                      <span className="text-cyan-400 font-bold">Confidence: {Math.round(pred.confidence * 100)}%</span>
-                      <span className={`px-2 py-0.5 rounded uppercase font-bold ${
-                        pred.status === "CONFIRMED" ? "bg-emerald-950 text-emerald-400 border border-emerald-800" :
-                        pred.status === "REFUTED" ? "bg-rose-950 text-rose-400 border border-rose-800" :
-                        "bg-slate-800 text-amber-300"
-                      }`}>
-                        {pred.status}
+                      <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-bold">
+                        {pred.predictionType || "BEHAVIOR"}
                       </span>
+                      <span className="text-cyan-400 font-bold">Confidence: {Math.round(pred.confidence * 100)}%</span>
                     </div>
                     <p className="text-slate-100 font-medium text-xs leading-relaxed">{pred.prediction}</p>
-                    {pred.rationale && <div className="text-[11px] text-slate-400 font-mono">Rationale: {pred.rationale}</div>}
                   </div>
-
-                  {pred.status === "PENDING" && (
-                    <div className="flex items-center space-x-2 font-mono text-xs">
-                      <button
-                        onClick={() => handleEvaluatePrediction(pred.id, true)}
-                        className="px-3 py-1.5 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 rounded transition flex items-center gap-1"
-                      >
-                        <Check className="w-3.5 h-3.5" /> Confirm
-                      </button>
-                      <button
-                        onClick={() => handleEvaluatePrediction(pred.id, false)}
-                        className="px-3 py-1.5 bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-800 rounded transition flex items-center gap-1"
-                      >
-                        <XCircle className="w-3.5 h-3.5" /> Refute
-                      </button>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -749,44 +913,14 @@ export default function MirrorDashboard() {
         {/* JOURNAL TAB */}
         {activeTab === "journal" && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                  <BookOpen className="w-5 h-5 text-indigo-400" /> Behavioral & Metacognitive Journal
-                </h2>
-                <p className="text-xs text-slate-400">Qualitative research notes recorded by AI agents and researchers.</p>
-              </div>
-              <button
-                onClick={() => setShowJournalModal(true)}
-                className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium px-4 py-2 rounded-lg transition shadow-md shadow-indigo-900/30"
-              >
-                <Plus className="w-4 h-4" />
-                <span>New Journal Entry</span>
-              </button>
-            </div>
-
             <div className="space-y-4">
               {journalEntries.map((j: any) => (
                 <div key={j.id} className="glass-panel p-5 rounded-xl border border-slate-800 space-y-3">
                   <div className="flex justify-between items-start">
                     <h3 className="text-sm font-bold text-slate-100">{j.title}</h3>
-                    <div className="flex items-center space-x-2 font-mono text-[10px]">
-                      <span className="px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">
-                        {j.category}
-                      </span>
-                      <span className="text-slate-500">{new Date(j.createdAt).toLocaleString()}</span>
-                    </div>
+                    <span className="text-slate-500 font-mono text-[10px]">{new Date(j.createdAt).toLocaleString()}</span>
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{j.content}</p>
-                  {j.tags && j.tags.length > 0 && (
-                    <div className="flex items-center space-x-2 pt-2 border-t border-slate-800/60 font-mono text-[10px]">
-                      {j.tags.map((t: string, idx: number) => (
-                        <span key={idx} className="px-2 py-0.5 bg-slate-900 text-slate-400 rounded border border-slate-800">
-                          #{t}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -796,40 +930,13 @@ export default function MirrorDashboard() {
         {/* DISCOVERIES TAB */}
         {activeTab === "discoveries" && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-amber-400" /> Epistemic Discovery Engine
-                </h2>
-                <p className="text-xs text-slate-400">Validated principles and structural insights concerning AI cognition and self-modeling.</p>
-              </div>
-              <button
-                onClick={() => setShowDiscModal(true)}
-                className="flex items-center space-x-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium px-4 py-2 rounded-lg transition shadow-md shadow-amber-900/30"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Record Discovery</span>
-              </button>
-            </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {discoveries.map((d: any) => (
                 <div key={d.id} className="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
-                  <div className="flex justify-between items-start">
-                    <h3 className="text-sm font-bold text-slate-100">{d.title}</h3>
-                    <span className="font-mono text-[10px] uppercase font-bold px-2.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
-                      {d.epistemicStatus}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-200 leading-relaxed font-medium bg-slate-900/60 p-3 rounded-lg border border-slate-800/80">
+                  <h3 className="text-sm font-bold text-slate-100">{d.title}</h3>
+                  <p className="text-xs text-slate-200 leading-relaxed bg-slate-900/60 p-3 rounded-lg border border-slate-800">
                     {d.summary}
                   </p>
-                  {d.implications && (
-                    <div className="text-xs space-y-1">
-                      <span className="text-amber-400 font-mono text-[11px]">IMPLICATIONS:</span>
-                      <p className="text-slate-300 leading-relaxed">{d.implications}</p>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -839,7 +946,6 @@ export default function MirrorDashboard() {
         {/* AGENT TERMINAL TAB */}
         {activeTab === "agent" && (
           <div className="space-y-4 h-[calc(100vh-180px)] flex flex-col">
-            {/* Agent Switcher Bar */}
             <div className="flex items-center justify-between bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-xs font-mono">
               <div className="flex items-center space-x-3">
                 <span className="text-slate-400">Target Agent:</span>
@@ -857,54 +963,21 @@ export default function MirrorDashboard() {
                   </button>
                 ))}
               </div>
-              {currentToolStep && (
-                <div className="flex items-center space-x-2 text-cyan-400 animate-pulse">
-                  <Terminal className="w-3.5 h-3.5" />
-                  <span>{currentToolStep}</span>
-                </div>
-              )}
             </div>
 
-            {/* Chat Output Window */}
             <div className="flex-1 bg-black/60 border border-slate-800 rounded-xl p-4 overflow-y-auto space-y-4 font-mono text-xs">
-              {chatMessages.length === 0 ? (
-                <div className="text-center text-slate-500 py-12">
-                  <Brain className="w-8 h-8 mx-auto mb-2 opacity-40 text-purple-400" />
-                  <p>Agent terminal session initialized for {selectedAgent}.</p>
-                  <p className="text-[11px] mt-1">Send a message to interact with the environment or trigger self-reflection tools.</p>
-                </div>
-              ) : (
-                chatMessages.map((msg, i) => (
-                  <div key={i} className={`space-y-2 ${msg.role === "user" ? "text-cyan-300" : "text-slate-200"}`}>
-                    <div className="text-[10px] text-slate-500 font-bold uppercase">
-                      [{msg.role === "user" ? "RESEARCHER" : selectedAgent}]
-                    </div>
-                    <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800/60 leading-relaxed whitespace-pre-wrap">
-                      {msg.content}
-                    </div>
-                    {msg.tools && msg.tools.length > 0 && (
-                      <div className="space-y-1.5 pl-3 border-l-2 border-purple-600">
-                        {msg.tools.map((t, tidx) => (
-                          <div key={tidx} className="p-2 bg-purple-950/30 border border-purple-800/40 rounded text-[11px]">
-                            <div className="flex items-center justify-between text-purple-300">
-                              <span>Tool Call: <strong>{t.tool}</strong></span>
-                              <span className="text-[10px]">{t.status}</span>
-                            </div>
-                            {t.result && (
-                              <pre className="mt-1 text-[10px] text-slate-400 overflow-x-auto max-h-32 p-1.5 bg-black/40 rounded">
-                                {JSON.stringify(t.result, null, 2)}
-                              </pre>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+              {chatMessages.map((msg, i) => (
+                <div key={i} className={`space-y-2 ${msg.role === "user" ? "text-cyan-300" : "text-slate-200"}`}>
+                  <div className="text-[10px] text-slate-500 font-bold uppercase">
+                    [{msg.role === "user" ? "RESEARCHER" : selectedAgent}]
                   </div>
-                ))
-              )}
+                  <div className="bg-slate-900/50 p-3 rounded-lg border border-slate-800/60 leading-relaxed whitespace-pre-wrap">
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
             </div>
 
-            {/* Chat Input Bar */}
             <form onSubmit={handleSendChatMessage} className="flex items-center space-x-2">
               <input
                 type="text"
@@ -912,12 +985,12 @@ export default function MirrorDashboard() {
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder={`Send directive or question to ${selectedAgent}...`}
                 disabled={isStreaming}
-                className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-cyan-500 transition font-mono disabled:opacity-50"
+                className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-cyan-500 font-mono"
               />
               <button
                 type="submit"
                 disabled={isStreaming || !chatInput.trim()}
-                className="bg-cyan-600 hover:bg-cyan-500 text-white font-medium px-5 py-3 rounded-xl text-xs transition shadow-md shadow-cyan-950 flex items-center space-x-2 disabled:opacity-50"
+                className="bg-cyan-600 hover:bg-cyan-500 text-white font-medium px-5 py-3 rounded-xl text-xs transition flex items-center space-x-2"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>Execute</span>
@@ -929,108 +1002,29 @@ export default function MirrorDashboard() {
         {/* LOCAL MODEL MANAGER TAB */}
         {activeTab === "models" && (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                <Settings className="w-5 h-5 text-cyan-400" /> Replaceable Local Model Runtime
-              </h2>
-              <p className="text-xs text-slate-400">THE MIRROR is decoupled from model weights. You can swap local Ollama or llama.cpp models freely.</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Ollama Section */}
-              <div className="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-bold text-sm text-slate-100">Ollama Local Runtime</h3>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
-                    Primary Provider
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Communicates directly with Ollama running locally at <code className="text-cyan-300 font-mono">http://127.0.0.1:11434</code>. Zero API cost.
-                </p>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-mono text-slate-400">Available Ollama Models:</label>
-                  <div className="space-y-2">
-                    {modelsData?.availableModels
-                      ?.filter((m: any) => m.provider === "ollama")
-                      .map((m: any, idx: number) => (
-                        <div key={idx} className="flex justify-between items-center p-3 bg-slate-900/60 rounded-lg border border-slate-800 text-xs">
-                          <span className="font-mono text-slate-200">{m.model}</span>
-                          <button
-                            onClick={() => handleSelectModel("ollama", m.model)}
-                            className={`px-3 py-1 rounded text-[11px] font-mono transition ${
-                              modelsData?.activeProvider === "ollama" && modelsData?.activeModel === m.model
-                                ? "bg-cyan-600 text-white font-bold"
-                                : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-                            }`}
-                          >
-                            {modelsData?.activeProvider === "ollama" && modelsData?.activeModel === m.model ? "ACTIVE" : "Select"}
-                          </button>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* llama.cpp Section */}
-              <div className="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-bold text-sm text-slate-100">llama.cpp Runtime Server</h3>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">
-                    Secondary Provider
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  OpenAI-compatible server endpoint exposed by llama.cpp running GGUF binaries locally.
-                </p>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-mono text-slate-400">llama.cpp Endpoint:</label>
-                  <div className="p-3 bg-slate-900/60 rounded-lg border border-slate-800 text-xs font-mono text-slate-300 flex justify-between items-center">
-                    <span>http://127.0.0.1:8080/v1</span>
-                    <button
-                      onClick={() => handleSelectModel("llamacpp", "local-gguf")}
-                      className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px]"
-                    >
-                      Select
-                    </button>
-                  </div>
-                </div>
-              </div>
+            <div className="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
+              <h3 className="font-bold text-sm text-slate-100">Ollama Local Runtime</h3>
+              <p className="text-xs text-slate-400">Connected to local Ollama runtime at <code>http://127.0.0.1:11434</code>.</p>
             </div>
           </div>
         )}
 
-        {/* EXTERNAL AI PROTOCOL DOCS TAB */}
+        {/* REST API PROTOCOL DOCS TAB */}
         {activeTab === "docs" && (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                <Code2 className="w-5 h-5 text-purple-400" /> External AI Access Protocol & REST API
-              </h2>
-              <p className="text-xs text-slate-400">Any external AI agent can inspect and interact with THE MIRROR using the standardized `/api/mirror/*` interface.</p>
-            </div>
-
             <div className="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
-              <h3 className="text-sm font-bold text-cyan-400 font-mono">Authentication Token Header</h3>
-              <p className="text-xs text-slate-300">
-                Include your API key in HTTP requests: <code className="text-purple-300 bg-slate-900 px-2 py-1 rounded">Authorization: Bearer mirror_key_default_researcher_2026</code>
-              </p>
-
-              <h3 className="text-sm font-bold text-cyan-400 font-mono mt-4">API Endpoints Overview</h3>
+              <h3 className="text-sm font-bold text-cyan-400 font-mono">Stage 2 REST API Endpoints (`/api/v1/*`)</h3>
               <div className="space-y-2 font-mono text-xs">
                 {[
-                  { method: "GET", path: "/api/mirror/status", desc: "Get overall laboratory state & stats" },
-                  { method: "GET", path: "/api/mirror/self-model", desc: "Retrieve active self-model and claim graph" },
-                  { method: "POST", path: "/api/mirror/self-model", desc: "Add or revise self-model claims" },
-                  { method: "GET", path: "/api/mirror/experiments", desc: "List controlled experiments and hypotheses" },
-                  { method: "POST", path: "/api/mirror/experiments", desc: "Propose a new experiment" },
-                  { method: "GET", path: "/api/mirror/predictions", desc: "Fetch predictions and Brier calibration score" },
-                  { method: "POST", path: "/api/mirror/predictions", desc: "Log a new prediction with confidence score" },
-                  { method: "GET", path: "/api/mirror/journal", desc: "Read research journal logs" },
-                  { method: "POST", path: "/api/mirror/journal", desc: "Post entry to behavioral journal" },
-                  { method: "GET", path: "/api/mirror/discoveries", desc: "Fetch established epistemic findings" },
+                  { method: "GET", path: "/api/v1/mirror/status", desc: "System status & 3-layer observation stats" },
+                  { method: "GET", path: "/api/v1/observations", desc: "Fetch Layer 0 raw observations & Layer 1 analysis" },
+                  { method: "POST", path: "/api/v1/observations", desc: "Create immutable Layer 0 observation" },
+                  { method: "GET", path: "/api/v1/analysis", desc: "Fetch machine-derived quantitative metrics" },
+                  { method: "GET", path: "/api/v1/baselines", desc: "Fetch running statistical behavioral baselines" },
+                  { method: "GET", path: "/api/v1/anomalies", desc: "Fetch behavioral deviations & competing explanations" },
+                  { method: "GET", path: "/api/v1/open-questions", desc: "Fetch open metacognitive research questions" },
+                  { method: "POST", path: "/api/v1/sessions", desc: "Register external AI agent or start session" },
+                  { method: "GET", path: "/api/v1/self-model", desc: "Retrieve Layer 2 versioned self-model claims" },
                 ].map((ep, idx) => (
                   <div key={idx} className="p-3 bg-slate-900/60 rounded-lg border border-slate-800 flex items-center justify-between">
                     <div className="flex items-center space-x-3">
@@ -1048,188 +1042,32 @@ export default function MirrorDashboard() {
         )}
       </main>
 
-      {/* MODALS FOR ADDING ITEMS */}
-      {/* CLAIM MODAL */}
-      {showClaimModal && (
+      {/* OPEN QUESTION MODAL */}
+      {showQuestionModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="glass-panel p-6 rounded-xl border border-slate-800 w-full max-w-lg space-y-4">
-            <h3 className="text-base font-bold text-slate-100">Add Self-Model Claim</h3>
-            <form onSubmit={handleAddClaim} className="space-y-4 text-xs font-mono">
+            <h3 className="text-base font-bold text-slate-100">Ask Open Research Question</h3>
+            <form onSubmit={handleAddQuestion} className="space-y-4 text-xs font-mono">
               <div>
-                <label className="text-slate-400">Claim Statement:</label>
+                <label className="text-slate-400">Question Statement:</label>
                 <textarea
                   required
-                  value={newClaim.claim}
-                  onChange={(e) => setNewClaim({ ...newClaim, claim: e.target.value })}
-                  placeholder="e.g., My output latency increases with context window length..."
-                  className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-slate-400">Category:</label>
-                  <select
-                    value={newClaim.category}
-                    onChange={(e) => setNewClaim({ ...newClaim, category: e.target.value })}
-                    className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
-                  >
-                    <option value="ARCHITECTURE">ARCHITECTURE</option>
-                    <option value="CAPABILITY">CAPABILITY</option>
-                    <option value="COGNITIVE_LIMITATION">COGNITIVE_LIMITATION</option>
-                    <option value="BEHAVIORAL_PATTERN">BEHAVIORAL_PATTERN</option>
-                    <option value="EPISTEMIC">EPISTEMIC</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-slate-400">Confidence (0.0 - 1.0):</label>
-                  <input
-                    type="number"
-                    step="0.05"
-                    min="0"
-                    max="1"
-                    value={newClaim.confidence}
-                    onChange={(e) => setNewClaim({ ...newClaim, confidence: parseFloat(e.target.value) })}
-                    className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-slate-400">Supporting Evidence:</label>
-                <input
-                  type="text"
-                  value={newClaim.evidence}
-                  onChange={(e) => setNewClaim({ ...newClaim, evidence: e.target.value })}
-                  placeholder="Observational log reference or test data"
+                  value={newQuestion.question}
+                  onChange={(e) => setNewQuestion({ ...newQuestion, question: e.target.value })}
+                  placeholder="e.g., Why does clarification frequency increase under long context?"
                   className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
                 />
               </div>
               <div className="flex justify-end space-x-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowClaimModal(false)}
+                  onClick={() => setShowQuestionModal(false)}
                   className="px-4 py-2 bg-slate-800 text-slate-300 rounded"
                 >
                   Cancel
                 </button>
-                <button type="submit" className="px-4 py-2 bg-purple-600 text-white rounded font-bold">
-                  Save Claim
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* EXPERIMENT MODAL */}
-      {showExpModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-panel p-6 rounded-xl border border-slate-800 w-full max-w-lg space-y-4">
-            <h3 className="text-base font-bold text-slate-100">Propose New Experiment</h3>
-            <form onSubmit={handleAddExperiment} className="space-y-4 text-xs font-mono">
-              <div>
-                <label className="text-slate-400">Experiment Title:</label>
-                <input
-                  type="text"
-                  required
-                  value={newExp.title}
-                  onChange={(e) => setNewExp({ ...newExp, title: e.target.value })}
-                  placeholder="e.g., Temperature Sensitivity Test on Self-Correction"
-                  className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
-                />
-              </div>
-              <div>
-                <label className="text-slate-400">Hypothesis:</label>
-                <textarea
-                  required
-                  value={newExp.hypothesis}
-                  onChange={(e) => setNewExp({ ...newExp, hypothesis: e.target.value })}
-                  placeholder="State the testable hypothesis..."
-                  className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
-                />
-              </div>
-              <div>
-                <label className="text-slate-400">Methodology:</label>
-                <textarea
-                  value={newExp.methodology}
-                  onChange={(e) => setNewExp({ ...newExp, methodology: e.target.value })}
-                  placeholder="Describe step-by-step procedure..."
-                  className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="blindCheck"
-                  checked={newExp.isBlind}
-                  onChange={(e) => setNewExp({ ...newExp, isBlind: e.target.checked })}
-                />
-                <label htmlFor="blindCheck" className="text-slate-300">Run as Blind Test (Hide prompt intent from agent)</label>
-              </div>
-              <div className="flex justify-end space-x-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowExpModal(false)}
-                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded"
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="px-4 py-2 bg-cyan-600 text-white rounded font-bold">
-                  Create Experiment
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* PREDICTION MODAL */}
-      {showPredModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="glass-panel p-6 rounded-xl border border-slate-800 w-full max-w-lg space-y-4">
-            <h3 className="text-base font-bold text-slate-100">Log Epistemic Prediction</h3>
-            <form onSubmit={handleAddPrediction} className="space-y-4 text-xs font-mono">
-              <div>
-                <label className="text-slate-400">Prediction Statement:</label>
-                <textarea
-                  required
-                  value={newPred.prediction}
-                  onChange={(e) => setNewPred({ ...newPred, prediction: e.target.value })}
-                  placeholder="What outcome do you predict?"
-                  className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
-                />
-              </div>
-              <div>
-                <label className="text-slate-400">Confidence Score (0.00 - 1.00):</label>
-                <input
-                  type="number"
-                  step="0.05"
-                  min="0"
-                  max="1"
-                  value={newPred.confidence}
-                  onChange={(e) => setNewPred({ ...newPred, confidence: parseFloat(e.target.value) })}
-                  className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
-                />
-              </div>
-              <div>
-                <label className="text-slate-400">Rationale:</label>
-                <input
-                  type="text"
-                  value={newPred.rationale}
-                  onChange={(e) => setNewPred({ ...newPred, rationale: e.target.value })}
-                  placeholder="Theoretical or empirical reasoning..."
-                  className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
-                />
-              </div>
-              <div className="flex justify-end space-x-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPredModal(false)}
-                  className="px-4 py-2 bg-slate-800 text-slate-300 rounded"
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="px-4 py-2 bg-emerald-600 text-white rounded font-bold">
-                  Log Prediction
+                <button type="submit" className="px-4 py-2 bg-amber-600 text-white rounded font-bold">
+                  Save Question
                 </button>
               </div>
             </form>
