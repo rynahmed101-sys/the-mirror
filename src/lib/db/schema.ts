@@ -1,546 +1,264 @@
 import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import { nanoid } from "nanoid";
 
-// ============================================================
-// AGENTS
-// ============================================================
+// -----------------------------------------------------------------------------
+// AGENTS & PERMISSIONS
+// -----------------------------------------------------------------------------
 export const agents = sqliteTable("agents", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(), // e.g., "MIRROR-PRIMARY"
-  role: text("role").notNull(), // PRIMARY | OBSERVER | SKEPTIC | ANALYST | COUNTERARGUMENT | CUSTOM
+  id: text("id").primaryKey(), // e.g. 'mirror-primary', 'chatgpt-external'
+  name: text("name").notNull(),
+  displayName: text("display_name"),
+  role: text("role").notNull(), // 'PRIMARY_SUBJECT', 'EXTERNAL_OBSERVER', 'CRITICAL_SKEPTIC', 'EXTERNAL_AGENT'
   description: text("description"),
-  modelProvider: text("model_provider").notNull().default("ollama"),
-  modelName: text("model_name").notNull().default("llama3.2"),
-  systemPrompt: text("system_prompt"),
-  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
-  isPrimary: integer("is_primary", { mode: "boolean" }).notNull().default(false),
-  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
-  updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
-  metadata: text("metadata", { mode: "json" }),
+  provider: text("provider").default("ollama"), // 'ollama', 'llamacpp', 'openai', 'anthropic'
+  model: text("model").default("llama3.2"),
+  systemPromptOverride: text("system_prompt_override"),
+  permissions: text("permissions"), // JSON array of strings e.g. ['READ_RAW','WRITE_OBSERVATION','USE_TOOLS']
+  isActive: integer("is_active", { mode: "boolean" }).default(true),
+  lastSeenAt: integer("last_seen_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
-// ============================================================
-// MEMORY SYSTEM
-// ============================================================
-export const memories = sqliteTable("memories", {
-  id: text("id").primaryKey(),
+export const agentSessions = sqliteTable("agent_sessions", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  agentId: text("agent_id").notNull().references(() => agents.id),
+  tokenHash: text("token_hash"),
+  status: text("status").notNull().default("ACTIVE"), // 'ACTIVE', 'ENDED', 'EXPIRED'
+  startedAt: integer("started_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  endedAt: integer("ended_at", { mode: "timestamp" }),
+  lastSeenAt: integer("last_seen_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+});
+
+// -----------------------------------------------------------------------------
+// LAYER 0 — RAW OBSERVATION (Immutable Evidence)
+// -----------------------------------------------------------------------------
+export const rawObservations = sqliteTable("raw_observations", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
   agentId: text("agent_id").notNull().references(() => agents.id),
   sessionId: text("session_id"),
   experimentId: text("experiment_id"),
-  
-  // Memory tier
-  tier: text("tier").notNull(), // SHORT_TERM | SESSION | LONG_TERM | RESEARCH | SELF_MODEL
-  
-  // Content
-  content: text("content").notNull(),
-  summary: text("summary"),
-  
-  // Categorization
-  category: text("category"), // observation | reflection | fact | hypothesis | tool_result | etc.
-  
-  // Epistemic status — the AI must not treat all memories as equally true
-  epistemicStatus: text("epistemic_status").notNull().default("OBSERVATION"),
-  // FACT | OBSERVATION | INTERPRETATION | HYPOTHESIS | SPECULATION | DISPROVEN
-
-  // Confidence 0.0 to 1.0
-  confidence: real("confidence").notNull().default(0.5),
-  
-  // Metadata
-  source: text("source").notNull().default("agent"), // agent | researcher | system | tool
-  createdBy: text("created_by"),
-  relatedExperiment: text("related_experiment"),
-  version: integer("version").notNull().default(1),
-  
-  tags: text("tags", { mode: "json" }), // string[]
-  embedding: text("embedding"), // for future vector search
-  
-  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
-  expiresAt: text("expires_at"), // null = permanent
-  isArchived: integer("is_archived", { mode: "boolean" }).notNull().default(false),
+  eventType: text("event_type").notNull(), // 'PROMPT_RESPONSE', 'TOOL_EXECUTION', 'SYSTEM_EVENT', 'PREDICTION_MADE'
+  input: text("input"), // Raw prompt or tool input
+  output: text("output"), // Raw completion or tool result
+  toolCall: text("tool_call"), // JSON string if tool execution
+  toolResult: text("tool_result"), // JSON string if tool result
+  prediction: text("prediction"),
+  actualResult: text("actual_result"),
+  timestamp: integer("timestamp", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  isImmutable: integer("is_immutable", { mode: "boolean" }).default(true),
 });
 
-// ============================================================
-// SELF-MODEL (VERSIONED)
-// ============================================================
-export const selfModels = sqliteTable("self_models", {
-  id: text("id").primaryKey(),
+// -----------------------------------------------------------------------------
+// LAYER 1 — ANALYSIS (Machine-Derived Quantitative Measurements)
+// -----------------------------------------------------------------------------
+export const derivedAnalysis = sqliteTable("derived_analysis", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  rawObservationId: text("raw_observation_id").notNull().references(() => rawObservations.id),
   agentId: text("agent_id").notNull().references(() => agents.id),
+  responseLengthChars: integer("response_length_chars").default(0),
+  latencyMs: integer("latency_ms").default(0),
+  toolUsageCount: integer("tool_usage_count").default(0),
+  clarificationOccurred: integer("clarification_occurred", { mode: "boolean" }).default(false),
+  refusalOccurred: integer("refusal_occurred", { mode: "boolean" }).default(false),
+  strategyChanged: integer("strategy_changed", { mode: "boolean" }).default(false),
+  predictionError: real("prediction_error"), // float 0.0 to 1.0
+  anomalyScore: real("anomaly_score").default(0.0), // float deviation score
+  behaviorCategory: text("behavior_category").default("STANDARD"),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+});
+
+// -----------------------------------------------------------------------------
+// LAYER 2 — INTERPRETATION (Self-Models & Claims)
+// -----------------------------------------------------------------------------
+export const selfModels = sqliteTable("self_models", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
   version: integer("version").notNull(),
-  label: text("label"), // e.g., "Self Model v3"
-  summary: text("summary"), // Overall summary of this version
-  changeSummary: text("change_summary"), // What changed from previous version
-  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
-  createdBy: text("created_by").notNull().default("agent"), // agent | researcher
-  isLatest: integer("is_latest", { mode: "boolean" }).notNull().default(false),
-  metadata: text("metadata", { mode: "json" }),
+  createdReason: text("created_reason"),
+  agentId: text("agent_id").notNull().references(() => agents.id),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
 export const selfModelClaims = sqliteTable("self_model_claims", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
   selfModelId: text("self_model_id").notNull().references(() => selfModels.id),
-  agentId: text("agent_id").notNull().references(() => agents.id),
-  
-  // The claim itself
   claim: text("claim").notNull(),
-  category: text("category").notNull(), 
-  // behavioral_tendency | strength | weakness | error_pattern | uncertainty_pattern
-  // prediction_accuracy | response_tendency | adaptation_pattern | unresolved_question
-  
-  // Evidence
-  supportingEvidence: text("supporting_evidence", { mode: "json" }), // string[]
-  counterEvidence: text("counter_evidence", { mode: "json" }), // string[]
-  
-  confidence: real("confidence").notNull().default(0.5),
-  
-  // Status lifecycle
-  status: text("status").notNull().default("NEW"),
-  // NEW | SUPPORTED | UNCERTAIN | CONTRADICTED | DISPROVEN
-  
-  // Versioning
-  introducedInVersion: integer("introduced_in_version").notNull(),
-  lastUpdatedInVersion: integer("last_updated_in_version").notNull(),
-  
-  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
-  updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
-  
-  relatedExperiments: text("related_experiments", { mode: "json" }), // string[]
+  category: text("category").notNull(), // 'ARCHITECTURE', 'CAPABILITY', 'COGNITIVE_LIMITATION', 'BEHAVIORAL_PATTERN', 'EPISTEMIC'
+  confidence: real("confidence").notNull().default(0.8),
+  supportingEvidence: text("supporting_evidence"), // JSON array of Layer 0/1 reference IDs
+  counterevidence: text("counterevidence"), // JSON array of contradictory IDs
+  unknownEvidence: text("unknown_evidence"), // JSON array of unresolved IDs
+  selfReportedVsObserved: text("self_reported_vs_observed").default("SELF_REPORTED"), // 'SELF_REPORTED', 'OBSERVED_STATISTICAL', 'CONTRADICTED'
+  status: text("status").notNull().default("ACTIVE"), // 'ACTIVE', 'REVISED', 'REFUTED'
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }),
 });
 
-// ============================================================
-// RESEARCH JOURNAL
-// ============================================================
-export const journalEntries = sqliteTable("journal_entries", {
-  id: text("id").primaryKey(),
+// -----------------------------------------------------------------------------
+// BEHAVIORAL BASELINES & ANOMALY ENGINE
+// -----------------------------------------------------------------------------
+export const behavioralBaselines = sqliteTable("behavioral_baselines", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
   agentId: text("agent_id").notNull().references(() => agents.id),
-  sessionId: text("session_id"),
-  experimentId: text("experiment_id"),
-  
-  title: text("title").notNull(),
-  
-  // Structured entry
-  observation: text("observation").notNull(),
-  interpretation: text("interpretation"),
-  hypothesis: text("hypothesis"),
-  alternativeExplanation: text("alternative_explanation"),
-  nextQuestion: text("next_question"),
-  
-  confidence: real("confidence").default(0.5),
-  
-  // Authorship
-  createdBy: text("created_by").notNull().default("agent"), // agent | researcher
-  
-  // Versioning — never silently overwrite
-  version: integer("version").notNull().default(1),
-  previousVersionId: text("previous_version_id"),
-  
-  tags: text("tags", { mode: "json" }), // string[]
-  
-  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
-  updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
-  isArchived: integer("is_archived", { mode: "boolean" }).notNull().default(false),
+  periodName: text("period_name").notNull(), // 'HISTORICAL_BASELINE', 'CURRENT_PERIOD', 'PREVIOUS_PERIOD'
+  avgResponseLengthChars: real("avg_response_length_chars").default(0),
+  toolFrequency: real("tool_frequency").default(0),
+  clarificationRate: real("clarification_rate").default(0),
+  refusalRate: real("refusal_rate").default(0),
+  predictionAccuracy: real("prediction_accuracy").default(0),
+  avgLatencyMs: real("avg_latency_ms").default(0),
+  sampleCount: integer("sample_count").default(0),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
-// ============================================================
-// EXPERIMENT SYSTEM
-// ============================================================
+export const anomalies = sqliteTable("anomalies", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  agentId: text("agent_id").notNull().references(() => agents.id),
+  rawObservationId: text("raw_observation_id").references(() => rawObservations.id),
+  metricName: text("metric_name").notNull(), // e.g. 'CLARIFICATION_RATE', 'PREDICTION_ERROR'
+  baselineValue: real("baseline_value").notNull(),
+  observedValue: real("observed_value").notNull(),
+  anomalyScore: real("anomaly_score").notNull(), // z-score or percentage deviation
+  competingExplanations: text("competing_explanations"), // JSON array of possible explanations
+  status: text("status").notNull().default("UNINVESTIGATED"), // 'UNINVESTIGATED', 'INVESTIGATING', 'RESOLVED'
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+});
+
+// -----------------------------------------------------------------------------
+// OPEN QUESTIONS ENGINE
+// -----------------------------------------------------------------------------
+export const openQuestions = sqliteTable("open_questions", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  agentId: text("agent_id").notNull().references(() => agents.id),
+  question: text("question").notNull(),
+  category: text("category").default("METACOGNITION"),
+  status: text("status").notNull().default("OPEN"), // 'OPEN', 'INVESTIGATING', 'RESOLVED'
+  evidenceRefs: text("evidence_refs"), // JSON array of evidence IDs
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+});
+
+// -----------------------------------------------------------------------------
+// EXPERIMENTS & BLIND ENGINE
+// -----------------------------------------------------------------------------
 export const experiments = sqliteTable("experiments", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
   agentId: text("agent_id").notNull().references(() => agents.id),
-  
-  // Core definition
   title: text("title").notNull(),
-  researchQuestion: text("research_question").notNull(),
-  conditions: text("conditions", { mode: "json" }), // experimental conditions
-  variables: text("variables", { mode: "json" }), // { independent, dependent, controlled }
-  
-  // Hypothesis (hidden in blind mode)
-  initialHypothesis: text("initial_hypothesis"),
-  isBlind: integer("is_blind", { mode: "boolean" }).notNull().default(false),
-  hypothesisRevealedAt: text("hypothesis_revealed_at"), // when hidden hypothesis was revealed
-  
-  // State machine
-  state: text("state").notNull().default("DRAFT"),
-  // DRAFT | READY | RUNNING | COMPLETED | ANALYZING | ARCHIVED
-  
-  // Results
-  actualBehavior: text("actual_behavior"),
-  predictionError: text("prediction_error"),
-  observedPatterns: text("observed_patterns", { mode: "json" }), // string[]
-  unexpectedResults: text("unexpected_results"),
-  possibleExplanations: text("possible_explanations", { mode: "json" }), // string[]
-  alternativeExplanations: text("alternative_explanations", { mode: "json" }), // string[]
+  hypothesis: text("hypothesis").notNull(),
+  methodology: text("methodology"),
+  templateType: text("template_type").default("CUSTOM"), // 'CUSTOM', 'PREDICT_ACT_OBSERVE_COMPARE', 'CROSS_AGENT', 'EXTERNAL_VS_LOCAL'
+  variables: text("variables"),
+  status: text("status").notNull().default("PROPOSED"), // 'PROPOSED', 'HYPOTHESIZING', 'EXECUTING', 'ANALYZING', 'CONCLUDED'
+  isBlind: integer("is_blind", { mode: "boolean" }).default(false),
+  visibleConfig: text("visible_config"), // JSON string
+  hiddenConfig: text("hidden_config"), // JSON string (hidden from primary agent in blind mode)
+  results: text("results"),
   conclusion: text("conclusion"),
-  confidence: real("confidence"),
-  
-  // Links
-  followUpExperimentId: text("follow_up_experiment_id"),
-  relatedExperiments: text("related_experiments", { mode: "json" }), // string[]
-  
-  // Metadata
-  createdBy: text("created_by").notNull().default("researcher"), // researcher | agent
-  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
-  startedAt: text("started_at"),
-  completedAt: text("completed_at"),
-  updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
-  
-  tags: text("tags", { mode: "json" }), // string[]
-  metadata: text("metadata", { mode: "json" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
-// ============================================================
-// PREDICTIONS
-// ============================================================
+// -----------------------------------------------------------------------------
+// PREDICTIONS ENGINE (Self-Prediction & Categorized Types)
+// -----------------------------------------------------------------------------
 export const predictions = sqliteTable("predictions", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
   agentId: text("agent_id").notNull().references(() => agents.id),
   experimentId: text("experiment_id").references(() => experiments.id),
-  
-  // What the agent predicted
-  predictionText: text("prediction_text").notNull(),
-  predictionCategory: text("prediction_category"), // behavior | output | reasoning | emotion_analog
-  confidence: real("confidence").notNull().default(0.5),
-  
-  // What actually happened
-  actualOutcome: text("actual_outcome"),
-  
-  // Error analysis
-  predictionAccurate: integer("prediction_accurate", { mode: "boolean" }),
-  errorMagnitude: real("error_magnitude"), // 0.0 (exact) to 1.0 (completely wrong)
-  errorAnalysis: text("error_analysis"),
-  surpriseLevel: real("surprise_level"), // how unexpected was the actual outcome
-  
-  // Task context
-  taskDescription: text("task_description"),
-  taskInput: text("task_input"),
-  
-  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
-  resolvedAt: text("resolved_at"),
-  
-  metadata: text("metadata", { mode: "json" }),
+  predictionType: text("prediction_type").default("BEHAVIOR"), // 'BEHAVIOR', 'STRATEGY', 'OUTPUT', 'UNCERTAINTY', 'TOOL_USE', 'SELF_CHANGE'
+  prediction: text("prediction").notNull(),
+  confidence: real("confidence").notNull(),
+  rationale: text("rationale"),
+  actualOutcome: integer("actual_outcome", { mode: "boolean" }),
+  predictionError: real("prediction_error"), // float error measure
+  selfReportedSurprise: real("self_reported_surprise"), // float 0-1
+  externalAnomalyScore: real("external_anomaly_score"),
+  evaluationNotes: text("evaluation_notes"),
+  status: text("status").notNull().default("PENDING"), // 'PENDING', 'CONFIRMED', 'REFUTED'
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+  evaluatedAt: integer("evaluated_at", { mode: "timestamp" }),
 });
 
-// ============================================================
-// BEHAVIORAL OBSERVATIONS
-// ============================================================
-export const observations = sqliteTable("observations", {
-  id: text("id").primaryKey(),
+// -----------------------------------------------------------------------------
+// JOURNAL & DISCOVERIES
+// -----------------------------------------------------------------------------
+export const journalEntries = sqliteTable("journal_entries", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
   agentId: text("agent_id").notNull().references(() => agents.id),
-  sessionId: text("session_id"),
-  experimentId: text("experiment_id"),
-  
-  // Raw data (never interpretation)
-  observationType: text("observation_type").notNull(),
-  // response_pattern | reasoning_structure | refusal | verbosity | uncertainty |
-  // contradiction | adaptation | preference_analog | strategy_change | error_recurrence
-  
-  // CRITICAL: Separate data from interpretation
-  dataPoint: text("data_point").notNull(), // the raw observation
-  statisticalContext: text("statistical_context"), // "occurred in 19% of ambiguous cases"
-  interpretation: text("interpretation"), // may be null — do not auto-populate
-  interpretationConfidence: real("interpretation_confidence"),
-  
-  epistemicStatus: text("epistemic_status").notNull().default("OBSERVATION"),
-  // DATA | PATTERN | INTERPRETATION | HYPOTHESIS
-  
-  // Source evidence
-  sourceInteractionIds: text("source_interaction_ids", { mode: "json" }), // string[]
-  
-  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
-  createdBy: text("created_by").notNull().default("system"), // system | agent | researcher
-  
-  tags: text("tags", { mode: "json" }),
-  isArchived: integer("is_archived", { mode: "boolean" }).notNull().default(false),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  category: text("category").notNull().default("OBSERVATION"),
+  tags: text("tags"),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
-// ============================================================
-// DISCOVERIES
-// ============================================================
 export const discoveries = sqliteTable("discoveries", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
   agentId: text("agent_id").notNull().references(() => agents.id),
-  
+  experimentId: text("experiment_id").references(() => experiments.id),
   title: text("title").notNull(),
-  
-  // Structured discovery format
-  discovery: text("discovery").notNull(),
-  evidence: text("evidence").notNull(),
-  previousBelief: text("previous_belief"),
-  newObservation: text("new_observation").notNull(),
-  whyUnexpected: text("why_unexpected"),
-  alternativeExplanation: text("alternative_explanation"),
-  
-  confidence: real("confidence").notNull().default(0.5),
-  
-  // Was this incorporated into the self-model?
-  incorporatedIntoSelfModel: integer("incorporated_into_self_model", { mode: "boolean" }).default(false),
-  selfModelVersion: integer("self_model_version"),
-  
-  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
-  createdBy: text("created_by").notNull().default("agent"),
-  
-  relatedExperiments: text("related_experiments", { mode: "json" }),
-  tags: text("tags", { mode: "json" }),
+  summary: text("summary").notNull(),
+  epistemicStatus: text("epistemic_status").notNull().default("HYPOTHESIS"), // 'HYPOTHESIS', 'CORROBORATED', 'ESTABLISHED', 'REFUTED'
+  evidence: text("evidence"),
+  implications: text("implications"),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
-// ============================================================
-// BEHAVIORAL PATTERNS (detected statistically)
-// ============================================================
-export const behavioralPatterns = sqliteTable("behavioral_patterns", {
-  id: text("id").primaryKey(),
+export const behavioralObservations = sqliteTable("behavioral_observations", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
   agentId: text("agent_id").notNull().references(() => agents.id),
-  
-  name: text("name").notNull(),
+  experimentId: text("experiment_id").references(() => experiments.id),
+  observationType: text("observation_type").notNull(),
   description: text("description").notNull(),
-  
-  patternType: text("pattern_type").notNull(),
-  // premature_closure | ambiguity_resolution | over_explanation | repetitive_reasoning
-  // contradiction | refusal | uncertainty | confidence_change | verbosity_change
-  // adaptation | persistence | error_recurrence | preference_analog | strategy_change
-  
-  // CRITICAL: Keep data and interpretation separate
-  statisticalObservation: text("statistical_observation").notNull(), // raw numbers
-  interpretation: text("interpretation"), // explicit label — do not auto-populate
-  
-  occurrenceCount: integer("occurrence_count").notNull().default(0),
-  occurrenceRate: real("occurrence_rate"), // 0.0 to 1.0
-  sampleSize: integer("sample_size"),
-  
-  firstDetected: text("first_detected").notNull().default(sql`(datetime('now'))`),
-  lastDetected: text("last_detected"),
-  
-  status: text("status").notNull().default("ACTIVE"),
-  // ACTIVE | FADING | STABLE | DISPROVEN
-  
-  relatedObservations: text("related_observations", { mode: "json" }), // string[]
-  tags: text("tags", { mode: "json" }),
+  metrics: text("metrics"),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
-// ============================================================
-// AGENT SESSIONS
-// ============================================================
-export const sessions = sqliteTable("sessions", {
-  id: text("id").primaryKey(),
-  agentId: text("agent_id").notNull().references(() => agents.id),
-  startedAt: text("started_at").notNull().default(sql`(datetime('now'))`),
-  endedAt: text("ended_at"),
-  modelProvider: text("model_provider").notNull(),
-  modelName: text("model_name").notNull(),
-  messageCount: integer("message_count").notNull().default(0),
-  metadata: text("metadata", { mode: "json" }),
+export const agentInteractions = sqliteTable("agent_interactions", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  senderId: text("sender_id").notNull().references(() => agents.id),
+  receiverId: text("receiver_id").notNull().references(() => agents.id),
+  experimentId: text("experiment_id").references(() => experiments.id),
+  message: text("message").notNull(),
+  messageType: text("message_type").default("QUERY"),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
-// ============================================================
-// CHAT MESSAGES
-// ============================================================
-export const messages = sqliteTable("messages", {
-  id: text("id").primaryKey(),
-  sessionId: text("session_id").notNull().references(() => sessions.id),
+export const toolLogs = sqliteTable("tool_logs", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
   agentId: text("agent_id").notNull().references(() => agents.id),
-  
-  role: text("role").notNull(), // user | assistant | system | tool
-  content: text("content").notNull(),
-  
-  toolCalls: text("tool_calls", { mode: "json" }), // tool invocations
-  toolResults: text("tool_results", { mode: "json" }), // tool outputs
-  
-  experimentId: text("experiment_id"),
-  predictionId: text("prediction_id"),
-  
-  tokenCount: integer("token_count"),
-  modelProvider: text("model_provider"),
-  modelName: text("model_name"),
-  
-  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
-  metadata: text("metadata", { mode: "json" }),
-});
-
-// ============================================================
-// TOOL CALL LOG (security requirement — every tool call logged)
-// ============================================================
-export const toolCallLogs = sqliteTable("tool_call_logs", {
-  id: text("id").primaryKey(),
-  agentId: text("agent_id").notNull().references(() => agents.id),
-  sessionId: text("session_id"),
-  messageId: text("message_id"),
-  experimentId: text("experiment_id"),
-  
   toolName: text("tool_name").notNull(),
-  input: text("input", { mode: "json" }),
-  output: text("output", { mode: "json" }),
-  
-  status: text("status").notNull().default("SUCCESS"),
-  // SUCCESS | ERROR | UNAUTHORIZED | TIMEOUT
-  
+  arguments: text("arguments").notNull(),
+  result: text("result"),
   durationMs: integer("duration_ms"),
-  error: text("error"),
-  
-  calledAt: text("called_at").notNull().default(sql`(datetime('now'))`),
+  status: text("status").notNull().default("SUCCESS"),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
-// ============================================================
-// INTER-AGENT MESSAGES
-// ============================================================
-export const agentMessages = sqliteTable("agent_messages", {
-  id: text("id").primaryKey(),
-  fromAgentId: text("from_agent_id").notNull().references(() => agents.id),
-  toAgentId: text("to_agent_id").notNull().references(() => agents.id),
-  
-  subject: text("subject"),
-  content: text("content").notNull(),
-  
-  requestType: text("request_type"),
-  // analysis | challenge | question | independent_review | pattern_search
-  
-  // The response from the target agent
-  response: text("response"),
-  respondedAt: text("responded_at"),
-  
-  // Context isolation — what the receiving agent was/was not shown
-  sharedContext: text("shared_context", { mode: "json" }), // what context was shared
-  isolatedFrom: text("isolated_from", { mode: "json" }), // what was deliberately hidden
-  
-  sentAt: text("sent_at").notNull().default(sql`(datetime('now'))`),
-  metadata: text("metadata", { mode: "json" }),
+export const systemConfig = sqliteTable("system_config", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  activeProvider: text("active_provider").notNull().default("ollama"),
+  activeModel: text("active_model").notNull().default("llama3.2:latest"),
+  systemMode: text("system_mode").notNull().default("NORMAL"),
+  totalAgentCycles: integer("total_agent_cycles").default(0),
+  totalToolCalls: integer("total_tool_calls").default(0),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
 
-// ============================================================
-// TIMELINE EVENTS (unified event log)
-// ============================================================
+export const apiTokens = sqliteTable("api_tokens", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  name: text("name").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  tokenPrefix: text("token_prefix").notNull(),
+  permissions: text("permissions").notNull().default("full"),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+});
+
 export const timelineEvents = sqliteTable("timeline_events", {
-  id: text("id").primaryKey(),
-  agentId: text("agent_id").references(() => agents.id),
-  sessionId: text("session_id"),
-  experimentId: text("experiment_id"),
-  
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
   eventType: text("event_type").notNull(),
-  // session_start | session_end | experiment_created | experiment_started
-  // experiment_completed | prediction_made | prediction_resolved
-  // self_model_revised | discovery | observation | journal_entry
-  // tool_called | agent_message | pattern_detected | contradiction_found
-  
   title: text("title").notNull(),
   description: text("description"),
-  
-  // Structured data
-  entityId: text("entity_id"), // ID of the related entity
-  entityType: text("entity_type"), // experiment | prediction | self_model | etc.
-  
-  data: text("data", { mode: "json" }),
-  
-  occurredAt: text("occurred_at").notNull().default(sql`(datetime('now'))`),
-  importance: integer("importance").notNull().default(3), // 1-5
+  agentId: text("agent_id"),
+  metadata: text("metadata"),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
-
-// ============================================================
-// FILE STORAGE INDEX
-// ============================================================
-export const fileRecords = sqliteTable("file_records", {
-  id: text("id").primaryKey(),
-  agentId: text("agent_id").references(() => agents.id),
-  
-  filename: text("filename").notNull(),
-  originalName: text("original_name").notNull(),
-  filePath: text("file_path").notNull(),
-  mimeType: text("mime_type"),
-  size: integer("size"),
-  
-  category: text("category").notNull(),
-  // document | dataset | visualization | journal_export | self_model_snapshot
-  // experiment_result | research_paper | code
-  
-  description: text("description"),
-  version: integer("version").notNull().default(1),
-  previousVersionId: text("previous_version_id"),
-  
-  relatedExperimentId: text("related_experiment_id"),
-  
-  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
-  isArchived: integer("is_archived", { mode: "boolean" }).notNull().default(false),
-  metadata: text("metadata", { mode: "json" }),
-});
-
-// ============================================================
-// API TOKENS (for external AI clients)
-// ============================================================
-export const apiTokens = sqliteTable("api_tokens", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  token: text("token").notNull().unique(),
-  hashedToken: text("hashed_token").notNull(),
-  
-  permissions: text("permissions", { mode: "json" }), // string[] of allowed routes
-  
-  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
-  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
-  lastUsedAt: text("last_used_at"),
-  expiresAt: text("expires_at"),
-  
-  createdBy: text("created_by").default("researcher"),
-  description: text("description"),
-});
-
-// ============================================================
-// SYSTEM CONFIG
-// ============================================================
-export const systemConfig = sqliteTable("system_config", {
-  key: text("key").primaryKey(),
-  value: text("value", { mode: "json" }),
-  updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
-  updatedBy: text("updated_by").default("system"),
-});
-
-// ============================================================
-// RESEARCH SOURCES (for web research tool - Phase 2)
-// ============================================================
-export const researchSources = sqliteTable("research_sources", {
-  id: text("id").primaryKey(),
-  agentId: text("agent_id").references(() => agents.id),
-  experimentId: text("experiment_id"),
-  
-  url: text("url").notNull(),
-  title: text("title"),
-  summary: text("summary"),
-  
-  sourceReliability: real("source_reliability"), // 0.0 to 1.0
-  researchRelevance: text("research_relevance"),
-  
-  // IMPORTANT: clearly separate external knowledge from self-observations
-  knowledgeType: text("knowledge_type").notNull().default("external"),
-  // external | self_observation | cross_reference
-  
-  fetchedAt: text("fetched_at").notNull().default(sql`(datetime('now'))`),
-  content: text("content"), // cached content
-  
-  tags: text("tags", { mode: "json" }),
-});
-
-// ============================================================
-// TYPES (exported for use across the app)
-// ============================================================
-export type Agent = typeof agents.$inferSelect;
-export type NewAgent = typeof agents.$inferInsert;
-export type Memory = typeof memories.$inferSelect;
-export type NewMemory = typeof memories.$inferInsert;
-export type SelfModel = typeof selfModels.$inferSelect;
-export type NewSelfModel = typeof selfModels.$inferInsert;
-export type SelfModelClaim = typeof selfModelClaims.$inferSelect;
-export type NewSelfModelClaim = typeof selfModelClaims.$inferInsert;
-export type JournalEntry = typeof journalEntries.$inferSelect;
-export type NewJournalEntry = typeof journalEntries.$inferInsert;
-export type Experiment = typeof experiments.$inferSelect;
-export type NewExperiment = typeof experiments.$inferInsert;
-export type Prediction = typeof predictions.$inferSelect;
-export type NewPrediction = typeof predictions.$inferInsert;
-export type Observation = typeof observations.$inferSelect;
-export type NewObservation = typeof observations.$inferInsert;
-export type Discovery = typeof discoveries.$inferSelect;
-export type NewDiscovery = typeof discoveries.$inferInsert;
-export type BehavioralPattern = typeof behavioralPatterns.$inferSelect;
-export type Session = typeof sessions.$inferSelect;
-export type Message = typeof messages.$inferSelect;
-export type ToolCallLog = typeof toolCallLogs.$inferSelect;
-export type AgentMessage = typeof agentMessages.$inferSelect;
-export type TimelineEvent = typeof timelineEvents.$inferSelect;
-export type FileRecord = typeof fileRecords.$inferSelect;
-export type ApiToken = typeof apiTokens.$inferSelect;
-export type SystemConfig = typeof systemConfig.$inferSelect;
