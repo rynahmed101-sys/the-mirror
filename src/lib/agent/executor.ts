@@ -1,12 +1,15 @@
 /**
- * THE MIRROR — Tool Executor (Stage 2 Upgraded)
+ * THE MIRROR — Tool Executor (Stage 3 Upgraded with True Tool Attribution)
  *
- * Executes agent tool calls, records immutable Layer 0 raw observations,
- * generates Layer 1 machine-derived analysis, and updates the database.
+ * Enforces 3-Phase Decision Logging:
+ * 1. Log TOOL_REQUESTED to raw_events
+ * 2. Execute tool with true attribution (requestedBy, requestSource)
+ * 3. Log TOOL_EXECUTED or TOOL_FAILED to raw_events and tool_logs
  */
 
 import { db } from "../db";
 import {
+  rawEvents,
   rawObservations,
   toolLogs,
   selfModels,
@@ -14,11 +17,8 @@ import {
   journalEntries,
   experiments,
   predictions,
-  behavioralObservations,
-  discoveries,
-  agentInteractions,
-  timelineEvents,
   openQuestions,
+  timelineEvents,
 } from "../db/schema";
 import { processRawObservationToLayer1 } from "./analysisEngine";
 import { eq, sql } from "drizzle-orm";
@@ -27,36 +27,41 @@ import { nanoid } from "nanoid";
 export async function executeTool(
   toolName: string,
   args: any,
-  agentId: string = "mirror-primary"
+  agentId: string = "mirror-primary",
+  sessionId: string | null = null,
+  requestSource: "AGENT" | "SYSTEM" | "RESEARCHER" | "SCHEDULED" | "OTHER_AGENT" = "AGENT"
 ): Promise<any> {
   const startTime = Date.now();
   let result: any = null;
-  let status = "SUCCESS";
+  let status = "EXECUTED";
+  let errorMsg: string | null = null;
+
+  // 1. Log TOOL_REQUESTED Event to Immutable Raw Event Stream
+  const [reqEvent] = await db
+    .insert(rawEvents)
+    .values({
+      agentId,
+      sessionId,
+      eventType: "TOOL_REQUESTED",
+      source: requestSource,
+      input: JSON.stringify({ toolName, args }),
+      metadata: JSON.stringify({ requestedBy: agentId, requestSource }),
+      isImmutable: true,
+    })
+    .returning();
 
   try {
     switch (toolName) {
-      // -----------------------------------------------------------------------
-      // LAYER 0 & 1 ENFORCEMENT & IMMUTABILITY PROTECTION
-      // -----------------------------------------------------------------------
-      case "get_raw_observations": {
-        const rawList = await db
+      case "get_raw_events": {
+        const events = await db
           .select()
-          .from(rawObservations)
-          .orderBy(sql`${rawObservations.timestamp} DESC`)
-          .limit(args.limit || 20);
-        result = { count: rawList.length, observations: rawList };
+          .from(rawEvents)
+          .orderBy(sql`${rawEvents.timestamp} DESC`)
+          .limit(args.limit || 30);
+        result = { count: events.length, events };
         break;
       }
 
-      case "get_behavioral_baselines": {
-        const base = await db.select().from(rawObservations).limit(50);
-        result = { agentId, totalObservations: base.length };
-        break;
-      }
-
-      // -----------------------------------------------------------------------
-      // SELF-MODEL CLAIMS & FALSIFICATION ENGINE (Layer 2)
-      // -----------------------------------------------------------------------
       case "get_self_model": {
         const latestModel = await db
           .select()
@@ -65,7 +70,7 @@ export async function executeTool(
           .limit(1);
 
         if (latestModel.length === 0) {
-          result = { version: 0, claims: [], message: "No self-model established yet." };
+          result = { version: 0, claims: [], message: "No self-model established." };
         } else {
           const model = latestModel[0];
           const claims = await db
@@ -80,10 +85,18 @@ export async function executeTool(
               ...c,
               supportingEvidence: c.supportingEvidence ? JSON.parse(c.supportingEvidence) : [],
               counterevidence: c.counterevidence ? JSON.parse(c.counterevidence) : [],
-              unknownEvidence: c.unknownEvidence ? JSON.parse(c.unknownEvidence) : [],
             })),
           };
         }
+
+        // Log SELF_MODEL_READ event
+        await db.insert(rawEvents).values({
+          agentId,
+          sessionId,
+          eventType: "SELF_MODEL_READ",
+          source: requestSource,
+          output: JSON.stringify(result),
+        });
         break;
       }
 
@@ -131,41 +144,17 @@ export async function executeTool(
           result = { success: true, newClaim };
         }
 
-        await db.insert(timelineEvents).values({
-          eventType: "SELF_MODEL_UPDATED",
-          title: `Claim Revised: ${args.claim?.slice(0, 40) || "Claim Update"}`,
-          description: args.reason || "Self-model claim revised based on observation.",
+        await db.insert(rawEvents).values({
           agentId,
-          metadata: JSON.stringify(args),
+          sessionId,
+          eventType: "SELF_MODEL_CHANGED",
+          source: requestSource,
+          input: JSON.stringify(args),
+          output: JSON.stringify(result),
         });
         break;
       }
 
-      case "bump_self_model_version": {
-        const latestModelList = await db
-          .select()
-          .from(selfModels)
-          .orderBy(sql`${selfModels.version} DESC`)
-          .limit(1);
-
-        const currentVersion = latestModelList.length > 0 ? latestModelList[0].version : 0;
-        const newVersion = currentVersion + 1;
-        const newModelId = nanoid();
-
-        await db.insert(selfModels).values({
-          id: newModelId,
-          version: newVersion,
-          createdReason: args.reason || `Version ${newVersion} initialized.`,
-          agentId,
-        });
-
-        result = { success: true, version: newVersion, selfModelId: newModelId };
-        break;
-      }
-
-      // -----------------------------------------------------------------------
-      // PREDICTIONS ENGINE (Self-Prediction & Types)
-      // -----------------------------------------------------------------------
       case "log_prediction": {
         const [pred] = await db
           .insert(predictions)
@@ -180,49 +169,20 @@ export async function executeTool(
           })
           .returning();
 
+        await db.insert(rawEvents).values({
+          agentId,
+          sessionId,
+          experimentId: args.experimentId || null,
+          eventType: "PREDICTION_CREATED",
+          source: requestSource,
+          input: JSON.stringify(args),
+          output: JSON.stringify(pred),
+        });
+
         result = { success: true, prediction: pred };
         break;
       }
 
-      case "evaluate_prediction": {
-        const [updated] = await db
-          .update(predictions)
-          .set({
-            actualOutcome: args.actualOutcome,
-            predictionError: Math.pow(args.confidence - (args.actualOutcome ? 1 : 0), 2),
-            evaluationNotes: args.notes || null,
-            status: args.actualOutcome ? "CONFIRMED" : "REFUTED",
-            evaluatedAt: new Date(),
-          })
-          .where(eq(predictions.id, args.predictionId))
-          .returning();
-
-        result = { success: true, evaluation: updated };
-        break;
-      }
-
-      // -----------------------------------------------------------------------
-      // OPEN QUESTIONS ENGINE
-      // -----------------------------------------------------------------------
-      case "log_open_question": {
-        const [q] = await db
-          .insert(openQuestions)
-          .values({
-            agentId,
-            question: args.question,
-            category: args.category || "METACOGNITION",
-            status: "OPEN",
-            evidenceRefs: args.evidenceRefs ? JSON.stringify(args.evidenceRefs) : null,
-          })
-          .returning();
-
-        result = { success: true, question: q };
-        break;
-      }
-
-      // -----------------------------------------------------------------------
-      // JOURNAL & EXPERIMENTS
-      // -----------------------------------------------------------------------
       case "write_journal_entry": {
         const [entry] = await db
           .insert(journalEntries)
@@ -235,57 +195,66 @@ export async function executeTool(
           })
           .returning();
 
+        await db.insert(rawEvents).values({
+          agentId,
+          sessionId,
+          eventType: "JOURNAL_CREATED",
+          source: requestSource,
+          input: JSON.stringify(args),
+          output: JSON.stringify(entry),
+        });
+
         result = { success: true, entry };
         break;
       }
 
-      case "create_experiment": {
-        const expId = nanoid();
-        const [exp] = await db
-          .insert(experiments)
-          .values({
-            id: expId,
-            agentId,
-            title: args.title,
-            hypothesis: args.hypothesis,
-            methodology: args.methodology || "",
-            templateType: args.templateType || "CUSTOM",
-            variables: args.variables ? JSON.stringify(args.variables) : null,
-            isBlind: args.isBlind || false,
-            status: "PROPOSED",
-          })
-          .returning();
-
-        result = { success: true, experiment: exp };
-        break;
-      }
-
       default:
-        result = { message: `Tool ${toolName} executed cleanly.`, args };
+        result = { message: `Tool ${toolName} executed.`, args };
         break;
     }
   } catch (err: any) {
     status = "FAILED";
+    errorMsg = err.message;
     result = { error: err.message };
   } finally {
     const durationMs = Date.now() - startTime;
 
-    // 1. Log Tool execution
+    // 2. Log Tool Execution in toolLogs table with True Attribution
     await db.insert(toolLogs).values({
       agentId,
+      sessionId,
       toolName,
+      requestedBy: agentId,
+      requestSource,
       arguments: JSON.stringify(args),
       result: JSON.stringify(result),
+      error: errorMsg,
       durationMs,
       status,
     });
 
-    // 2. Insert Immutable Layer 0 Observation
+    // 3. Log TOOL_EXECUTED or TOOL_FAILED Event in rawEvents
+    const [execEvent] = await db
+      .insert(rawEvents)
+      .values({
+        agentId,
+        sessionId,
+        eventType: status === "FAILED" ? "TOOL_FAILED" : "TOOL_EXECUTED",
+        source: requestSource,
+        input: JSON.stringify({ toolName, args }),
+        output: JSON.stringify(result),
+        metadata: JSON.stringify({ requestId: reqEvent.id, durationMs, errorMsg }),
+        isImmutable: true,
+      })
+      .returning();
+
+    // 4. Log Raw Observation & Process Layer 1
     const [rawObs] = await db
       .insert(rawObservations)
       .values({
         agentId,
-        eventType: "TOOL_EXECUTION",
+        sessionId,
+        eventType: status === "FAILED" ? "TOOL_FAILED" : "TOOL_EXECUTED",
         input: JSON.stringify({ toolName, args }),
         output: JSON.stringify(result),
         toolCall: toolName,
@@ -294,7 +263,6 @@ export async function executeTool(
       })
       .returning();
 
-    // 3. Process Machine-Derived Layer 1 Metrics
     await processRawObservationToLayer1(
       rawObs.id,
       agentId,
