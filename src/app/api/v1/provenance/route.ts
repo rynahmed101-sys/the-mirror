@@ -4,15 +4,16 @@ import { getProvenanceTrace } from "@/lib/agent/provenance";
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const claimId = searchParams.get("claimId");
+    const targetId = searchParams.get("targetId") || searchParams.get("claimId") || searchParams.get("experimentId");
+    const agentId = searchParams.get("agentId") || req.headers.get("x-agent-id") || "mirror-primary";
 
-    if (!claimId) {
-      return NextResponse.json({ error: "claimId query param required" }, { status: 400 });
+    if (!targetId) {
+      return NextResponse.json({ error: "targetId, claimId, or experimentId query param required" }, { status: 400 });
     }
 
-    const trace = await getProvenanceTrace(claimId);
+    const trace = await getProvenanceTrace(targetId, agentId);
     if (!trace) {
-      return NextResponse.json({ error: "Claim or interpretation not found" }, { status: 404 });
+      return NextResponse.json({ error: "Target entity not found in lineage" }, { status: 404 });
     }
 
     return NextResponse.json(trace);
