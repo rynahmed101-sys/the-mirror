@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { experiments, predictions, timelineEvents } from "@/lib/db/schema";
+import { canAgentAccessExperimentConfig, filterExperimentForAgent } from "@/lib/agent/blindIsolation";
 import { eq } from "drizzle-orm";
 
 export async function GET(
@@ -9,6 +10,10 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const { searchParams } = new URL(req.url);
+    const agentId = searchParams.get("agentId") || req.headers.get("x-agent-id") || "mirror-primary";
+    const requestHidden = searchParams.get("includeHidden") === "true" || searchParams.get("field") === "hidden_config";
+
     const list = await db.select().from(experiments).where(eq(experiments.id, id)).limit(1);
 
     if (list.length === 0) {
@@ -16,10 +21,24 @@ export async function GET(
     }
 
     const exp = list[0];
+
+    // If explicit attempt to retrieve hidden config while blind, strictly deny with 403
+    if (requestHidden && exp.isBlind && !canAgentAccessExperimentConfig(agentId, id)) {
+      return NextResponse.json(
+        {
+          error: "AUTHORIZATION_DENIED",
+          status: "DENIED",
+          reason: `BLIND_ISOLATION_ENFORCED: Agent '${agentId}' is denied access to hidden configuration of blind experiment '${id}' before explicit reveal.`,
+        },
+        { status: 403 }
+      );
+    }
+
     const preds = await db.select().from(predictions).where(eq(predictions.experimentId, id));
+    const sanitized = filterExperimentForAgent(exp, agentId);
 
     return NextResponse.json({
-      ...exp,
+      ...sanitized,
       variables: exp.variables ? JSON.parse(exp.variables) : null,
       predictions: preds,
     });
