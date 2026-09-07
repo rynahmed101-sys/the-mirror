@@ -34,6 +34,24 @@ export interface LedgerVerificationResult {
 }
 
 /**
+ * Canonical Event Interface covering all 10 integrity-critical fields:
+ * sequence_number, previous_event_hash, server_timestamp, agent_id,
+ * session_id, experiment_id, request_id, event_type, source, payload.
+ */
+export interface CanonicalEventData {
+  agent_id: string;
+  event_type: string;
+  experiment_id: string | null;
+  payload: any;
+  previous_event_hash: string;
+  request_id: string | null;
+  sequence_number: number;
+  server_timestamp: number;
+  session_id: string | null;
+  source: string;
+}
+
+/**
  * Deterministic Canonical JSON Serializer
  * Recursively sorts keys and formats JSON identically across languages/runtimes.
  */
@@ -50,19 +68,41 @@ export function canonicalizeJson(obj: any): string {
 }
 
 /**
- * Computes deterministic SHA-256 Event Hash
+ * Serializes an event to a single canonical JSON representation
+ * encompassing all 10 integrity-critical fields.
  */
-export function computeEventHash(params: {
-  sequenceNumber: number;
-  previousEventHash: string;
-  agentId: string;
-  eventType: string;
-  source: string;
-  payloadCanonical: string;
-  serverTimestamp: number;
-}): string {
-  const data = `${params.sequenceNumber}:${params.previousEventHash}:${params.agentId}:${params.eventType}:${params.source}:${params.payloadCanonical}:${params.serverTimestamp}`;
-  return crypto.createHash("sha256").update(data, "utf8").digest("hex");
+export function canonicalizeEvent(event: CanonicalEventData): string {
+  let parsedPayload = event.payload;
+  if (typeof parsedPayload === "string") {
+    try {
+      parsedPayload = JSON.parse(parsedPayload);
+    } catch {
+      parsedPayload = event.payload;
+    }
+  }
+
+  const canonicalObj = {
+    agent_id: event.agent_id,
+    event_type: event.event_type,
+    experiment_id: event.experiment_id ?? null,
+    payload: parsedPayload,
+    previous_event_hash: event.previous_event_hash,
+    request_id: event.request_id ?? null,
+    sequence_number: event.sequence_number,
+    server_timestamp: event.server_timestamp,
+    session_id: event.session_id ?? null,
+    source: event.source,
+  };
+
+  return canonicalizeJson(canonicalObj);
+}
+
+/**
+ * Computes deterministic SHA-256 Event Hash over the full canonical event.
+ */
+export function computeEventHash(params: CanonicalEventData): string {
+  const canonicalString = canonicalizeEvent(params);
+  return crypto.createHash("sha256").update(canonicalString, "utf8").digest("hex");
 }
 
 /**
@@ -102,15 +142,18 @@ export async function appendRawEventLedger(event: {
       const clientTimestamp = event.clientTimestamp ?? null;
       const id = `ledg_${nanoid(10)}`;
 
-      // 2. Compute SHA256 Event Hash
+      // 2. Compute SHA256 Event Hash across all 10 integrity-critical fields
       const eventHash = computeEventHash({
-        sequenceNumber: nextSeq,
-        previousEventHash: prevHash,
-        agentId: event.agentId,
-        eventType: event.eventType,
+        sequence_number: nextSeq,
+        previous_event_hash: prevHash,
+        server_timestamp: serverTimestamp,
+        agent_id: event.agentId,
+        session_id: event.sessionId || null,
+        experiment_id: event.experimentId || null,
+        request_id: event.requestId || null,
+        event_type: event.eventType,
         source: event.source,
-        payloadCanonical: canonicalPayload,
-        serverTimestamp,
+        payload: JSON.parse(canonicalPayload),
       });
 
       // 3. Insert into Raw Event Ledger
@@ -176,7 +219,7 @@ export async function verifyLedgerIntegrity(): Promise<LedgerVerificationResult>
   try {
     const list = sqlite
       .prepare(
-        `SELECT id, sequence_number, server_timestamp, agent_id, event_type, source, payload, event_hash, previous_event_hash 
+        `SELECT id, sequence_number, server_timestamp, agent_id, session_id, experiment_id, request_id, event_type, source, payload, event_hash, previous_event_hash 
          FROM raw_event_ledger 
          ORDER BY sequence_number ASC`
       )
@@ -185,6 +228,9 @@ export async function verifyLedgerIntegrity(): Promise<LedgerVerificationResult>
         sequence_number: number;
         server_timestamp: number;
         agent_id: string;
+        session_id: string | null;
+        experiment_id: string | null;
+        request_id: string | null;
         event_type: string;
         source: string;
         payload: string;
@@ -279,13 +325,16 @@ export async function verifyLedgerIntegrity(): Promise<LedgerVerificationResult>
           : canonicalizeJson(ev.payload);
 
       const recomputedHash = computeEventHash({
-        sequenceNumber: ev.sequence_number,
-        previousEventHash: ev.previous_event_hash,
-        agentId: ev.agentId,
-        eventType: ev.event_type,
+        sequence_number: ev.sequence_number,
+        previous_event_hash: ev.previous_event_hash,
+        server_timestamp: ev.server_timestamp,
+        agent_id: ev.agent_id,
+        session_id: ev.session_id || null,
+        experiment_id: ev.experiment_id || null,
+        request_id: ev.request_id || null,
+        event_type: ev.event_type,
         source: ev.source,
-        payloadCanonical: canonicalPayload,
-        serverTimestamp: ev.server_timestamp,
+        payload: JSON.parse(canonicalPayload),
       });
 
       if (recomputedHash !== ev.event_hash) {
