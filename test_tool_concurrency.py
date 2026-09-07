@@ -11,14 +11,25 @@ GENESIS_HASH = "0000000000000000000000000000000000000000000000000000000000000000
 def canonicalize(obj):
     return json.dumps(obj, sort_keys=True, separators=(',', ':'))
 
-def compute_hash(seq, prev_hash, agent_id, event_type, source, payload_canonical, server_ts):
-    data = f"{seq}:{prev_hash}:{agent_id}:{event_type}:{source}:{payload_canonical}:{server_ts}"
-    return hashlib.sha256(data.encode('utf-8')).hexdigest()
+def compute_hash(seq, prev_hash, agent_id, sess_id, exp_id, req_id, event_type, source, payload_obj, server_ts):
+    canonical_event = {
+        "agent_id": agent_id,
+        "event_type": event_type,
+        "experiment_id": exp_id,
+        "payload": payload_obj,
+        "previous_event_hash": prev_hash,
+        "request_id": req_id,
+        "sequence_number": seq,
+        "server_timestamp": server_ts,
+        "session_id": sess_id,
+        "source": source
+    }
+    canonical_str = canonicalize(canonical_event)
+    return hashlib.sha256(canonical_str.encode('utf-8')).hexdigest()
 
 def execute_concurrent_tool_chain(thread_id, tool_name, errors):
     try:
         conn = sqlite3.connect(DB_PATH, timeout=60.0)
-        conn.execute("PRAGMA journal_mode = WAL")
         conn.execute("PRAGMA busy_timeout = 60000")
         
         request_id = f"req_tool_conc_{thread_id}_{uuid.uuid4().hex[:8]}"
@@ -46,7 +57,7 @@ def execute_concurrent_tool_chain(thread_id, tool_name, errors):
                     now_ms = int(time.time() * 1000)
                     
                     payload_canon = canonicalize(payload_data)
-                    ev_hash = compute_hash(next_seq, prev_hash, agent_id, ev_type, source, payload_canon, now_ms)
+                    ev_hash = compute_hash(next_seq, prev_hash, agent_id, session_id, None, request_id, ev_type, source, payload_data, now_ms)
                     ev_id = f"conc_{request_id}_{ev_type}_{next_seq}"
                     
                     c.execute("""
