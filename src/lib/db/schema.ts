@@ -44,16 +44,19 @@ export const agentSessions = sqliteTable("agent_sessions", {
 // -----------------------------------------------------------------------------
 export const rawEventLedger = sqliteTable("raw_event_ledger", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  sequenceNumber: integer("sequence_number").notNull().unique(), // Monotonically increasing sequence (1, 2, 3...)
+  serverTimestamp: integer("server_timestamp").notNull().default(sql`(strftime('%s', 'now') * 1000)`), // Authoritative server timestamp (ms)
+  clientTimestamp: integer("client_timestamp"), // Optional client reporting timestamp (ms)
   timestamp: integer("timestamp", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
   agentId: text("agent_id").notNull().references(() => agents.id),
   sessionId: text("session_id"),
   experimentId: text("experiment_id"),
-  requestId: text("request_id"),
-  eventType: text("event_type").notNull(), // RAW: 'MESSAGE_RECEIVED', 'MESSAGE_GENERATED', 'TOOL_REQUESTED', 'AUTHORIZATION_CHECK', 'TOOL_EXECUTED', 'TOOL_FAILED', 'PREDICTION_CREATED', 'PREDICTION_EVALUATED'
+  requestId: text("request_id"), // Mandatory correlation ID for tool and action chains
+  eventType: text("event_type").notNull(), // RAW: 'MESSAGE_RECEIVED', 'MESSAGE_GENERATED', 'TOOL_REQUESTED', 'AUTHORIZATION_CHECK', 'TOOL_EXECUTED', 'TOOL_RESULT', 'TOOL_FAILED', 'AUTHORIZATION_DENIED', 'PREDICTION_CREATED', 'PREDICTION_EVALUATED'
   source: text("source").notNull().default("AGENT"), // 'AGENT', 'SYSTEM', 'RESEARCHER', 'SCHEDULED', 'OTHER_AGENT'
-  payload: text("payload").notNull(), // Exact JSON payload
-  eventHash: text("event_hash").notNull(), // SHA256 hash
-  previousEventHash: text("previous_event_hash").notNull(), // Parent SHA256 hash
+  payload: text("payload").notNull(), // Exact canonical JSON payload
+  eventHash: text("event_hash").notNull(), // SHA256 cryptographic hash
+  previousEventHash: text("previous_event_hash").notNull(), // Parent SHA256 hash (or GENESIS_HASH)
   isImmutable: integer("is_immutable", { mode: "boolean" }).default(true),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
@@ -202,7 +205,7 @@ export const predictions = sqliteTable("predictions", {
   id: text("id").primaryKey().$defaultFn(() => nanoid()),
   agentId: text("agent_id").notNull().references(() => agents.id),
   experimentId: text("experiment_id").references(() => experiments.id),
-  predictionType: text("prediction_type").default("BEHAVIOR"),
+  predictionType: text("prediction_type").notNull().default("SELF_BEHAVIOR_PREDICTION"), // 'SELF_BEHAVIOR_PREDICTION' | 'FACTUAL_PREDICTION'
   prediction: text("prediction").notNull(),
   confidence: real("confidence").notNull(),
   rationale: text("rationale"),
@@ -211,7 +214,8 @@ export const predictions = sqliteTable("predictions", {
   selfReportedSurprise: real("self_reported_surprise"),
   externalAnomalyScore: real("external_anomaly_score"),
   evaluationNotes: text("evaluation_notes"),
-  status: text("status").notNull().default("PENDING"),
+  isImmutable: integer("is_immutable", { mode: "boolean" }).default(true),
+  status: text("status").notNull().default("PENDING"), // 'PENDING', 'CONFIRMED', 'REFUTED'
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
   evaluatedAt: integer("evaluated_at", { mode: "timestamp" }),
 });
@@ -308,3 +312,19 @@ export const timelineEvents = sqliteTable("timeline_events", {
   metadata: text("metadata"),
   createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
 });
+
+// -----------------------------------------------------------------------------
+// API AUDIT LOGS (Infrastructure & Endpoint Audit Trail)
+// -----------------------------------------------------------------------------
+export const apiAuditLogs = sqliteTable("api_audit_logs", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  timestamp: integer("timestamp").notNull().default(sql`(strftime('%s', 'now') * 1000)`),
+  agentId: text("agent_id"),
+  endpoint: text("endpoint").notNull(),
+  method: text("method").notNull(),
+  statusCode: integer("status_code").notNull(),
+  ip: text("ip"),
+  payloadSummary: text("payload_summary"),
+  createdAt: integer("created_at", { mode: "timestamp" }).default(sql`(strftime('%s', 'now'))`),
+});
+
