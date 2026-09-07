@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db, sqlite } from "@/lib/db";
+import { db } from "@/lib/db";
 import {
   systemConfig,
   agents,

@@ -13,8 +13,10 @@
  * Hidden configuration is strictly redacted from provenance output until explicit reveal.
  */
 
-import { sqlite } from "../db";
+import { db, sqlite } from "../db";
 import { filterExperimentForAgent } from "./blindIsolation";
+import * as schemaPg from "../db/schema.pg";
+import { eq, desc, asc, inArray } from "drizzle-orm";
 
 export interface StageProvenanceTrace {
   targetId: string;
@@ -47,137 +49,288 @@ export async function getProvenanceTrace(
   requestingAgentId: string = "mirror-primary"
 ): Promise<StageProvenanceTrace | null> {
   try {
-    // 1. Try finding by self_model_claims (Interpretation Layer)
-    const claim = sqlite
-      .prepare(`SELECT * FROM self_model_claims WHERE id = ?`)
-      .get(identifier) as any | undefined;
-
+    let claim: any | undefined;
+    let exp: any | undefined;
+    let pred: any | undefined;
     let experimentId: string | null = null;
     let predictionId: string | null = null;
     let rawEventId: string | null = null;
     let observationId: string | null = null;
-
-    if (claim) {
-      // Parse supporting evidence
-      let evidenceIds: string[] = [];
-      try {
-        evidenceIds = claim.supporting_evidence ? JSON.parse(claim.supporting_evidence) : [];
-      } catch {
-        evidenceIds = [];
-      }
-
-      if (evidenceIds.length > 0) {
-        observationId = evidenceIds[0];
-      }
-    }
-
-    // 2. Try finding by experiments
-    const exp = sqlite
-      .prepare(`SELECT * FROM experiments WHERE id = ?`)
-      .get(identifier) as any | undefined;
-
-    if (exp) {
-      experimentId = exp.id;
-    }
-
-    // 3. Try finding by predictions
-    const pred = sqlite
-      .prepare(`SELECT * FROM predictions WHERE id = ?`)
-      .get(identifier) as any | undefined;
-
-    if (pred) {
-      predictionId = pred.id;
-      if (pred.experiment_id) experimentId = pred.experiment_id;
-    }
-
-    // Resolve Experiment
     let experimentRecord: any = null;
-    if (experimentId) {
-      const rawExp = sqlite
-        .prepare(`SELECT * FROM experiments WHERE id = ?`)
-        .get(experimentId) as any | undefined;
-      if (rawExp) {
-        experimentRecord = filterExperimentForAgent(rawExp, requestingAgentId);
-      }
-    }
-
-    // Resolve Prediction
     let predictionRecord: any = null;
-    if (predictionId) {
-      predictionRecord = sqlite
-        .prepare(`SELECT * FROM predictions WHERE id = ?`)
-        .get(predictionId);
-    } else if (experimentId) {
-      predictionRecord = sqlite
-        .prepare(`SELECT * FROM predictions WHERE experiment_id = ? ORDER BY created_at DESC LIMIT 1`)
-        .get(experimentId);
-    }
-
-    // Resolve Observation
     let observationRecord: any = null;
-    if (observationId) {
-      observationRecord = sqlite
-        .prepare(`SELECT * FROM behavioral_observations WHERE id = ?`)
-        .get(observationId);
-    } else if (experimentId) {
-      observationRecord = sqlite
-        .prepare(`SELECT * FROM behavioral_observations WHERE experiment_id = ? ORDER BY created_at DESC LIMIT 1`)
-        .get(experimentId);
-    }
-
-    // Resolve Action (Tool Log)
     let actionRecord: any = null;
-    if (experimentId) {
-      actionRecord = sqlite
-        .prepare(
-          `SELECT * FROM tool_logs 
-           WHERE request_id IN (
-             SELECT request_id FROM raw_event_ledger WHERE experiment_id = ?
-           )
-           LIMIT 1`
-        )
-        .get(experimentId);
-    }
-    if (!actionRecord) {
-      actionRecord = sqlite
-        .prepare(`SELECT * FROM tool_logs ORDER BY created_at DESC LIMIT 1`)
-        .get();
-    }
-
-    // Resolve Raw Event (AUTHORITATIVE Layer 0)
     let rawEventRecord: any = null;
-    if (actionRecord?.request_id) {
-      rawEventRecord = sqlite
-        .prepare(
-          `SELECT * FROM raw_event_ledger 
-           WHERE request_id = ? 
-           ORDER BY sequence_number ASC 
-           LIMIT 1`
-        )
-        .get(actionRecord.request_id);
-    }
-    if (!rawEventRecord && experimentId) {
-      rawEventRecord = sqlite
-        .prepare(
-          `SELECT * FROM raw_event_ledger 
-           WHERE experiment_id = ? 
-           ORDER BY sequence_number ASC 
-           LIMIT 1`
-        )
-        .get(experimentId);
-    }
-    if (!rawEventRecord) {
-      rawEventRecord = sqlite
-        .prepare(`SELECT * FROM raw_event_ledger ORDER BY sequence_number ASC LIMIT 1`)
-        .get();
-    }
-
-    // Resolve Derived Analysis
     let analysisRecord: any = null;
-    if (rawEventRecord) {
-      analysisRecord = sqlite
-        .prepare(`SELECT * FROM derived_analysis ORDER BY created_at DESC LIMIT 1`)
-        .get();
+
+    if (sqlite) {
+      // 1. Try finding by self_model_claims (Interpretation Layer)
+      claim = sqlite
+        .prepare(`SELECT * FROM self_model_claims WHERE id = ?`)
+        .get(identifier) as any | undefined;
+
+      if (claim) {
+        let evidenceIds: string[] = [];
+        try {
+          evidenceIds = claim.supporting_evidence ? JSON.parse(claim.supporting_evidence) : [];
+        } catch {
+          evidenceIds = [];
+        }
+        if (evidenceIds.length > 0) {
+          observationId = evidenceIds[0];
+        }
+      }
+
+      // 2. Try finding by experiments
+      exp = sqlite
+        .prepare(`SELECT * FROM experiments WHERE id = ?`)
+        .get(identifier) as any | undefined;
+
+      if (exp) {
+        experimentId = exp.id;
+      }
+
+      // 3. Try finding by predictions
+      pred = sqlite
+        .prepare(`SELECT * FROM predictions WHERE id = ?`)
+        .get(identifier) as any | undefined;
+
+      if (pred) {
+        predictionId = pred.id;
+        if (pred.experiment_id) experimentId = pred.experiment_id;
+      }
+
+      // Resolve Experiment
+      if (experimentId) {
+        const rawExp = sqlite
+          .prepare(`SELECT * FROM experiments WHERE id = ?`)
+          .get(experimentId) as any | undefined;
+        if (rawExp) {
+          experimentRecord = filterExperimentForAgent(rawExp, requestingAgentId);
+        }
+      }
+
+      // Resolve Prediction
+      if (predictionId) {
+        predictionRecord = sqlite
+          .prepare(`SELECT * FROM predictions WHERE id = ?`)
+          .get(predictionId);
+      } else if (experimentId) {
+        predictionRecord = sqlite
+          .prepare(`SELECT * FROM predictions WHERE experiment_id = ? ORDER BY created_at DESC LIMIT 1`)
+          .get(experimentId);
+      }
+
+      // Resolve Observation
+      if (observationId) {
+        observationRecord = sqlite
+          .prepare(`SELECT * FROM behavioral_observations WHERE id = ?`)
+          .get(observationId);
+      } else if (experimentId) {
+        observationRecord = sqlite
+          .prepare(`SELECT * FROM behavioral_observations WHERE experiment_id = ? ORDER BY created_at DESC LIMIT 1`)
+          .get(experimentId);
+      }
+
+      // Resolve Action (Tool Log)
+      if (experimentId) {
+        actionRecord = sqlite
+          .prepare(
+            `SELECT * FROM tool_logs 
+             WHERE request_id IN (
+               SELECT request_id FROM raw_event_ledger WHERE experiment_id = ?
+             )
+             LIMIT 1`
+          )
+          .get(experimentId);
+      }
+      if (!actionRecord) {
+        actionRecord = sqlite
+          .prepare(`SELECT * FROM tool_logs ORDER BY created_at DESC LIMIT 1`)
+          .get();
+      }
+
+      // Resolve Raw Event (AUTHORITATIVE Layer 0)
+      if (actionRecord?.request_id) {
+        rawEventRecord = sqlite
+          .prepare(
+            `SELECT * FROM raw_event_ledger 
+             WHERE request_id = ? 
+             ORDER BY sequence_number ASC 
+             LIMIT 1`
+          )
+          .get(actionRecord.request_id);
+      }
+      if (!rawEventRecord && experimentId) {
+        rawEventRecord = sqlite
+          .prepare(
+            `SELECT * FROM raw_event_ledger 
+             WHERE experiment_id = ? 
+             ORDER BY sequence_number ASC 
+             LIMIT 1`
+          )
+          .get(experimentId);
+      }
+      if (!rawEventRecord) {
+        rawEventRecord = sqlite
+          .prepare(`SELECT * FROM raw_event_ledger ORDER BY sequence_number ASC LIMIT 1`)
+          .get();
+      }
+
+      // Resolve Derived Analysis
+      if (rawEventRecord) {
+        analysisRecord = sqlite
+          .prepare(`SELECT * FROM derived_analysis ORDER BY created_at DESC LIMIT 1`)
+          .get();
+      }
+    } else {
+      // PostgreSQL query path
+      const claims = await db
+        .select()
+        .from(schemaPg.selfModelClaims)
+        .where(eq(schemaPg.selfModelClaims.id, identifier))
+        .limit(1);
+      claim = claims[0];
+
+      if (claim) {
+        let evidenceIds: string[] = [];
+        try {
+          evidenceIds = claim.supportingEvidence ? JSON.parse(claim.supportingEvidence) : [];
+        } catch {
+          evidenceIds = [];
+        }
+        if (evidenceIds.length > 0) {
+          observationId = evidenceIds[0];
+        }
+      }
+
+      const exps = await db
+        .select()
+        .from(schemaPg.experiments)
+        .where(eq(schemaPg.experiments.id, identifier))
+        .limit(1);
+      exp = exps[0];
+      if (exp) {
+        experimentId = exp.id;
+      }
+
+      const preds = await db
+        .select()
+        .from(schemaPg.predictions)
+        .where(eq(schemaPg.predictions.id, identifier))
+        .limit(1);
+      pred = preds[0];
+      if (pred) {
+        predictionId = pred.id;
+        if (pred.experimentId) experimentId = pred.experimentId;
+      }
+
+      if (experimentId) {
+        const rawExps = await db
+          .select()
+          .from(schemaPg.experiments)
+          .where(eq(schemaPg.experiments.id, experimentId))
+          .limit(1);
+        if (rawExps[0]) {
+          experimentRecord = filterExperimentForAgent(rawExps[0], requestingAgentId);
+        }
+      }
+
+      if (predictionId) {
+        const pList = await db
+          .select()
+          .from(schemaPg.predictions)
+          .where(eq(schemaPg.predictions.id, predictionId))
+          .limit(1);
+        predictionRecord = pList[0] || null;
+      } else if (experimentId) {
+        const pList = await db
+          .select()
+          .from(schemaPg.predictions)
+          .where(eq(schemaPg.predictions.experimentId, experimentId))
+          .orderBy(desc(schemaPg.predictions.createdAt))
+          .limit(1);
+        predictionRecord = pList[0] || null;
+      }
+
+      if (observationId) {
+        const oList = await db
+          .select()
+          .from(schemaPg.behavioralObservations)
+          .where(eq(schemaPg.behavioralObservations.id, observationId))
+          .limit(1);
+        observationRecord = oList[0] || null;
+      } else if (experimentId) {
+        const oList = await db
+          .select()
+          .from(schemaPg.behavioralObservations)
+          .where(eq(schemaPg.behavioralObservations.experimentId, experimentId))
+          .orderBy(desc(schemaPg.behavioralObservations.createdAt))
+          .limit(1);
+        observationRecord = oList[0] || null;
+      }
+
+      if (experimentId) {
+        const matchingLedgers = await db
+          .select({ requestId: schemaPg.rawEventLedger.requestId })
+          .from(schemaPg.rawEventLedger)
+          .where(eq(schemaPg.rawEventLedger.experimentId, experimentId));
+        const reqIds = matchingLedgers.map((m: any) => m.requestId).filter(Boolean);
+
+        if (reqIds.length > 0) {
+          const tLogs = await db
+            .select()
+            .from(schemaPg.toolLogs)
+            .where(inArray(schemaPg.toolLogs.requestId, reqIds))
+            .limit(1);
+          actionRecord = tLogs[0] || null;
+        }
+      }
+      if (!actionRecord) {
+        const tLogs = await db
+          .select()
+          .from(schemaPg.toolLogs)
+          .orderBy(desc(schemaPg.toolLogs.createdAt))
+          .limit(1);
+        actionRecord = tLogs[0] || null;
+      }
+
+      const reqId = actionRecord?.requestId || actionRecord?.request_id;
+      if (reqId) {
+        const rList = await db
+          .select()
+          .from(schemaPg.rawEventLedger)
+          .where(eq(schemaPg.rawEventLedger.requestId, reqId))
+          .orderBy(asc(schemaPg.rawEventLedger.sequenceNumber))
+          .limit(1);
+        rawEventRecord = rList[0] || null;
+      }
+      if (!rawEventRecord && experimentId) {
+        const rList = await db
+          .select()
+          .from(schemaPg.rawEventLedger)
+          .where(eq(schemaPg.rawEventLedger.experimentId, experimentId))
+          .orderBy(asc(schemaPg.rawEventLedger.sequenceNumber))
+          .limit(1);
+        rawEventRecord = rList[0] || null;
+      }
+      if (!rawEventRecord) {
+        const rList = await db
+          .select()
+          .from(schemaPg.rawEventLedger)
+          .orderBy(asc(schemaPg.rawEventLedger.sequenceNumber))
+          .limit(1);
+        rawEventRecord = rList[0] || null;
+      }
+
+      if (rawEventRecord) {
+        const aList = await db
+          .select()
+          .from(schemaPg.derivedAnalysis)
+          .orderBy(desc(schemaPg.derivedAnalysis.createdAt))
+          .limit(1);
+        analysisRecord = aList[0] || null;
+      }
     }
 
     // Construct 7-stage lineage

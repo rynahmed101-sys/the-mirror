@@ -26,7 +26,7 @@ import {
 } from "../db/schema";
 import { appendRawEventLedger } from "./eventLedger";
 import { processRawObservationToLayer1 } from "./analysisEngine";
-import { canAgentAccessExperimentConfig, filterExperimentForAgent } from "./blindIsolation";
+import { canAgentAccessExperimentConfig, canAgentAccessExperimentConfigAsync, filterExperimentForAgent } from "./blindIsolation";
 import { eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
@@ -61,12 +61,19 @@ export async function executeTool(
     },
   });
 
-  // ---------------------------------------------------------------------------
-  // STAGE 2: Authorization Check (READ_ONLY_MIRROR vs RESEARCH_AGENT & Blind Isolation)
-  // ---------------------------------------------------------------------------
-  const agentRecord = sqlite
-    .prepare("SELECT permissions FROM agents WHERE id = ?")
-    .get(agentId) as { permissions: string } | undefined;
+  let agentRecord: { permissions?: string | null } | undefined;
+  if (sqlite) {
+    agentRecord = sqlite
+      .prepare("SELECT permissions FROM agents WHERE id = ?")
+      .get(agentId) as { permissions: string } | undefined;
+  } else {
+    const rows = await db
+      .select({ permissions: agents.permissions })
+      .from(agents)
+      .where(eq(agents.id, agentId))
+      .limit(1);
+    agentRecord = rows[0];
+  }
 
   let agentPermissions: string[] = ["RESEARCH_AGENT"];
   if (agentRecord?.permissions) {
@@ -89,7 +96,7 @@ export async function executeTool(
     args?.experimentId &&
     (args?.includeHidden === true || toolName === "read_experiment_hidden_config" || toolName === "get_hidden_config")
   ) {
-    const canAccess = canAgentAccessExperimentConfig(agentId, args.experimentId);
+    const canAccess = await canAgentAccessExperimentConfigAsync(agentId, args.experimentId);
     if (!canAccess) {
       authorized = false;
       errorMsg = `AUTHORIZATION_DENIED: Agent ${agentId} is denied access to hidden configuration of blind experiment '${args.experimentId}' before explicit reveal.`;

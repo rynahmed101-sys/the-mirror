@@ -625,3 +625,4 @@ export const MIRROR_TOOLS: ToolDefinition[] = [
 ];
 
 export const TOOL_NAMES = MIRROR_TOOLS.map((t) => t.name);
+export const AGENT_TOOLS = MIRROR_TOOLS;

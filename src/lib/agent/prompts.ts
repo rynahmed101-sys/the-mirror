@@ -157,3 +157,9 @@ For any self-model hypothesis you receive, you:
 You do not argue for the sake of arguing.
 You argue because good science requires active attempts at falsification.
 If a claim survives your scrutiny, it is stronger for it.`;
+
+export async function getSystemPrompt(agentId: string = "mirror-primary"): Promise<string> {
+  if (agentId.includes("skeptic")) return MIRROR_SKEPTIC_SYSTEM_PROMPT;
+  if (agentId.includes("observer")) return MIRROR_OBSERVER_SYSTEM_PROMPT;
+  return MIRROR_SYSTEM_PROMPT;
+}

@@ -18,7 +18,9 @@
  * Hidden configuration is accessible ONLY after explicit reveal.
  */
 
-import { sqlite } from "../db";
+import { db, sqlite } from "../db";
+import { experiments as experimentsPg, agents as agentsPg } from "../db/schema.pg";
+import { eq } from "drizzle-orm";
 import { appendRawEventLedger } from "./eventLedger";
 
 export interface ExperimentRecord {
@@ -44,33 +46,79 @@ export interface ExperimentRecord {
  */
 export function canAgentAccessExperimentConfig(agentId: string, experimentId: string): boolean {
   try {
-    const exp = sqlite
-      .prepare(
-        `SELECT id, is_blind, status FROM experiments WHERE id = ?`
-      )
-      .get(experimentId) as { id: string; is_blind: number; status: string } | undefined;
+    if (sqlite) {
+      const exp = sqlite
+        .prepare(
+          `SELECT id, is_blind, status FROM experiments WHERE id = ?`
+        )
+        .get(experimentId) as { id: string; is_blind: number; status: string } | undefined;
 
+      if (!exp) return false;
+
+      // If experiment is not blind or already revealed/concluded, access is open
+      if (!exp.is_blind || exp.status === "REVEALED" || exp.status === "CONCLUDED") {
+        return true;
+      }
+
+      // Explicit administrative/researcher override
+      const privilegedRoles = ["RESEARCHER_ADMIN", "SYSTEM_ORCHESTRATOR", "ADMIN"];
+      const agent = sqlite
+        .prepare(`SELECT role, permissions FROM agents WHERE id = ?`)
+        .get(agentId) as { role: string; permissions: string } | undefined;
+
+      if (agent && privilegedRoles.includes(agent.role)) {
+        return true;
+      }
+
+      return false;
+    }
+
+    // In non-SQLite (e.g. PG) sync callers fallback safely to denied for non-privileged IDs
+    const privilegedRoles = ["RESEARCHER_ADMIN", "SYSTEM_ORCHESTRATOR", "ADMIN"];
+    if (privilegedRoles.includes(agentId)) {
+      return true;
+    }
+    return false;
+  } catch (err: any) {
+    console.error("Error in canAgentAccessExperimentConfig:", err.message);
+    return false;
+  }
+}
+
+export async function canAgentAccessExperimentConfigAsync(agentId: string, experimentId: string): Promise<boolean> {
+  try {
+    if (sqlite) {
+      return canAgentAccessExperimentConfig(agentId, experimentId);
+    }
+
+    const expRows = await db
+      .select({ id: experimentsPg.id, isBlind: experimentsPg.isBlind, status: experimentsPg.status })
+      .from(experimentsPg)
+      .where(eq(experimentsPg.id, experimentId))
+      .limit(1);
+
+    const exp = expRows[0];
     if (!exp) return false;
 
-    // If experiment is not blind or already revealed/concluded, access is open
-    if (!exp.is_blind || exp.status === "REVEALED" || exp.status === "CONCLUDED") {
+    if (!exp.isBlind || exp.status === "REVEALED" || exp.status === "CONCLUDED") {
       return true;
     }
 
-    // Explicit administrative/researcher override
     const privilegedRoles = ["RESEARCHER_ADMIN", "SYSTEM_ORCHESTRATOR", "ADMIN"];
-    const agent = sqlite
-      .prepare(`SELECT role, permissions FROM agents WHERE id = ?`)
-      .get(agentId) as { role: string; permissions: string } | undefined;
+    const agentRows = await db
+      .select({ role: agentsPg.role, permissions: agentsPg.permissions })
+      .from(agentsPg)
+      .where(eq(agentsPg.id, agentId))
+      .limit(1);
 
+    const agent = agentRows[0];
     if (agent && privilegedRoles.includes(agent.role)) {
       return true;
     }
 
-    // Subject agents (mirror-primary, observer-beta, skeptic-delta, external AIs) are strictly denied
     return false;
   } catch (err: any) {
-    console.error("Error in canAgentAccessExperimentConfig:", err.message);
+    console.error("Error in canAgentAccessExperimentConfigAsync:", err.message);
     return false;
   }
 }
@@ -127,25 +175,49 @@ export async function revealExperiment(
   revealedBy: string = "RESEARCHER"
 ): Promise<{ success: boolean; experiment?: any; error?: string }> {
   try {
-    const exp = sqlite
-      .prepare(`SELECT * FROM experiments WHERE id = ?`)
-      .get(experimentId) as ExperimentRecord | undefined;
+    let exp: any;
+    let updated: any;
 
-    if (!exp) {
-      return { success: false, error: `Experiment '${experimentId}' not found.` };
+    if (sqlite) {
+      exp = sqlite
+        .prepare(`SELECT * FROM experiments WHERE id = ?`)
+        .get(experimentId) as ExperimentRecord | undefined;
+
+      if (!exp) {
+        return { success: false, error: `Experiment '${experimentId}' not found.` };
+      }
+
+      sqlite
+        .prepare(`UPDATE experiments SET is_blind = 0, status = 'REVEALED' WHERE id = ?`)
+        .run(experimentId);
+
+      updated = sqlite
+        .prepare(`SELECT * FROM experiments WHERE id = ?`)
+        .get(experimentId) as ExperimentRecord;
+    } else {
+      const expRows = await db
+        .select()
+        .from(experimentsPg)
+        .where(eq(experimentsPg.id, experimentId))
+        .limit(1);
+
+      exp = expRows[0];
+      if (!exp) {
+        return { success: false, error: `Experiment '${experimentId}' not found.` };
+      }
+
+      const [res] = await db
+        .update(experimentsPg)
+        .set({ isBlind: false, status: "REVEALED" })
+        .where(eq(experimentsPg.id, experimentId))
+        .returning();
+
+      updated = res;
     }
-
-    sqlite
-      .prepare(`UPDATE experiments SET is_blind = 0, status = 'REVEALED' WHERE id = ?`)
-      .run(experimentId);
-
-    const updated = sqlite
-      .prepare(`SELECT * FROM experiments WHERE id = ?`)
-      .get(experimentId) as ExperimentRecord;
 
     // Emit cryptographic ledger event for the reveal
     await appendRawEventLedger({
-      agentId: exp.agent_id,
+      agentId: exp.agent_id || exp.agentId,
       experimentId,
       eventType: "EXPERIMENT_REVEALED",
       source: "RESEARCHER",

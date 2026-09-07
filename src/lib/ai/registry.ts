@@ -155,3 +155,32 @@ if (process.env.AI_PROVIDER) {
 if (process.env.OLLAMA_DEFAULT_MODEL) {
   activeModel = process.env.OLLAMA_DEFAULT_MODEL;
 }
+
+export const aiRegistry = {
+  getProvider,
+  getActiveProvider: () => getProvider(),
+  getActiveProviderName,
+  getActiveModel,
+  setActiveProvider: (name: string, model?: string) => setActiveProvider(name as ProviderName, model),
+  setActiveModel,
+  listProviders: (): string[] => Object.keys(getRegistry()),
+  listModels: async (providerId: string): Promise<string[]> => {
+    try {
+      const p = getProvider(providerId as ProviderName);
+      const models = await p.listModels();
+      return models.map((m) => m.name || m.id);
+    } catch {
+      return [];
+    }
+  },
+  healthCheck: async (providerId: string): Promise<boolean> => {
+    try {
+      const p = getProvider(providerId as ProviderName);
+      const h = await p.healthCheck();
+      return h.isHealthy;
+    } catch {
+      return false;
+    }
+  },
+};
+

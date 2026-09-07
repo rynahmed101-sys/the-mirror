@@ -32,8 +32,12 @@ next-env.d.ts
 # database
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 sqlite.db
+data/
 
 # OS files
 .DS_Store
 Thumbs.db
+.neon

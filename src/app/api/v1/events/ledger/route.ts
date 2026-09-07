@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db, sqlite } from "@/lib/db";
+import { db } from "@/lib/db";
 import { rawEventLedger, apiAuditLogs } from "@/lib/db/schema";
 import { verifyLedgerIntegrity } from "@/lib/agent/eventLedger";
 import { sql, eq, and, gte, lte, gt, lt } from "drizzle-orm";

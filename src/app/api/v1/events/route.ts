@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { rawEvents } from "@/lib/db/schema";
+import { rawEventLedger } from "@/lib/db/schema";
 import { sql, eq } from "drizzle-orm";
 
 export async function GET(req: Request) {
@@ -11,18 +11,18 @@ export async function GET(req: Request) {
     const sessionId = searchParams.get("sessionId");
     const eventType = searchParams.get("eventType");
 
-    let query = db.select().from(rawEvents);
+    let query = db.select().from(rawEventLedger);
 
-    if (agentId) query = query.where(eq(rawEvents.agentId, agentId)) as any;
-    if (sessionId) query = query.where(eq(rawEvents.sessionId, sessionId)) as any;
-    if (eventType) query = query.where(eq(rawEvents.eventType, eventType)) as any;
+    if (agentId) query = query.where(eq(rawEventLedger.agentId, agentId)) as any;
+    if (sessionId) query = query.where(eq(rawEventLedger.sessionId, sessionId)) as any;
+    if (eventType) query = query.where(eq(rawEventLedger.eventType, eventType)) as any;
 
-    const events = await query.orderBy(sql`${rawEvents.timestamp} DESC`).limit(limit);
+    const events = await query.orderBy(sql`${rawEventLedger.timestamp} DESC`).limit(limit);
 
     return NextResponse.json(
-      events.map((e) => ({
+      events.map((e: any) => ({
         ...e,
-        metadata: e.metadata ? JSON.parse(e.metadata) : null,
+        payload: e.payload ? JSON.parse(e.payload) : null,
       }))
     );
   } catch (error: any) {

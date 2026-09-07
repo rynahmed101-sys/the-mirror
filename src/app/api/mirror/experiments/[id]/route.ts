@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { experiments, predictions, timelineEvents } from "@/lib/db/schema";
-import { canAgentAccessExperimentConfig, filterExperimentForAgent } from "@/lib/agent/blindIsolation";
+import { canAgentAccessExperimentConfig, canAgentAccessExperimentConfigAsync, filterExperimentForAgent } from "@/lib/agent/blindIsolation";
 import { eq } from "drizzle-orm";
 
 export async function GET(
@@ -23,7 +23,7 @@ export async function GET(
     const exp = list[0];
 
     // If explicit attempt to retrieve hidden config while blind, strictly deny with 403
-    if (requestHidden && exp.isBlind && !canAgentAccessExperimentConfig(agentId, id)) {
+    if (requestHidden && exp.isBlind && !(await canAgentAccessExperimentConfigAsync(agentId, id))) {
       return NextResponse.json(
         {
           error: "AUTHORIZATION_DENIED",

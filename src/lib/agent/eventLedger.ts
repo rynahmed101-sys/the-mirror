@@ -9,7 +9,9 @@
  * 5. Rich verification statuses: VALID, INVALID_HASH, BROKEN_LINK, FORK_DETECTED, DUPLICATE_SEQUENCE, MISSING_SEQUENCE, INVALID_GENESIS
  */
 
-import { sqlite } from "../db";
+import { db, sqlite } from "../db";
+import { rawEventLedger as rawEventLedgerPg, ledgerStateLock as ledgerStateLockPg } from "../db/schema.pg";
+import { desc, asc, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { nanoid } from "nanoid";
 
@@ -125,87 +127,193 @@ export async function appendRawEventLedger(event: {
         ? canonicalizeJson(JSON.parse(event.payload))
         : canonicalizeJson(event.payload);
 
-    const appendTransaction = sqlite.transaction(() => {
-      // 1. Fetch latest event inside write transaction
-      const last = sqlite
-        .prepare(
-          `SELECT sequence_number, event_hash 
-           FROM raw_event_ledger 
-           ORDER BY sequence_number DESC 
-           LIMIT 1`
-        )
-        .get() as { sequence_number: number; event_hash: string } | undefined;
+    if (sqlite) {
+      const appendTransaction = sqlite.transaction(() => {
+        // 1. Fetch latest event inside write transaction
+        const last = sqlite
+          .prepare(
+            `SELECT sequence_number, event_hash 
+             FROM raw_event_ledger 
+             ORDER BY sequence_number DESC 
+             LIMIT 1`
+          )
+          .get() as { sequence_number: number; event_hash: string } | undefined;
 
-      const nextSeq = last ? last.sequence_number + 1 : 1;
-      const prevHash = last ? last.event_hash : GENESIS_HASH;
-      const serverTimestamp = Date.now();
-      const clientTimestamp = event.clientTimestamp ?? null;
-      const id = `ledg_${nanoid(10)}`;
+        const nextSeq = last ? last.sequence_number + 1 : 1;
+        const prevHash = last ? last.event_hash : GENESIS_HASH;
+        const serverTimestamp = Date.now();
+        const clientTimestamp = event.clientTimestamp ?? null;
+        const id = `ledg_${nanoid(10)}`;
 
-      // 2. Compute SHA256 Event Hash across all 10 integrity-critical fields
-      const eventHash = computeEventHash({
-        sequence_number: nextSeq,
-        previous_event_hash: prevHash,
-        server_timestamp: serverTimestamp,
-        agent_id: event.agentId,
-        session_id: event.sessionId || null,
-        experiment_id: event.experimentId || null,
-        request_id: event.requestId || null,
-        event_type: event.eventType,
-        source: event.source,
-        payload: JSON.parse(canonicalPayload),
+        // 2. Compute SHA256 Event Hash across all 10 integrity-critical fields
+        const eventHash = computeEventHash({
+          sequence_number: nextSeq,
+          previous_event_hash: prevHash,
+          server_timestamp: serverTimestamp,
+          agent_id: event.agentId,
+          session_id: event.sessionId || null,
+          experiment_id: event.experimentId || null,
+          request_id: event.requestId || null,
+          event_type: event.eventType,
+          source: event.source,
+          payload: JSON.parse(canonicalPayload),
+        });
+
+        // 3. Insert into Raw Event Ledger
+        const stmt = sqlite.prepare(`
+          INSERT INTO raw_event_ledger (
+            id, sequence_number, server_timestamp, client_timestamp,
+            agent_id, session_id, experiment_id, request_id,
+            event_type, source, payload, event_hash, previous_event_hash,
+            is_immutable, created_at
+          ) VALUES (
+            ?, ?, ?, ?,
+            ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            1, strftime('%s', 'now')
+          )
+        `);
+
+        stmt.run(
+          id,
+          nextSeq,
+          serverTimestamp,
+          clientTimestamp,
+          event.agentId,
+          event.sessionId || null,
+          event.experimentId || null,
+          event.requestId || null,
+          event.eventType,
+          event.source,
+          canonicalPayload,
+          eventHash,
+          prevHash
+        );
+
+        return {
+          id,
+          sequenceNumber: nextSeq,
+          serverTimestamp,
+          clientTimestamp,
+          agentId: event.agentId,
+          sessionId: event.sessionId,
+          experimentId: event.experimentId,
+          requestId: event.requestId,
+          eventType: event.eventType,
+          source: event.source,
+          payload: canonicalPayload,
+          eventHash,
+          previousEventHash: prevHash,
+          isImmutable: true,
+        };
       });
 
-      // 3. Insert into Raw Event Ledger
-      const stmt = sqlite.prepare(`
-        INSERT INTO raw_event_ledger (
-          id, sequence_number, server_timestamp, client_timestamp,
-          agent_id, session_id, experiment_id, request_id,
-          event_type, source, payload, event_hash, previous_event_hash,
-          is_immutable, created_at
-        ) VALUES (
-          ?, ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, ?, ?, ?, ?,
-          1, strftime('%s', 'now')
-        )
-      `);
-
-      stmt.run(
-        id,
-        nextSeq,
-        serverTimestamp,
-        clientTimestamp,
-        event.agentId,
-        event.sessionId || null,
-        event.experimentId || null,
-        event.requestId || null,
-        event.eventType,
-        event.source,
-        canonicalPayload,
-        eventHash,
-        prevHash
-      );
-
-      return {
-        id,
-        sequenceNumber: nextSeq,
-        serverTimestamp,
-        clientTimestamp,
-        agentId: event.agentId,
-        sessionId: event.sessionId,
-        experimentId: event.experimentId,
-        requestId: event.requestId,
-        eventType: event.eventType,
-        source: event.source,
-        payload: canonicalPayload,
-        eventHash,
-        previousEventHash: prevHash,
-        isImmutable: true,
+      return appendTransaction();
+    } else {
+      // PostgreSQL atomic append path with singleton state locking and transient error retry
+      const MAX_RETRIES = 5;
+      const isTransientPgError = (err: any): boolean => {
+        const code = err?.code || err?.cause?.code;
+        return ["40001", "55P03", "40P01", "08006", "08001", "08003"].includes(code);
       };
-    });
 
-    return appendTransaction();
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          return await db.transaction(async (tx: any) => {
+            // 1. Transactionally initialize singleton state lock if not present
+            await tx.execute(sql`
+              INSERT INTO ledger_state_lock (lock_id, last_sequence_number, last_event_hash, updated_at)
+              VALUES (1, 0, ${GENESIS_HASH}, NOW())
+              ON CONFLICT (lock_id) DO NOTHING
+            `);
+
+            // 2. Lock the singleton state row exclusively with SELECT ... FOR UPDATE
+            const stateResult = await tx.execute(sql`
+              SELECT last_sequence_number, last_event_hash
+              FROM ledger_state_lock
+              WHERE lock_id = 1
+              FOR UPDATE
+            `);
+
+            const stateRows = stateResult.rows || stateResult;
+            const currentState = stateRows[0];
+            const currentSeq = Number(currentState.last_sequence_number);
+            const currentHash = String(currentState.last_event_hash);
+
+            const nextSeq = currentSeq + 1;
+            const prevHash = currentHash;
+            const serverTimestamp = Date.now();
+            const clientTimestamp = event.clientTimestamp ?? null;
+            const id = `ledg_${nanoid(10)}`;
+
+            // 3. Compute deterministic 10-field SHA-256 canonical hash
+            const eventHash = computeEventHash({
+              sequence_number: nextSeq,
+              previous_event_hash: prevHash,
+              server_timestamp: serverTimestamp,
+              agent_id: event.agentId,
+              session_id: event.sessionId || null,
+              experiment_id: event.experimentId || null,
+              request_id: event.requestId || null,
+              event_type: event.eventType,
+              source: event.source,
+              payload: JSON.parse(canonicalPayload),
+            });
+
+            // 4. Insert new event into raw_event_ledger
+            await tx.insert(rawEventLedgerPg).values({
+              id,
+              sequenceNumber: nextSeq,
+              serverTimestamp,
+              clientTimestamp,
+              agentId: event.agentId,
+              sessionId: event.sessionId || null,
+              experimentId: event.experimentId || null,
+              requestId: event.requestId || null,
+              eventType: event.eventType,
+              source: event.source,
+              payload: canonicalPayload,
+              eventHash,
+              previousEventHash: prevHash,
+              isImmutable: true,
+            });
+
+            // 5. Update singleton state lock in the same atomic transaction
+            await tx.execute(sql`
+              UPDATE ledger_state_lock
+              SET last_sequence_number = ${nextSeq},
+                  last_event_hash = ${eventHash},
+                  updated_at = NOW()
+              WHERE lock_id = 1
+            `);
+
+            return {
+              id,
+              sequenceNumber: nextSeq,
+              serverTimestamp,
+              clientTimestamp,
+              agentId: event.agentId,
+              sessionId: event.sessionId,
+              experimentId: event.experimentId,
+              requestId: event.requestId,
+              eventType: event.eventType,
+              source: event.source,
+              payload: canonicalPayload,
+              eventHash,
+              previousEventHash: prevHash,
+              isImmutable: true,
+            };
+          });
+        } catch (err: any) {
+          if (isTransientPgError(err) && attempt < MAX_RETRIES) {
+            const delay = Math.min(50 * Math.pow(2, attempt) + Math.random() * 50, 1000);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            continue;
+          }
+          throw err;
+        }
+      }
+    }
   } catch (err: any) {
     console.error("Failed to append raw event to ledger:", err.message);
     throw err;
@@ -217,26 +325,49 @@ export async function appendRawEventLedger(event: {
  */
 export async function verifyLedgerIntegrity(): Promise<LedgerVerificationResult> {
   try {
-    const list = sqlite
-      .prepare(
-        `SELECT id, sequence_number, server_timestamp, agent_id, session_id, experiment_id, request_id, event_type, source, payload, event_hash, previous_event_hash 
-         FROM raw_event_ledger 
-         ORDER BY sequence_number ASC`
-      )
-      .all() as Array<{
-        id: string;
-        sequence_number: number;
-        server_timestamp: number;
-        agent_id: string;
-        session_id: string | null;
-        experiment_id: string | null;
-        request_id: string | null;
-        event_type: string;
-        source: string;
-        payload: string;
-        event_hash: string;
-        previous_event_hash: string;
-      }>;
+    let list: Array<{
+      id: string;
+      sequence_number: number;
+      server_timestamp: number;
+      agent_id: string;
+      session_id: string | null;
+      experiment_id: string | null;
+      request_id: string | null;
+      event_type: string;
+      source: string;
+      payload: string;
+      event_hash: string;
+      previous_event_hash: string;
+    }>;
+
+    if (sqlite) {
+      list = sqlite
+        .prepare(
+          `SELECT id, sequence_number, server_timestamp, agent_id, session_id, experiment_id, request_id, event_type, source, payload, event_hash, previous_event_hash 
+           FROM raw_event_ledger 
+           ORDER BY sequence_number ASC`
+        )
+        .all() as any[];
+    } else {
+      const rows = await db
+        .select()
+        .from(rawEventLedgerPg)
+        .orderBy(asc(rawEventLedgerPg.sequenceNumber));
+      list = rows.map((r: any) => ({
+        id: r.id,
+        sequence_number: r.sequenceNumber,
+        server_timestamp: Number(r.serverTimestamp),
+        agent_id: r.agentId,
+        session_id: r.sessionId ?? null,
+        experiment_id: r.experimentId ?? null,
+        request_id: r.requestId ?? null,
+        event_type: r.eventType,
+        source: r.source,
+        payload: r.payload,
+        event_hash: r.eventHash,
+        previous_event_hash: r.previousEventHash,
+      }));
+    }
 
     if (list.length === 0) {
       return {

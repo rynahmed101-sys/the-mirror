@@ -15,7 +15,7 @@ export async function GET(req: Request) {
       .orderBy(sql`${rawObservations.timestamp} DESC`)
       .limit(limit);
 
-    const result = [];
+    const result: any[] = [];
     for (const raw of list) {
       const analysis = await db
         .select()

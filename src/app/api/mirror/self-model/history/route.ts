@@ -10,7 +10,7 @@ export async function GET() {
       .from(selfModels)
       .orderBy(sql`${selfModels.version} DESC`);
 
-    const result = [];
+    const result: any[] = [];
     for (const m of history) {
       const claims = await db
         .select()

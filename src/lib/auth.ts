@@ -51,15 +51,10 @@ export async function validateApiToken(token: string): Promise<boolean> {
   const dbToken = await db
     .select()
     .from(apiTokens)
-    .where(eq(apiTokens.hashedToken, hashed))
+    .where(eq(apiTokens.tokenHash, hashed))
     .limit(1);
 
-  if (dbToken.length > 0 && dbToken[0].isActive) {
-    // Update last used
-    await db
-      .update(apiTokens)
-      .set({ lastUsedAt: new Date().toISOString() })
-      .where(eq(apiTokens.id, dbToken[0].id));
+  if (dbToken.length > 0) {
     return true;
   }
 
@@ -74,10 +69,9 @@ export async function createApiToken(name: string, description?: string) {
   await db.insert(apiTokens).values({
     id,
     name,
-    token: token.slice(0, 8) + "...", // store partial only for display
-    hashedToken: hashed,
-    description,
-    isActive: true,
+    tokenPrefix: token.slice(0, 8) + "...", // store partial only for display
+    tokenHash: hashed,
+    permissions: "full",
   });
 
   return { id, token }; // Return full token ONCE

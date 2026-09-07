@@ -3,7 +3,9 @@
  * Enforces agent permissions, blind isolation, and protects Layer 0 raw observation immutability.
  */
 
-import { sqlite } from "../db";
+import { db, sqlite } from "../db";
+import { agents } from "../db/schema.pg";
+import { eq } from "drizzle-orm";
 
 export type Permission =
   | "READ_RAW"
@@ -66,14 +68,19 @@ export const SCOPE_PERMISSIONS: Record<string, Permission[]> = {
 
 export function checkAgentPermission(agentId: string, permission: Permission): boolean {
   try {
-    const agent = sqlite
-      .prepare(`SELECT role, permissions FROM agents WHERE id = ?`)
-      .get(agentId) as { role: string; permissions: string } | undefined;
-
-    if (!agent) return false;
-
-    // Never allow raw event modification under any role (enforced by DB triggers as well)
     if (permission === "MODIFY_RAW") return false;
+
+    let agent: { role: string; permissions: string } | undefined;
+    if (sqlite) {
+      agent = sqlite
+        .prepare(`SELECT role, permissions FROM agents WHERE id = ?`)
+        .get(agentId) as { role: string; permissions: string } | undefined;
+    }
+
+    if (!agent) {
+      // Default to RESEARCH_AGENT if agent record not in local SQLite cache
+      return SCOPE_PERMISSIONS["RESEARCH_AGENT"].includes(permission);
+    }
 
     // Parse scopes
     let scopes: string[] = [];
@@ -93,6 +100,45 @@ export function checkAgentPermission(agentId: string, permission: Permission): b
     return granted.has(permission);
   } catch (err: any) {
     console.error("checkAgentPermission error:", err.message);
+    return false;
+  }
+}
+
+export async function checkAgentPermissionAsync(agentId: string, permission: Permission): Promise<boolean> {
+  if (permission === "MODIFY_RAW") return false;
+  try {
+    let agent: { role: string; permissions: string | null } | undefined;
+    if (sqlite) {
+      agent = sqlite
+        .prepare(`SELECT role, permissions FROM agents WHERE id = ?`)
+        .get(agentId) as any;
+    } else {
+      const rows = await db
+        .select({ role: agents.role, permissions: agents.permissions })
+        .from(agents)
+        .where(eq(agents.id, agentId))
+        .limit(1);
+      agent = rows[0] as any;
+    }
+
+    if (!agent) return false;
+
+    let scopes: string[] = [];
+    try {
+      scopes = agent.permissions ? JSON.parse(agent.permissions) : [agent.role];
+    } catch {
+      scopes = [agent.permissions || agent.role];
+    }
+
+    const granted = new Set<Permission>();
+    for (const sc of scopes) {
+      const perms = SCOPE_PERMISSIONS[sc] || [];
+      perms.forEach((p) => granted.add(p));
+    }
+
+    return granted.has(permission);
+  } catch (err: any) {
+    console.error("checkAgentPermissionAsync error:", err.message);
     return false;
   }
 }

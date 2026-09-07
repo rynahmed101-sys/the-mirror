@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     const provider = aiRegistry.getActiveProvider();
     const systemPrompt = await getSystemPrompt(agentId);
 
-    const messages = [
+    const messages: any[] = [
       { role: "system", content: systemPrompt },
       {
         role: "user",
@@ -21,10 +21,11 @@ export async function POST(req: Request) {
       },
     ];
 
-    const response = await provider.complete(messages, { temperature: 0.2 });
+    const response = await provider.complete(messages as any, { temperature: 0.2 });
 
     // Check for tool calls
-    const toolCallMatch = response.text.match(/```json\s*(\{[\s\S]*?"tool"[\s\S]*?\})\s*```/);
+    const outputText = response.content || "";
+    const toolCallMatch = outputText.match(/```json\s*(\{[\s\S]*?"tool"[\s\S]*?\})\s*```/);
     let toolResult = null;
     if (toolCallMatch) {
       try {
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
     await db.insert(timelineEvents).values({
       eventType: "AGENT_CYCLE_COMPLETED",
       title: `Autonomous Turn: ${agentId}`,
-      description: response.text.slice(0, 150) + "...",
+      description: outputText.slice(0, 150) + "...",
       agentId,
       metadata: JSON.stringify({ objective, toolExecuted: !!toolResult }),
     });
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       agentId,
-      output: response.text,
+      output: outputText,
       toolResult,
     });
   } catch (error: any) {

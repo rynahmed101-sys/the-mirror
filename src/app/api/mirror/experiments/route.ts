@@ -15,7 +15,7 @@ export async function GET(req: Request) {
       .from(experiments)
       .orderBy(sql`${experiments.createdAt} DESC`);
 
-    const result = [];
+    const result: any[] = [];
     for (const exp of list) {
       const preds = await db
         .select()
