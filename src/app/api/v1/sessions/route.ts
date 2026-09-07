@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { agentSessions, agents } from "@/lib/db/schema";
+import { agentSessions, agents } from "@/lib/db/schema.pg";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 

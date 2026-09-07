@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { agents, agentApiKeys } from "@/lib/db/schema";
+import { agents, agentApiKeys } from "@/lib/db/schema.pg";
 import { appendRawEventLedger } from "@/lib/agent/eventLedger";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
