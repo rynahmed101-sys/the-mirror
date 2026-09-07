@@ -26,6 +26,7 @@ import {
 } from "../db/schema";
 import { appendRawEventLedger } from "./eventLedger";
 import { processRawObservationToLayer1 } from "./analysisEngine";
+import { canAgentAccessExperimentConfig, filterExperimentForAgent } from "./blindIsolation";
 import { eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
@@ -61,7 +62,7 @@ export async function executeTool(
   });
 
   // ---------------------------------------------------------------------------
-  // STAGE 2: Authorization Check (READ_ONLY_MIRROR vs RESEARCH_AGENT)
+  // STAGE 2: Authorization Check (READ_ONLY_MIRROR vs RESEARCH_AGENT & Blind Isolation)
   // ---------------------------------------------------------------------------
   const agentRecord = sqlite
     .prepare("SELECT permissions FROM agents WHERE id = ?")
@@ -80,6 +81,19 @@ export async function executeTool(
   if (agentPermissions.includes("READ_ONLY_MIRROR") && mutatingTools.includes(toolName)) {
     authorized = false;
     errorMsg = `AUTHORIZATION_DENIED: Agent ${agentId} possesses READ_ONLY_MIRROR permission and cannot execute mutating tool '${toolName}'.`;
+  }
+
+  // Enforce Blind Experiment Isolation at runtime
+  if (
+    authorized &&
+    args?.experimentId &&
+    (args?.includeHidden === true || toolName === "read_experiment_hidden_config" || toolName === "get_hidden_config")
+  ) {
+    const canAccess = canAgentAccessExperimentConfig(agentId, args.experimentId);
+    if (!canAccess) {
+      authorized = false;
+      errorMsg = `AUTHORIZATION_DENIED: Agent ${agentId} is denied access to hidden configuration of blind experiment '${args.experimentId}' before explicit reveal.`;
+    }
   }
 
   if (!authorized) {
@@ -315,6 +329,24 @@ export async function executeTool(
           .returning();
 
         result = { success: true, entry };
+        break;
+      }
+
+      case "read_experiments": {
+        if (args?.experimentId) {
+          const single = await db
+            .select()
+            .from(experiments)
+            .where(eq(experiments.id, args.experimentId))
+            .limit(1);
+          result = single.length > 0 ? [filterExperimentForAgent(single[0], agentId)] : [];
+        } else {
+          const list = await db
+            .select()
+            .from(experiments)
+            .limit(args?.limit || 20);
+          result = list.map((exp) => filterExperimentForAgent(exp, agentId));
+        }
         break;
       }
 
