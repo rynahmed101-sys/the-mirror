@@ -269,9 +269,21 @@ def setup_database(path):
     def canonicalize(obj):
         return json.dumps(obj, sort_keys=True, separators=(',', ':'))
 
-    def compute_event_hash(seq, prev_hash, agent_id, event_type, source, payload_canonical, server_ts):
-        data = f"{seq}:{prev_hash}:{agent_id}:{event_type}:{source}:{payload_canonical}:{server_ts}"
-        return hashlib.sha256(data.encode('utf-8')).hexdigest()
+    def compute_event_hash(seq, prev_hash, agent_id, sess_id, exp_id, req_id, event_type, source, payload_obj, server_ts):
+        canonical_event = {
+            "agent_id": agent_id,
+            "event_type": event_type,
+            "experiment_id": exp_id,
+            "payload": payload_obj,
+            "previous_event_hash": prev_hash,
+            "request_id": req_id,
+            "sequence_number": seq,
+            "server_timestamp": server_ts,
+            "session_id": sess_id,
+            "source": source
+        }
+        canonical_str = json.dumps(canonical_event, sort_keys=True, separators=(',', ':'))
+        return hashlib.sha256(canonical_str.encode('utf-8')).hexdigest()
 
     GENESIS_HASH = "0000000000000000000000000000000000000000000000000000000000000000"
 
@@ -345,7 +357,7 @@ def setup_database(path):
 
     for seq, ts, agent_id, sess_id, exp_id, req_id, ev_type, source, payload_dict in events_spec:
         canonical_p = canonicalize(payload_dict)
-        ev_hash = compute_event_hash(seq, expected_prev, agent_id, ev_type, source, canonical_p, ts)
+        ev_hash = compute_event_hash(seq, expected_prev, agent_id, sess_id, exp_id, req_id, ev_type, source, payload_dict, ts)
         ev_id = f"ledg_{seq:03d}"
         rows_to_insert.append((
             ev_id, seq, ts, ts, ts // 1000, agent_id, sess_id, exp_id, req_id,
