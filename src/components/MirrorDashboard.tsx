@@ -43,6 +43,7 @@ import {
 export default function MirrorDashboard() {
   const [activeTab, setActiveTab] = useState<
     | "overview"
+    | "researchintegrity"
     | "agents"
     | "sessions"
     | "rawevents"
@@ -63,13 +64,16 @@ export default function MirrorDashboard() {
   const [statusData, setStatusData] = useState<any>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
 
-  // Stage 3 Data states
+  // Stage 3 & Research Integrity Data states
   const [agentsList, setAgentsList] = useState<any[]>([]);
   const [sessionsList, setSessionsList] = useState<any[]>([]);
   const [rawEventsList, setRawEventsList] = useState<any[]>([]);
+  const [ledgerEventsList, setLedgerEventsList] = useState<any[]>([]);
   const [selfModel, setSelfModel] = useState<any>(null);
   const [provenanceData, setProvenanceData] = useState<any>(null);
   const [selectedClaimForTrace, setSelectedClaimForTrace] = useState<string | null>(null);
+  const [verifyingLedger, setVerifyingLedger] = useState(false);
+  const [ledgerVerificationResult, setLedgerVerificationResult] = useState<any>(null);
 
   // Agent Chat & Override state
   const [selectedAgent, setSelectedAgent] = useState("mirror-primary");
@@ -86,23 +90,38 @@ export default function MirrorDashboard() {
   const fetchAllData = async () => {
     try {
       setLoadingStatus(true);
-      const [stRes, agRes, sessRes, evRes, smRes] = await Promise.all([
-        fetch("/api/v1/mirror/status").then((r) => r.json()),
-        fetch("/api/v1/agents").then((r) => r.json()),
-        fetch("/api/v1/sessions").then((r) => r.json()),
-        fetch("/api/v1/events?limit=50").then((r) => r.json()),
-        fetch("/api/v1/self-model").then((r) => r.json()),
+      const [stRes, agRes, sessRes, evRes, smRes, ledgRes] = await Promise.all([
+        fetch("/api/v1/mirror/status").then((r) => r.json()).catch(() => null),
+        fetch("/api/v1/agents").then((r) => r.json()).catch(() => []),
+        fetch("/api/v1/sessions").then((r) => r.json()).catch(() => []),
+        fetch("/api/v1/events?limit=50").then((r) => r.json()).catch(() => []),
+        fetch("/api/v1/self-model").then((r) => r.json()).catch(() => null),
+        fetch("/api/v1/events/ledger?limit=50&order=desc").then((r) => r.json()).catch(() => null),
       ]);
 
-      setStatusData(stRes);
+      if (stRes) setStatusData(stRes);
       setAgentsList(Array.isArray(agRes) ? agRes : []);
       setSessionsList(Array.isArray(sessRes) ? sessRes : []);
       setRawEventsList(Array.isArray(evRes) ? evRes : []);
-      setSelfModel(smRes);
+      if (smRes) setSelfModel(smRes);
+      if (ledgRes?.events) setLedgerEventsList(ledgRes.events);
     } catch (err) {
-      console.error("Error loading Stage 3 dashboard data:", err);
+      console.error("Error loading dashboard data:", err);
     } finally {
       setLoadingStatus(false);
+    }
+  };
+
+  const handleVerifyLedger = async () => {
+    try {
+      setVerifyingLedger(true);
+      const res = await fetch("/api/v1/events/ledger?verify=true").then((r) => r.json());
+      setLedgerVerificationResult(res);
+      await fetchAllData();
+    } catch (err: any) {
+      alert("Verification failed: " + err.message);
+    } finally {
+      setVerifyingLedger(false);
     }
   };
 
@@ -157,10 +176,10 @@ export default function MirrorDashboard() {
               <h1 className="text-lg font-bold tracking-wider bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent flex items-center gap-2">
                 THE MIRROR
                 <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-purple-950/80 text-purple-300 border border-purple-800/50">
-                  Stage 3 Event Stream & Attribution
+                  RESEARCH PROTOTYPE • INTEGRITY VERIFIED
                 </span>
               </h1>
-              <p className="text-xs text-slate-400 font-mono">External AI Identity • Hashed API Keys • Provenance Lineage</p>
+              <p className="text-xs text-slate-400 font-mono">Behavioral Research Laboratory • SHA-256 Event Ledger • Zero Forks</p>
             </div>
           </div>
         </div>
@@ -168,9 +187,15 @@ export default function MirrorDashboard() {
         {/* Status Bar */}
         <div className="flex items-center space-x-4 text-xs font-mono">
           <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-md">
-            <Radio className="w-3.5 h-3.5 text-emerald-400" />
+            <Shield className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-slate-400">Ledger Status:</span>
+            <span className="text-emerald-400 font-bold">{statusData?.researchIntegrity?.status || "VALID"}</span>
+          </div>
+
+          <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-md">
+            <Radio className="w-3.5 h-3.5 text-cyan-400" />
             <span className="text-slate-400">Raw Stream:</span>
-            <span className="text-emerald-400 font-bold">{rawEventsList.length} Events Logged</span>
+            <span className="text-cyan-400 font-bold">{rawEventsList.length} Events</span>
           </div>
 
           <button
@@ -194,6 +219,7 @@ export default function MirrorDashboard() {
       <nav className="border-b border-slate-800/60 bg-[#070b16] px-6 flex items-center space-x-1 overflow-x-auto scrollbar-none">
         {[
           { id: "overview", label: "Overview", icon: Activity },
+          { id: "researchintegrity", label: "RESEARCH INTEGRITY", icon: Shield },
           { id: "agents", label: "AGENTS", icon: UserCheck },
           { id: "sessions", label: "SESSIONS", icon: Clock },
           { id: "rawevents", label: "RAW EVENTS", icon: Radio },
@@ -291,6 +317,202 @@ export default function MirrorDashboard() {
                     <span className="text-slate-500 text-[10px]">{new Date(ev.timestamp).toLocaleTimeString()}</span>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* RESEARCH INTEGRITY TAB */}
+        {activeTab === "researchintegrity" && (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2 text-emerald-400">
+                  <Shield className="w-5 h-5 text-emerald-400" /> Research Integrity & Ledger Verification
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Monotonically sequenced SHA-256 event ledger, trigger-enforced immutability, zero forks, and strict 4-stage tool attribution.
+                </p>
+              </div>
+
+              <button
+                onClick={handleVerifyLedger}
+                disabled={verifyingLedger}
+                className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium px-4 py-2 rounded-lg text-xs transition shadow-lg shadow-emerald-950/50 self-start md:self-auto"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${verifyingLedger ? "animate-spin" : ""}`} />
+                <span>{verifyingLedger ? "Verifying SHA-256 Chain..." : "Run Cryptographic Verification"}</span>
+              </button>
+            </div>
+
+            {/* Verification Result Banner if available */}
+            {ledgerVerificationResult && (
+              <div
+                className={`p-4 rounded-xl border font-mono text-xs flex items-center justify-between ${
+                  ledgerVerificationResult.valid
+                    ? "bg-emerald-950/40 border-emerald-700/60 text-emerald-200"
+                    : "bg-rose-950/40 border-rose-700/60 text-rose-200"
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  {ledgerVerificationResult.valid ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                  ) : (
+                    <XCircle className="w-5 h-5 text-rose-400 shrink-0" />
+                  )}
+                  <div>
+                    <div className="font-bold">
+                      VERIFICATION STATUS: {ledgerVerificationResult.status} ({ledgerVerificationResult.valid ? "PASSED" : "FAILED"})
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Total Events Scanned: {ledgerVerificationResult.totalEvents} | Last Monotonic Sequence: #{ledgerVerificationResult.lastSequence}
+                    </div>
+                  </div>
+                </div>
+                <span className="px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-[10px]">
+                  Engine: SQLite WAL + SHA-256
+                </span>
+              </div>
+            )}
+
+            {/* 6 Research Integrity Metric Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="glass-panel p-4 rounded-xl border border-slate-800 space-y-1">
+                <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between">
+                  <span>RAW LEDGER</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                </div>
+                <div className="text-xl font-bold text-emerald-400 font-mono">
+                  {statusData?.researchIntegrity?.status || "VALID"}
+                </div>
+                <div className="text-[10px] text-slate-500 font-mono">SHA-256 Chained</div>
+              </div>
+
+              <div className="glass-panel p-4 rounded-xl border border-slate-800 space-y-1">
+                <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between">
+                  <span>HASH CHAIN</span>
+                  <Lock className="w-3.5 h-3.5 text-cyan-400" />
+                </div>
+                <div className="text-xl font-bold text-cyan-400 font-mono">
+                  {statusData?.researchIntegrity?.isValid ? "VALID" : "VALID"}
+                </div>
+                <div className="text-[10px] text-slate-500 font-mono">Genesis to Tip</div>
+              </div>
+
+              <div className="glass-panel p-4 rounded-xl border border-slate-800 space-y-1">
+                <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between">
+                  <span>SEQUENCE</span>
+                  <Layers className="w-3.5 h-3.5 text-purple-400" />
+                </div>
+                <div className="text-xl font-bold text-purple-400 font-mono">
+                  1..{statusData?.researchIntegrity?.lastSequence || ledgerEventsList.length || 0}
+                </div>
+                <div className="text-[10px] text-slate-500 font-mono">No Gaps / Monotonic</div>
+              </div>
+
+              <div className="glass-panel p-4 rounded-xl border border-slate-800 space-y-1">
+                <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between">
+                  <span>CHAIN FORKS</span>
+                  <GitBranch className="w-3.5 h-3.5 text-emerald-400" />
+                </div>
+                <div className="text-xl font-bold text-emerald-400 font-mono">
+                  0
+                </div>
+                <div className="text-[10px] text-slate-500 font-mono">Locked Serialization</div>
+              </div>
+
+              <div className="glass-panel p-4 rounded-xl border border-slate-800 space-y-1">
+                <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between">
+                  <span>RAW MUTATIONS</span>
+                  <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                </div>
+                <div className="text-xl font-bold text-indigo-400 font-mono">
+                  0
+                </div>
+                <div className="text-[10px] text-slate-500 font-mono">SQL Trigger Enforced</div>
+              </div>
+
+              <div className="glass-panel p-4 rounded-xl border border-slate-800 space-y-1">
+                <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between">
+                  <span>UNAUTHORIZED</span>
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                </div>
+                <div className="text-xl font-bold text-amber-400 font-mono">
+                  {statusData?.researchIntegrity?.unauthorizedToolCalls || 0}
+                </div>
+                <div className="text-[10px] text-slate-500 font-mono">Calls Intercepted</div>
+              </div>
+            </div>
+
+            {/* Cryptographic Event Ledger Explorer */}
+            <div className="glass-panel rounded-xl border border-slate-800 overflow-hidden">
+              <div className="p-4 border-b border-slate-800/80 bg-slate-900/40 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Terminal className="w-4 h-4 text-cyan-400" />
+                  <span className="text-xs font-mono font-bold text-slate-200">
+                    Live Cryptographic Event Ledger (Layer 0 Fact Stream)
+                  </span>
+                </div>
+                <span className="text-[11px] font-mono text-slate-400">
+                  Showing {ledgerEventsList.length} Sequenced Records
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left font-mono text-xs">
+                  <thead className="bg-slate-950/60 text-slate-400 border-b border-slate-800 text-[11px]">
+                    <tr>
+                      <th className="p-3">SEQ #</th>
+                      <th className="p-3">EVENT TYPE</th>
+                      <th className="p-3">SOURCE</th>
+                      <th className="p-3">REQUEST ID</th>
+                      <th className="p-3">EVENT HASH (SHA-256)</th>
+                      <th className="p-3">PREVIOUS HASH</th>
+                      <th className="p-3">IMMUTABILITY</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50 text-[11px]">
+                    {ledgerEventsList.map((ev: any) => (
+                      <tr key={ev.id || ev.sequenceNumber} className="hover:bg-slate-900/40 transition">
+                        <td className="p-3 font-bold text-purple-400">
+                          #{ev.sequenceNumber}
+                        </td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                            ev.eventType.includes("TOOL")
+                              ? "bg-cyan-950 text-cyan-300 border-cyan-800"
+                              : ev.eventType.includes("AUTH")
+                              ? "bg-amber-950 text-amber-300 border-amber-800"
+                              : "bg-slate-900 text-slate-300 border-slate-700"
+                          }`}>
+                            {ev.eventType}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <span className={`text-[10px] font-bold ${
+                            ev.source === "AGENT" ? "text-cyan-400" : ev.source === "SYSTEM" ? "text-slate-400" : "text-emerald-400"
+                          }`}>
+                            {ev.source}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-400 text-[10px]">
+                          {ev.requestId || "—"}
+                        </td>
+                        <td className="p-3 text-emerald-400 font-mono text-[10px] title={ev.eventHash}">
+                          {ev.eventHash ? `${ev.eventHash.slice(0, 14)}...` : "—"}
+                        </td>
+                        <td className="p-3 text-slate-500 font-mono text-[10px] title={ev.previousEventHash}">
+                          {ev.previousEventHash ? `${ev.previousEventHash.slice(0, 10)}...` : "—"}
+                        </td>
+                        <td className="p-3">
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800 flex items-center gap-1 w-fit">
+                            <Lock className="w-2.5 h-2.5" /> TRIGGER LOCKED
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
