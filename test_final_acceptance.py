@@ -10,8 +10,30 @@ print("==================================================================")
 print("     THE MIRROR - ACCEPTANCE TEST SUITE (RESEARCH GRADE)          ")
 print("==================================================================")
 
+def canonicalize(obj):
+    return json.dumps(obj, sort_keys=True, separators=(',', ':'))
+
+def compute_hash(seq, prev_hash, agent_id, sess_id, exp_id, req_id, event_type, source, payload_obj, server_ts):
+    canonical_event = {
+        "agent_id": agent_id,
+        "event_type": event_type,
+        "experiment_id": exp_id,
+        "payload": payload_obj,
+        "previous_event_hash": prev_hash,
+        "request_id": req_id,
+        "sequence_number": seq,
+        "server_timestamp": server_ts,
+        "session_id": sess_id,
+        "source": source
+    }
+    canonical_str = canonicalize(canonical_event)
+    return hashlib.sha256(canonical_str.encode('utf-8')).hexdigest()
+
 # 1. Test SHA256 Cryptographic Chain Integrity
-cursor.execute("SELECT id, sequence_number, event_hash, previous_event_hash FROM raw_event_ledger ORDER BY sequence_number ASC")
+cursor.execute("""
+SELECT id, sequence_number, server_timestamp, agent_id, session_id, experiment_id, request_id, event_type, source, payload, event_hash, previous_event_hash 
+FROM raw_event_ledger ORDER BY sequence_number ASC
+""")
 events = cursor.fetchall()
 print(f"[PASS] Test 1: Found {len(events)} events in Cryptographic SHA256 Event Ledger.")
 
@@ -20,16 +42,24 @@ expected_prev = genesis_prev
 expected_seq = 1
 chain_valid = True
 
-for ev_id, seq, ev_hash, prev_hash in events:
+for row in events:
+    ev_id, seq, server_ts, agent_id, sess_id, exp_id, req_id, ev_type, source, payload_str, ev_hash, prev_hash = row
     if prev_hash != expected_prev or seq != expected_seq:
         chain_valid = False
         print(f"[FAIL] Chain or sequence broken at event {ev_id} (seq {seq}, expected {expected_seq})")
         break
+    
+    recalc = compute_hash(seq, prev_hash, agent_id, sess_id, exp_id, req_id, ev_type, source, json.loads(payload_str), server_ts)
+    if recalc != ev_hash:
+        chain_valid = False
+        print(f"[FAIL] Hash mismatch at event {ev_id} (seq {seq}): expected {recalc[:12]}..., got {ev_hash[:12]}...")
+        break
+        
     expected_prev = ev_hash
     expected_seq += 1
 
 if chain_valid:
-    print(f"[PASS] Test 1: Cryptographic SHA256 Tamper-Evident Chain is 100% VALID (Monotonic 1..{len(events)}).")
+    print(f"[PASS] Test 1: Cryptographic SHA256 Tamper-Evident Chain is 100% VALID across all 10 fields (Monotonic 1..{len(events)}).")
 
 # 2. Test Immutability Trigger Protection
 try:
@@ -38,6 +68,7 @@ try:
 except Exception as e:
     if "IMMUTABILITY_VIOLATION" in str(e):
         print("[PASS] Test 2: Real Immutability verified. SQLite triggers abort UPDATE / DELETE.")
+    conn.rollback()
 
 # 3. Test True 4-Stage Tool Decision Chain Correlation (request_id)
 cursor.execute("SELECT sequence_number, request_id, event_type, source FROM raw_event_ledger WHERE request_id = 'req-1' ORDER BY sequence_number ASC")
