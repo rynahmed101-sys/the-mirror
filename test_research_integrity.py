@@ -12,14 +12,26 @@ GENESIS_HASH = "0000000000000000000000000000000000000000000000000000000000000000
 def canonicalize(obj):
     return json.dumps(obj, sort_keys=True, separators=(',', ':'))
 
-def compute_hash(seq, prev_hash, agent_id, event_type, source, payload_canonical, server_ts):
-    data = f"{seq}:{prev_hash}:{agent_id}:{event_type}:{source}:{payload_canonical}:{server_ts}"
-    return hashlib.sha256(data.encode('utf-8')).hexdigest()
+def compute_hash(seq, prev_hash, agent_id, sess_id, exp_id, req_id, event_type, source, payload_obj, server_ts):
+    canonical_event = {
+        "agent_id": agent_id,
+        "event_type": event_type,
+        "experiment_id": exp_id,
+        "payload": payload_obj,
+        "previous_event_hash": prev_hash,
+        "request_id": req_id,
+        "sequence_number": seq,
+        "server_timestamp": server_ts,
+        "session_id": sess_id,
+        "source": source
+    }
+    canonical_str = canonicalize(canonical_event)
+    return hashlib.sha256(canonical_str.encode('utf-8')).hexdigest()
 
 def verify_chain(conn):
     cursor = conn.cursor()
     cursor.execute("""
-    SELECT id, sequence_number, server_timestamp, agent_id, event_type, source, payload, event_hash, previous_event_hash
+    SELECT id, sequence_number, server_timestamp, agent_id, session_id, experiment_id, request_id, event_type, source, payload, event_hash, previous_event_hash
     FROM raw_event_ledger
     ORDER BY sequence_number ASC
     """)
@@ -31,7 +43,7 @@ def verify_chain(conn):
     genesis_seq = int(genesis[1])
     if genesis_seq != 1:
         return {"valid": False, "status": "MISSING_SEQUENCE", "count": len(events), "error": f"Genesis seq is {genesis_seq} != 1"}
-    if str(genesis[8]) != GENESIS_HASH:
+    if str(genesis[11]) != GENESIS_HASH:
         return {"valid": False, "status": "INVALID_GENESIS", "count": len(events), "error": "Genesis prev_hash != 64 zeros"}
 
     expected_seq = 1
@@ -42,11 +54,14 @@ def verify_chain(conn):
         seq = int(row[1])
         server_ts = int(row[2])
         agent_id = str(row[3])
-        ev_type = str(row[4])
-        source = str(row[5])
-        payload = str(row[6])
-        ev_hash = str(row[7])
-        prev_hash = str(row[8])
+        sess_id = row[4] if row[4] is not None else None
+        exp_id = row[5] if row[5] is not None else None
+        req_id = row[6] if row[6] is not None else None
+        ev_type = str(row[7])
+        source = str(row[8])
+        payload = str(row[9])
+        ev_hash = str(row[10])
+        prev_hash = str(row[11])
 
         # Sequence check
         if seq < expected_seq:
@@ -60,9 +75,9 @@ def verify_chain(conn):
         if prev_hash != expected_prev:
             return {"valid": False, "status": "BROKEN_LINK", "count": len(events), "error": f"Link broken at seq {seq}"}
 
-        # Hash check
-        canonical_p = canonicalize(json.loads(payload))
-        recalculated = compute_hash(seq, prev_hash, agent_id, ev_type, source, canonical_p, server_ts)
+        # Hash check across all 10 canonical fields
+        payload_obj = json.loads(payload)
+        recalculated = compute_hash(seq, prev_hash, agent_id, sess_id, exp_id, req_id, ev_type, source, payload_obj, server_ts)
         if recalculated != ev_hash:
             return {"valid": False, "status": "INVALID_HASH", "count": len(events), "error": f"Hash mismatch at seq {seq}"}
 
@@ -99,6 +114,7 @@ try:
 except (sqlite3.IntegrityError, sqlite3.OperationalError) as e:
     if "IMMUTABILITY_VIOLATION" in str(e):
         update_blocked = True
+    conn.rollback()
 
 try:
     cursor.execute("DELETE FROM raw_event_ledger WHERE sequence_number = 1")
@@ -106,6 +122,7 @@ try:
 except (sqlite3.IntegrityError, sqlite3.OperationalError) as e:
     if "IMMUTABILITY_VIOLATION" in str(e):
         delete_blocked = True
+    conn.rollback()
 
 if update_blocked and delete_blocked:
     print("[PASS] Test 2: Real Immutability verified. SQLite triggers successfully blocked both UPDATE and DELETE.")
@@ -253,10 +270,15 @@ conn.close()
 # ----------------------------------------------------------------------
 print("\n--- Running Concurrency Stress Test (10 threads, 100 events) ---")
 
+# Ensure WAL mode is active once before launching threads
+wal_conn = sqlite3.connect(DB_PATH)
+wal_conn.execute("PRAGMA journal_mode = WAL")
+wal_conn.execute("PRAGMA synchronous = NORMAL")
+wal_conn.close()
+
 def worker_append(thread_id, events_per_thread, errors):
     try:
         w_conn = sqlite3.connect(DB_PATH, timeout=60.0)
-        w_conn.execute("PRAGMA journal_mode = WAL")
         w_conn.execute("PRAGMA busy_timeout = 60000")
         
         for i in range(events_per_thread):
@@ -267,13 +289,12 @@ def worker_append(thread_id, events_per_thread, errors):
                     c = w_conn.cursor()
                     c.execute("SELECT sequence_number, event_hash FROM raw_event_ledger ORDER BY sequence_number DESC LIMIT 1")
                     last = c.fetchone()
-                    
                     next_seq = (int(last[0]) + 1) if last else 1
                     prev_hash = str(last[1]) if last else GENESIS_HASH
                     now_ms = int(time.time() * 1000)
-                    
-                    payload = canonicalize({"threadId": thread_id, "index": i, "data": f"Stress-Test-Event-{thread_id}-{i}"})
-                    ev_hash = compute_hash(next_seq, prev_hash, f"agent-stress-{thread_id}", "STRESS_EVENT", "AGENT", payload, now_ms)
+                    payload_obj = {"threadId": thread_id, "index": i, "data": f"Stress-Test-Event-{thread_id}-{i}"}
+                    payload = canonicalize(payload_obj)
+                    ev_hash = compute_hash(next_seq, prev_hash, f"agent-stress-{thread_id}", f"sess-stress-{thread_id}", None, f"req-stress-{thread_id}-{i}", "STRESS_EVENT", "AGENT", payload_obj, now_ms)
                     ev_id = f"stress_{thread_id}_{i}_{uuid.uuid4().hex[:6]}"
                     
                     c.execute("""
@@ -367,7 +388,7 @@ restore_res = verify_chain(mem_conn)
 mem_conn.close()
 
 if restore_res["valid"] and restore_res["status"] == "VALID":
-    print(f"[PASS] Test 11: Backup and Restore Integrity verified.")
+    print(f"[PASS] Test 11: Backup/restore integrity verified for a quiescent SQLite database.")
     print(f"        Successfully restored {restore_res['count']} events into clean target database.")
     print(f"        Restored Cryptographic Status: {restore_res['status']}.")
 else:
