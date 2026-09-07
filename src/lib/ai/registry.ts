@@ -2,49 +2,63 @@
  * THE MIRROR — AI Provider Registry
  *
  * Central registry for all AI providers.
- * The active provider is selected via environment variables or database config.
- * Switching providers does not require code changes.
+ * Provider selection is EXPLICIT and env-driven.
+ * No silent fallback between providers is permitted.
+ *
+ * Supported providers:
+ *   ollama      — Local Ollama runtime
+ *   llamacpp    — Local llama.cpp runtime
+ *   openrouter  — OpenRouter (Meta Llama and others via aggregation API)
+ *   xai         — xAI / Grok
  */
 
 import { OllamaProvider } from "./ollama";
 import { LlamaCppProvider } from "./llamacpp";
+import { OpenRouterProvider } from "./openrouter";
+import { XAIProvider } from "./xai";
 import type { AIProvider, ModelInfo, ProviderHealth } from "./provider";
 
-export type ProviderName = "ollama" | "llamacpp" | "openai" | "anthropic" | "gemini";
+export type ProviderName = "ollama" | "llamacpp" | "openrouter" | "xai" | "openai" | "anthropic" | "gemini";
 
 interface ProviderRegistry {
   [key: string]: AIProvider;
 }
 
-// Singleton registry
+// Singleton registry (reset on env change via invalidateRegistry())
 let registry: ProviderRegistry | null = null;
 let activeProviderName: ProviderName = "ollama";
 let activeModel: string | null = null;
 
 function buildRegistry(): ProviderRegistry {
-  const ollamaUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+  const ollamaUrl   = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
   const ollamaModel = process.env.OLLAMA_DEFAULT_MODEL || "llama3.2";
-  const llamaUrl = process.env.LLAMACPP_BASE_URL || "http://localhost:8080";
+  const llamaUrl    = process.env.LLAMACPP_BASE_URL || "http://localhost:8080";
 
   return {
-    ollama: new OllamaProvider(ollamaUrl, ollamaModel),
-    llamacpp: new LlamaCppProvider(llamaUrl),
-    // Phase 2 — will be registered when API keys are present
-    // openai: new OpenAIProvider(process.env.OPENAI_API_KEY),
-    // anthropic: new AnthropicProvider(process.env.ANTHROPIC_API_KEY),
-    // gemini: new GeminiProvider(process.env.GEMINI_API_KEY),
+    ollama:      new OllamaProvider(ollamaUrl, ollamaModel),
+    llamacpp:    new LlamaCppProvider(llamaUrl),
+    openrouter:  new OpenRouterProvider(),
+    xai:         new XAIProvider(),
   };
 }
 
 function getRegistry(): ProviderRegistry {
-  if (!registry) {
-    registry = buildRegistry();
-  }
+  if (!registry) registry = buildRegistry();
   return registry;
+}
+
+/** Force re-instantiation of all providers (useful after env changes in tests). */
+export function invalidateRegistry(): void {
+  registry = null;
 }
 
 /**
  * Get the currently active AI provider instance.
+ *
+ * IMPORTANT: This function NEVER falls back silently.
+ * If the configured provider is not registered, it throws immediately.
+ * This guarantees that an experiment configured for "openrouter" will never
+ * accidentally run on "xai" or "ollama".
  */
 export function getProvider(name?: ProviderName): AIProvider {
   const reg = getRegistry();
@@ -52,49 +66,41 @@ export function getProvider(name?: ProviderName): AIProvider {
   const provider = reg[providerName];
   if (!provider) {
     throw new Error(
-      `AI provider "${providerName}" is not registered. Available: ${Object.keys(reg).join(", ")}`
+      `[THE MIRROR] AI provider "${providerName}" is not registered. ` +
+      `Available providers: ${Object.keys(reg).join(", ")}. ` +
+      `Set AI_PROVIDER to one of the available providers.`
     );
   }
   return provider;
 }
 
-/**
- * Get the currently active AI provider name.
- */
+/** Get the name of the currently active provider. */
 export function getActiveProviderName(): ProviderName {
   return activeProviderName;
 }
 
-/**
- * Get the currently selected model name (overrides provider default).
- */
+/** Get the currently selected model override (or null if using provider default). */
 export function getActiveModel(): string | null {
   return activeModel;
 }
 
 /**
- * Set the active provider and optionally the model.
- * This affects all subsequent AI calls.
+ * Explicitly switch the active provider.
+ * Throws if the provider is not registered — no silent fallback.
  */
 export function setActiveProvider(name: ProviderName, model?: string): void {
   const reg = getRegistry();
   if (!reg[name]) {
-    throw new Error(`Provider "${name}" is not available`);
+    throw new Error(`[THE MIRROR] Provider "${name}" is not registered. Cannot switch.`);
   }
   activeProviderName = name;
   if (model) activeModel = model;
 }
 
-/**
- * Set the active model for the current provider.
- */
 export function setActiveModel(model: string): void {
   activeModel = model;
 }
 
-/**
- * List all registered providers and their status.
- */
 export async function listProviders(): Promise<ProviderStatus[]> {
   const reg = getRegistry();
   const statuses = await Promise.allSettled(
@@ -102,7 +108,7 @@ export async function listProviders(): Promise<ProviderStatus[]> {
       const health = await provider.healthCheck().catch((e) => ({
         isHealthy: false,
         provider: name,
-        error: e.message,
+        error: e instanceof Error ? e.message : String(e),
       }));
       return {
         name: name as ProviderName,
@@ -120,23 +126,15 @@ export async function listProviders(): Promise<ProviderStatus[]> {
       isLocal: false,
       requiresApiKey: false,
       isActive: false,
-      health: { isHealthy: false, provider: "unknown", error: "Failed to check" } as ProviderHealth,
+      health: { isHealthy: false, provider: "unknown", error: "Status check failed" } as ProviderHealth,
     }
   );
 }
 
-/**
- * List all available models across all providers.
- */
 export async function listAllModels(): Promise<ModelInfo[]> {
   const reg = getRegistry();
-  const results = await Promise.allSettled(
-    Object.values(reg).map((p) => p.listModels())
-  );
-
-  return results.flatMap((r) =>
-    r.status === "fulfilled" ? r.value : []
-  );
+  const results = await Promise.allSettled(Object.values(reg).map((p) => p.listModels()));
+  return results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
 }
 
 export interface ProviderStatus {
@@ -147,15 +145,14 @@ export interface ProviderStatus {
   health: ProviderHealth;
 }
 
-// Initialize from environment on module load
+// ─── Initialise from environment on module load ───────────────────────────────
+// AI_PROVIDER is the single source of truth for which provider is active.
+// No auto-detection, no silent substitution.
 if (process.env.AI_PROVIDER) {
-  const envProvider = process.env.AI_PROVIDER as ProviderName;
-  activeProviderName = envProvider;
-}
-if (process.env.OLLAMA_DEFAULT_MODEL) {
-  activeModel = process.env.OLLAMA_DEFAULT_MODEL;
+  activeProviderName = process.env.AI_PROVIDER as ProviderName;
 }
 
+// aiRegistry — exported singleton facade used throughout the codebase
 export const aiRegistry = {
   getProvider,
   getActiveProvider: () => getProvider(),
@@ -163,6 +160,7 @@ export const aiRegistry = {
   getActiveModel,
   setActiveProvider: (name: string, model?: string) => setActiveProvider(name as ProviderName, model),
   setActiveModel,
+  invalidateRegistry,
   listProviders: (): string[] => Object.keys(getRegistry()),
   listModels: async (providerId: string): Promise<string[]> => {
     try {
@@ -182,5 +180,13 @@ export const aiRegistry = {
       return false;
     }
   },
+  /** Returns full health detail for a provider (not just boolean). */
+  healthCheckFull: async (providerId: string): Promise<ProviderHealth> => {
+    try {
+      const p = getProvider(providerId as ProviderName);
+      return await p.healthCheck();
+    } catch (err) {
+      return { isHealthy: false, provider: providerId, error: err instanceof Error ? err.message : String(err) };
+    }
+  },
 };
-

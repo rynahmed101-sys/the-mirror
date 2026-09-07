@@ -54,15 +54,23 @@ export async function POST(req: Request) {
             toolStep++;
             let accumulatedContent = "";
 
-            // Call provider stream
+            // Call provider stream — chunk is StreamChunk { type, content?, error? }
             const textStream = provider.stream(currentMessages, {
               temperature: 0.3,
               tools: AGENT_TOOLS,
             });
 
             for await (const chunk of textStream) {
-              accumulatedContent += chunk;
-              sendEvent("delta", { content: chunk });
+              if (chunk.type === "error") {
+                sendEvent("error", { message: chunk.error || "Provider stream error" });
+                continueLoop = false;
+                break;
+              }
+              if (chunk.type === "done") break;
+              if (chunk.type === "text" && chunk.content) {
+                accumulatedContent += chunk.content;
+                sendEvent("delta", { content: chunk.content });
+              }
             }
 
             // Check if AI requested tool calls (JSON pattern or standard format)
