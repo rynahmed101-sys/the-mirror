@@ -9,7 +9,7 @@
  * 5. Rich verification statuses: VALID, INVALID_HASH, BROKEN_LINK, FORK_DETECTED, DUPLICATE_SEQUENCE, MISSING_SEQUENCE, INVALID_GENESIS
  */
 
-import { db, sqlite } from "../db";
+import { db, sqlite, neonSql } from "../db";
 import { rawEventLedger as rawEventLedgerPg, ledgerStateLock as ledgerStateLockPg } from "../db/schema.pg";
 import { desc, asc, sql } from "drizzle-orm";
 import crypto from "crypto";
@@ -210,109 +210,149 @@ export async function appendRawEventLedger(event: {
 
       return appendTransaction();
     } else {
-      // PostgreSQL atomic append path with singleton state locking and transient error retry
-      const MAX_RETRIES = 5;
+      // PostgreSQL atomic append path with atomic batch execution and optimistic CAS concurrency retry
+      const MAX_RETRIES = 10;
       const isTransientPgError = (err: any): boolean => {
         const code = err?.code || err?.cause?.code;
-        return ["40001", "55P03", "40P01", "08006", "08001", "08003"].includes(code);
+        return ["40001", "55P03", "40P01", "08006", "08001", "08003", "23505"].includes(code);
       };
 
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-          return await db.transaction(async (tx: any) => {
-            // 1. Transactionally initialize singleton state lock if not present
-            await tx.execute(sql`
-              INSERT INTO ledger_state_lock (lock_id, last_sequence_number, last_event_hash, updated_at)
-              VALUES (1, 0, ${GENESIS_HASH}, NOW())
-              ON CONFLICT (lock_id) DO NOTHING
-            `);
+          // 1. Transactionally ensure singleton state lock is initialized
+          await db.execute(sql`
+            INSERT INTO ledger_state_lock (lock_id, last_sequence_number, last_event_hash, updated_at)
+            VALUES (1, 0, ${GENESIS_HASH}, NOW())
+            ON CONFLICT (lock_id) DO NOTHING
+          `);
 
-            // 2. Lock the singleton state row exclusively with SELECT ... FOR UPDATE
-            const stateResult = await tx.execute(sql`
-              SELECT last_sequence_number, last_event_hash
-              FROM ledger_state_lock
-              WHERE lock_id = 1
-              FOR UPDATE
-            `);
+          // 2. Read latest confirmed sequence and hash
+          const stateResult: any = await db.execute(sql`
+            SELECT last_sequence_number, last_event_hash
+            FROM ledger_state_lock
+            WHERE lock_id = 1
+          `);
+          const stateRows = stateResult.rows || stateResult;
+          const currentState = stateRows[0];
+          const currentSeq = Number(currentState.last_sequence_number);
+          const currentHash = String(currentState.last_event_hash);
 
-            const stateRows = stateResult.rows || stateResult;
-            const currentState = stateRows[0];
-            const currentSeq = Number(currentState.last_sequence_number);
-            const currentHash = String(currentState.last_event_hash);
+          const nextSeq = currentSeq + 1;
+          const prevHash = currentHash;
+          const serverTimestamp = Date.now();
+          const clientTimestamp = event.clientTimestamp ?? null;
+          const id = `ledg_${nanoid(10)}`;
 
-            const nextSeq = currentSeq + 1;
-            const prevHash = currentHash;
-            const serverTimestamp = Date.now();
-            const clientTimestamp = event.clientTimestamp ?? null;
-            const id = `ledg_${nanoid(10)}`;
-
-            // 3. Compute deterministic 10-field SHA-256 canonical hash
-            const eventHash = computeEventHash({
-              sequence_number: nextSeq,
-              previous_event_hash: prevHash,
-              server_timestamp: serverTimestamp,
-              agent_id: event.agentId,
-              session_id: event.sessionId || null,
-              experiment_id: event.experimentId || null,
-              request_id: event.requestId || null,
-              event_type: event.eventType,
-              source: event.source,
-              payload: JSON.parse(canonicalPayload),
-            });
-
-            // 4. Insert new event into raw_event_ledger
-            await tx.insert(rawEventLedgerPg).values({
-              id,
-              sequenceNumber: nextSeq,
-              serverTimestamp,
-              clientTimestamp,
-              agentId: event.agentId,
-              sessionId: event.sessionId || null,
-              experimentId: event.experimentId || null,
-              requestId: event.requestId || null,
-              eventType: event.eventType,
-              source: event.source,
-              payload: canonicalPayload,
-              eventHash,
-              previousEventHash: prevHash,
-              isImmutable: true,
-            });
-
-            // 5. Update singleton state lock in the same atomic transaction
-            await tx.execute(sql`
-              UPDATE ledger_state_lock
-              SET last_sequence_number = ${nextSeq},
-                  last_event_hash = ${eventHash},
-                  updated_at = NOW()
-              WHERE lock_id = 1
-            `);
-
-            return {
-              id,
-              sequenceNumber: nextSeq,
-              serverTimestamp,
-              clientTimestamp,
-              agentId: event.agentId,
-              sessionId: event.sessionId,
-              experimentId: event.experimentId,
-              requestId: event.requestId,
-              eventType: event.eventType,
-              source: event.source,
-              payload: canonicalPayload,
-              eventHash,
-              previousEventHash: prevHash,
-              isImmutable: true,
-            };
+          // 3. Compute deterministic 10-field SHA-256 canonical hash
+          const eventHash = computeEventHash({
+            sequence_number: nextSeq,
+            previous_event_hash: prevHash,
+            server_timestamp: serverTimestamp,
+            agent_id: event.agentId,
+            session_id: event.sessionId || null,
+            experiment_id: event.experimentId || null,
+            request_id: event.requestId || null,
+            event_type: event.eventType,
+            source: event.source,
+            payload: JSON.parse(canonicalPayload),
           });
+
+          // 4. Atomic Execution: Compare-And-Swap on ledger_state_lock + INSERT into raw_event_ledger
+          // Uses neonSql.transaction for all-or-nothing atomicity over Neon HTTP
+          if (neonSql && typeof neonSql.transaction === "function") {
+            const batchResult = await neonSql.transaction([
+              neonSql`
+                UPDATE ledger_state_lock
+                SET last_sequence_number = ${nextSeq},
+                    last_event_hash = ${eventHash},
+                    updated_at = NOW()
+                WHERE lock_id = 1 AND last_sequence_number = ${currentSeq}
+                RETURNING lock_id, last_sequence_number, last_event_hash
+              `,
+              neonSql`
+                INSERT INTO raw_event_ledger (
+                  id, sequence_number, server_timestamp, client_timestamp,
+                  agent_id, session_id, experiment_id, request_id,
+                  event_type, source, payload, event_hash, previous_event_hash,
+                  is_immutable, created_at
+                ) VALUES (
+                  ${id}, ${nextSeq}, ${serverTimestamp}, ${clientTimestamp},
+                  ${event.agentId}, ${event.sessionId || null}, ${event.experimentId || null}, ${event.requestId || null},
+                  ${event.eventType}, ${event.source}, ${canonicalPayload}, ${eventHash}, ${prevHash},
+                  true, NOW()
+                )
+                RETURNING id, sequence_number
+              `
+            ]);
+
+            const lockUpdateRows = batchResult[0];
+            if (!lockUpdateRows || lockUpdateRows.length === 0) {
+              // Concurrency contention: another writer advanced the sequence. Retry.
+              const delay = Math.min(25 * Math.pow(1.5, attempt) + Math.random() * 25, 600);
+              await new Promise((resolve) => setTimeout(resolve, delay));
+              continue;
+            }
+          } else {
+            // Fallback for standard PostgreSQL connection pool with interactive transactions
+            await db.transaction(async (tx: any) => {
+              const res = await tx.execute(sql`
+                UPDATE ledger_state_lock
+                SET last_sequence_number = ${nextSeq},
+                    last_event_hash = ${eventHash},
+                    updated_at = NOW()
+                WHERE lock_id = 1 AND last_sequence_number = ${currentSeq}
+                RETURNING lock_id
+              `);
+              const rows = res.rows || res;
+              if (!rows || rows.length === 0) {
+                throw new Error("CONCURRENCY_CONFLICT");
+              }
+
+              await tx.insert(rawEventLedgerPg).values({
+                id,
+                sequenceNumber: nextSeq,
+                serverTimestamp,
+                clientTimestamp,
+                agentId: event.agentId,
+                sessionId: event.sessionId || null,
+                experimentId: event.experimentId || null,
+                requestId: event.requestId || null,
+                eventType: event.eventType,
+                source: event.source,
+                payload: canonicalPayload,
+                eventHash,
+                previousEventHash: prevHash,
+                isImmutable: true,
+              });
+            });
+          }
+
+          return {
+            id,
+            sequenceNumber: nextSeq,
+            serverTimestamp,
+            clientTimestamp,
+            agentId: event.agentId,
+            sessionId: event.sessionId,
+            experimentId: event.experimentId,
+            requestId: event.requestId,
+            eventType: event.eventType,
+            source: event.source,
+            payload: canonicalPayload,
+            eventHash,
+            previousEventHash: prevHash,
+            isImmutable: true,
+          };
         } catch (err: any) {
-          if (isTransientPgError(err) && attempt < MAX_RETRIES) {
-            const delay = Math.min(50 * Math.pow(2, attempt) + Math.random() * 50, 1000);
+          if ((isTransientPgError(err) || err.message === "CONCURRENCY_CONFLICT") && attempt < MAX_RETRIES) {
+            const delay = Math.min(25 * Math.pow(1.5, attempt) + Math.random() * 25, 600);
             await new Promise((resolve) => setTimeout(resolve, delay));
             continue;
           }
           throw err;
         }
       }
+      throw new Error(`Failed to append event to ledger after ${MAX_RETRIES} attempts due to concurrency contention.`);
     }
   } catch (err: any) {
     console.error("Failed to append raw event to ledger:", err.message);

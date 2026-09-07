@@ -25,6 +25,7 @@ const isPostgres = dialect === "postgres" || (
 
 let dbInstance: any;
 let sqliteInstance: any = null;
+let neonSqlInstance: any = null;
 
 if (isPostgres) {
   // Production Neon PostgreSQL connection
@@ -32,6 +33,7 @@ if (isPostgres) {
   const { neon } = require("@neondatabase/serverless");
   const { drizzle: drizzleNeon } = require("drizzle-orm/neon-http");
   const sql = neon(process.env.DATABASE_URL!);
+  neonSqlInstance = sql;
   dbInstance = drizzleNeon(sql, { schema: pgSchema });
 } else {
   // Local SQLite connection (default development mode)
@@ -57,4 +59,6 @@ export const isPg = isPostgres;
 export const db = dbInstance;
 export type DB = typeof db;
 export const sqlite = sqliteInstance;
+export const neonSql = neonSqlInstance;
 export default db;
+
