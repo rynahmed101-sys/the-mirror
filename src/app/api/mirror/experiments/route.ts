@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { experiments, predictions, timelineEvents } from "@/lib/db/schema";
+import { experiments, predictions, timelineEvents } from "@/lib/db/schema.pg";
 import { filterExperimentForAgent } from "@/lib/agent/blindIsolation";
 import { sql, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";

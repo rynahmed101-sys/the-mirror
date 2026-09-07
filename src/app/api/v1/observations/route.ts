@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { rawObservations, derivedAnalysis } from "@/lib/db/schema";
+import { rawObservations, derivedAnalysis } from "@/lib/db/schema.pg";
 import { processRawObservationToLayer1 } from "@/lib/agent/analysisEngine";
 import { sql, eq } from "drizzle-orm";
 
