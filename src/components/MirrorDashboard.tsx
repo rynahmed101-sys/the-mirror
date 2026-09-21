@@ -853,6 +853,11 @@ export default function MirrorDashboard() {
           <div className="space-y-6">
             <div className="glass-panel p-5 rounded-xl border border-slate-800 space-y-4 font-mono text-xs">
               <h3 className="text-sm font-bold text-cyan-400">External AI Integration REST API (`/api/v1/*`)</h3>
+              <p className="text-slate-300">Register once, save the returned mirror_ak_ credential, then call the full research gateway with <span className="text-amber-300">Authorization: Bearer mirror_ak_...</span>. FULL_ACCESS agents may read their evidence, start sessions, and submit observations or predictions.</p>
+              <pre className="overflow-x-auto rounded bg-black/30 p-3 text-[11px] text-cyan-200">{`curl -X POST https://the-mirror-gules.vercel.app/api/v1/research \\
+  -H "Authorization: Bearer mirror_ak_..." \\
+  -H "Content-Type: application/json" \\
+  -d '{"action":"observation","eventType":"IDENTITY_RESEARCH","input":"...","output":"...","prediction":"..."}'`}</pre>
               <div className="space-y-2">
                 {[
                   { method: "POST", path: "/api/v1/agents/register", desc: "Register external agent identity & receive hashed API key" },
