@@ -75,7 +75,7 @@ export async function GET() {
         openQuestions: openQCnt.value,
       },
       researchIntegrity: {
-        hashCoverage: "VALID",
+        hashCoverage: ledgerIntegrity.valid ? "VALID" : "INVALID",
         rawEventImmutability: "ENFORCED",
         ledgerOrder: ledgerIntegrity.valid ? "VALID" : "INVALID",
         ledgerForks: 0,
