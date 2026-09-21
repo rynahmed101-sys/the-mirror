@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 type RecordValue = Record<string, unknown>;
 type IdentityData = {
   run: RecordValue | null;
+  configuration?: RecordValue;
   ledger: RecordValue[];
   workers?: RecordValue[];
   failures?: RecordValue[];
@@ -153,6 +154,7 @@ export default function IdentityPage() {
   }, []);
 
   const run = data.run || {};
+  const configuration = data.configuration || {};
   const worker = data.workers?.[0];
   const cycles = data.ledger;
   const failures = data.failures || [];
@@ -207,8 +209,8 @@ export default function IdentityPage() {
         <section className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-6">
           <Metric label="Run ID" value={asText(run.id)} />
           <Metric label="Status" value={status} tone={status === "RUNNING" ? "text-emerald-300" : status === "ERROR" || status === "FAILED" ? "text-red-300" : "text-amber-200"} />
-          <Metric label="Model" value={asText(run.model || "not recorded")} />
-          <Metric label="Provider" value={asText(run.provider || "not recorded")} />
+          <Metric label="Model" value={asText(run.model || configuration.model || "not recorded")} />
+          <Metric label="Provider" value={asText(run.provider || configuration.provider || "not recorded")} />
           <Metric label="Cycle / target" value={`${currentIteration} / ${TARGET_CYCLES}`} />
           <Metric label="Last activity" value={formatAge(run.updatedAt, now)} />
           <Metric label="Worker" value={worker ? asText(worker.workerId) : "none"} />

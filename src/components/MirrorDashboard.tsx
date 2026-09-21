@@ -287,6 +287,13 @@ export default function MirrorDashboard() {
             <span>Register External AI</span>
           </button>
 
+          <a
+            href="/mirror/identity"
+            className="flex items-center space-x-2 rounded-md border border-red-500 bg-red-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-red-500"
+          >
+            <span>Identity Observer</span>
+          </a>
+
           <button
             onClick={fetchAllData}
             className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-md transition"

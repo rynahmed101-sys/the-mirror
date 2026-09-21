@@ -32,8 +32,16 @@ export async function GET(req: Request) {
     }
     const agentId = searchParams.get("agentId") || "mirror-primary";
     const limit = Number(searchParams.get("limit") || 50);
+    const configuredProvider = aiRegistry.getActiveProviderName();
+    const configuredModel = aiRegistry.getActiveModel()
+      || process.env.OPENROUTER_MODEL
+      || process.env.GROQ_MODEL
+      || process.env.LOCAL_MODEL
+      || process.env.OLLAMA_DEFAULT_MODEL
+      || null;
     return NextResponse.json({
       run: await getIdentityRun(agentId),
+      configuration: { provider: configuredProvider, model: configuredModel },
       ledger: await listIdentityLedger(agentId, Number.isFinite(limit) ? limit : 50),
       failures: await db.select().from(recursiveIdentityFailures)
         .where(eq(recursiveIdentityFailures.agentId, agentId))
@@ -190,6 +198,20 @@ export async function POST(req: Request) {
         rateLimitMs: body.rateLimitMs,
         tokenBudget: body.tokenBudget,
       });
+      const provider = aiRegistry.getActiveProvider();
+      const model = aiRegistry.getActiveModel()
+        || process.env.OPENROUTER_MODEL
+        || process.env.GROQ_MODEL
+        || process.env.LOCAL_MODEL
+        || process.env.OLLAMA_DEFAULT_MODEL
+        || null;
+      if (!run.provider || !run.model) {
+        const [lockedRun] = await db.update(recursiveIdentityRuns)
+          .set({ provider: run.provider || provider.name, model: run.model || model, updatedAt: new Date() })
+          .where(eq(recursiveIdentityRuns.id, run.id))
+          .returning();
+        return NextResponse.json({ success: true, run: lockedRun });
+      }
       return NextResponse.json({ success: true, run });
     }
     if (action !== "cycle" && action !== "worker") {
