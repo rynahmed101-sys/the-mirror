@@ -5,6 +5,22 @@ import { appendRawEventLedger } from "@/lib/agent/eventLedger";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 
+export async function GET() {
+  return NextResponse.json({
+    endpoint: "/api/v1/agents/register",
+    method: "POST",
+    description: "Register an external research agent. GET is informational and never creates an agent or credential.",
+    body: {
+      name: "my-external-agent",
+      displayName: "My External Agent",
+      type: "EXTERNAL",
+      provider: "external",
+      model: "your-model",
+    },
+    next: "Save the one-time apiKey from the POST response and send it as Authorization: Bearer <apiKey> to /api/v1/research.",
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
