@@ -68,6 +68,8 @@ export default function IdentityPage() {
   const [error, setError] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [newestIteration, setNewestIteration] = useState<number | null>(null);
+  const [endlessRunning, setEndlessRunning] = useState(false);
+  const endlessRef = useRef(false);
   const newestRef = useRef<HTMLElement | null>(null);
 
   const refresh = useCallback(async () => {
@@ -98,6 +100,57 @@ export default function IdentityPage() {
   useEffect(() => {
     if (newestIteration && newestRef.current) newestRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [newestIteration]);
+
+  const invoke = useCallback(async (action: "start" | "pause" | "worker") => {
+    const response = await fetch("/api/mirror/identity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action,
+        agentId: "mirror-primary",
+        maxIterationsPerWorker: 1,
+        maxTokensPerCycle: 900,
+        rateLimitMs: 5000,
+      }),
+    });
+    const body = await response.json() as { error?: string; details?: string };
+    if (!response.ok) throw new Error(body.details || body.error || `Unable to ${action} recursion`);
+    return body;
+  }, []);
+
+  const stopEndless = useCallback(async () => {
+    endlessRef.current = false;
+    setEndlessRunning(false);
+    try {
+      await invoke("pause");
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }, [invoke, refresh]);
+
+  const startEndless = useCallback(async () => {
+    if (endlessRef.current) return;
+    endlessRef.current = true;
+    setEndlessRunning(true);
+    setError("");
+    try {
+      await invoke("start");
+      while (endlessRef.current) {
+        await invoke("worker");
+        await refresh();
+        await new Promise((resolve) => window.setTimeout(resolve, 1000));
+      }
+    } catch (cause) {
+      endlessRef.current = false;
+      setEndlessRunning(false);
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }, [invoke, refresh]);
+
+  useEffect(() => () => {
+    endlessRef.current = false;
+  }, []);
 
   const run = data.run || {};
   const worker = data.workers?.[0];
@@ -137,9 +190,18 @@ export default function IdentityPage() {
           <div>
             <p className="font-mono text-xs uppercase tracking-[0.3em] text-cyan-400">THE MIRROR / DEVELOPMENT OBSERVER</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight">Recursive identity live ledger</h1>
-            <p className="mt-2 text-sm text-slate-400">Persisted records only. Polling every 2 seconds. This page never invokes the worker.</p>
+            <p className="mt-2 text-sm text-slate-400">Persisted records only. Polling every 2 seconds. The red control runs one bounded worker step at a time and continues until paused.</p>
           </div>
-          <div className="rounded-full border border-cyan-900 bg-cyan-950/30 px-3 py-1 font-mono text-xs text-cyan-300">LIVE POLL · {formatAge(run.updatedAt, now)}</div>
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => void (endlessRunning ? stopEndless() : startEndless())}
+              className={`rounded-lg border px-4 py-2 font-mono text-xs font-semibold uppercase tracking-[0.16em] transition ${endlessRunning ? "border-amber-500 bg-amber-600 text-white hover:bg-amber-500" : "border-red-500 bg-red-600 text-white shadow-lg shadow-red-950/40 hover:bg-red-500"}`}
+            >
+              {endlessRunning ? "Pause recursion" : "Start endless recursion"}
+            </button>
+            <div className="rounded-full border border-cyan-900 bg-cyan-950/30 px-3 py-1 font-mono text-xs text-cyan-300">LIVE POLL · {formatAge(run.updatedAt, now)}</div>
+          </div>
         </header>
 
         <section className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-6">
