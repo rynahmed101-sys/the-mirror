@@ -49,6 +49,15 @@ export async function GET(req: Request) {
       workers: await db.select().from(recursiveIdentityWorkers)
         .where(eq(recursiveIdentityWorkers.agentId, agentId))
         .orderBy(desc(recursiveIdentityWorkers.startedAt)).limit(20),
+      frontDoor: await db.select({
+        id: rawObservations.id,
+        eventType: rawObservations.eventType,
+        input: rawObservations.input,
+        output: rawObservations.output,
+        timestamp: rawObservations.timestamp,
+      }).from(rawObservations)
+        .where(eq(rawObservations.agentId, agentId))
+        .orderBy(desc(rawObservations.timestamp)).limit(20),
     });
   } catch (error) {
     return NextResponse.json({ error: "Failed to fetch identity recursion", details: error instanceof Error ? error.message : String(error) }, { status: 500 });

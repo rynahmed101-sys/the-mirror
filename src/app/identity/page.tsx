@@ -10,6 +10,7 @@ type IdentityData = {
   ledger: RecordValue[];
   workers?: RecordValue[];
   failures?: RecordValue[];
+  frontDoor?: RecordValue[];
 };
 
 const TARGET_CYCLES = 20;
@@ -158,6 +159,7 @@ export default function IdentityPage() {
   const worker = data.workers?.[0];
   const cycles = data.ledger;
   const failures = data.failures || [];
+  const frontDoor = data.frontDoor || [];
   const totalInput = cycles.reduce((sum, entry) => sum + Number(entry.inputTokens || 0), 0);
   const totalOutput = cycles.reduce((sum, entry) => sum + Number(entry.outputTokens || 0), 0);
   const contradictionCount = cycles.reduce((sum, entry) => sum + asArray(entry.contradictions).length, 0);
@@ -222,6 +224,33 @@ export default function IdentityPage() {
         </section>
 
         {error && <div className="mb-5 rounded-lg border border-red-800 bg-red-950/40 p-4 text-sm text-red-200">{error}</div>}
+
+        <section className="mb-8 rounded-xl border border-amber-900/70 bg-amber-950/10 p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-mono text-sm uppercase tracking-[0.2em] text-amber-300">Front-door evidence log</h2>
+              <p className="mt-1 text-xs text-slate-400">Persisted user inputs and model outputs only. Model claims about memory, tools, or identity are not independently verified here.</p>
+            </div>
+            <span className="font-mono text-xs text-amber-400">{frontDoor.length} persisted observation(s)</span>
+          </div>
+          {frontDoor.length === 0 ? (
+            <p className="text-sm text-slate-500">No front-door observations recorded for this run.</p>
+          ) : (
+            <div className="space-y-3">
+              {frontDoor.map((entry) => (
+                <div key={asText(entry.id)} className="rounded-lg border border-amber-900/50 bg-black/20 p-4">
+                  <div className="flex flex-wrap gap-3 font-mono text-[11px] text-amber-200">
+                    <span>{asText(entry.eventType)}</span>
+                    <span>{formatDate(entry.timestamp)}</span>
+                    <span className="text-emerald-300">PERSISTED</span>
+                  </div>
+                  <EvidenceBlock label="Submitted user input" value={entry.input || "not recorded"} />
+                  <div className="mt-3"><EvidenceBlock label="Model response" value={entry.output || "not recorded"} /></div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         {failures.length > 0 && (
           <section className="mb-8 rounded-xl border border-red-900/70 bg-red-950/20 p-5">
