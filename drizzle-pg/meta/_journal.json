@@ -8,6 +8,55 @@
       "when": 1788795903013,
       "tag": "0000_sticky_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790001711082,
+      "tag": "0001_faithful_jamie_braddock",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790002179592,
+      "tag": "0002_brown_blizzard",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790002235497,
+      "tag": "0003_perfect_mister_fear",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790002428534,
+      "tag": "0004_wild_ben_grimm",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790002693349,
+      "tag": "0005_glossy_beast",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790004225670,
+      "tag": "0006_little_dreaming_celestial",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790004338787,
+      "tag": "0007_misty_lady_ursula",
+      "breakpoints": true
     }
   ]
 }

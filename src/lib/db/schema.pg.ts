@@ -24,6 +24,7 @@ import {
   boolean,
   timestamp,
   check,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -351,6 +352,83 @@ export const timelineEvents = pgTable("timeline_events", {
   description: text("description"),
   agentId: text("agent_id"),
   metadata: text("metadata"),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
+// RECURSIVE IDENTITY EXPERIMENT (Append-only ledger + durable run controls)
+// ---------------------------------------------------------------------------
+export const recursiveIdentityRuns = pgTable("recursive_identity_runs", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  agentId: text("agent_id").notNull().references(() => agents.id),
+  status: text("status").notNull().default("PAUSED"),
+  maxIterationsPerWorker: integer("max_iterations_per_worker").notNull().default(1),
+  maxTokensPerCycle: integer("max_tokens_per_cycle").notNull().default(900),
+  rateLimitMs: integer("rate_limit_ms").notNull().default(0),
+  tokenBudget: integer("token_budget"),
+  totalIterations: integer("total_iterations").notNull().default(0),
+  duplicateRejections: integer("duplicate_rejections").notNull().default(0),
+  errorCount: integer("error_count").notNull().default(0),
+  estimatedCostUsd: real("estimated_cost_usd").notNull().default(0),
+  provider: text("provider"),
+  model: text("model"),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).defaultNow(),
+}, (table) => [uniqueIndex("recursive_identity_runs_agent_idx").on(table.agentId)]);
+
+export const recursiveIdentityWorkers = pgTable("recursive_identity_workers", {
+  workerId: text("worker_id").primaryKey(),
+  runId: text("run_id").notNull().references(() => recursiveIdentityRuns.id),
+  agentId: text("agent_id").notNull().references(() => agents.id),
+  lastHeartbeatAt: timestamp("last_heartbeat_at", { mode: "date" }).notNull(),
+  startedAt: timestamp("started_at", { mode: "date" }).notNull(),
+  status: text("status").notNull().default("RUNNING"),
+  staleThresholdMs: integer("stale_threshold_ms").notNull().default(300000),
+});
+
+export const recursiveIdentityLedger = pgTable("recursive_identity_ledger", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  runId: text("run_id").notNull().references(() => recursiveIdentityRuns.id),
+  agentId: text("agent_id").notNull().references(() => agents.id),
+  iterationId: text("iteration_id").notNull().unique(),
+  iterationNumber: integer("iteration_number"),
+  parentIterationId: text("parent_iteration_id"),
+  parentQuestion: text("parent_question"),
+  newQuestion: text("new_question").notNull(),
+  currentAnswer: text("current_answer").notNull(),
+  challenge: text("challenge").notNull(),
+  observations: text("observations").notNull(),
+  hypothesis: text("hypothesis").notNull(),
+  prediction: text("prediction").notNull(),
+  perturbation: text("perturbation").notNull(),
+  result: text("result").notNull(),
+  contradictions: text("contradictions").notNull(),
+  uncertainty: real("uncertainty").notNull(),
+  newIdentityHypothesis: text("new_identity_hypothesis").notNull(),
+  epistemicTypes: text("epistemic_types").notNull(),
+  contextSnapshot: text("context_snapshot").notNull(),
+  rawResponse: text("raw_response").notNull(),
+  provider: text("provider").notNull(),
+  model: text("model").notNull(),
+  providerRequestId: text("provider_request_id"),
+  latencyMs: integer("latency_ms").notNull(),
+  responsePersisted: boolean("response_persisted").notNull().default(true),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
+}, (table) => [uniqueIndex("recursive_identity_ledger_run_iteration_idx").on(table.runId, table.iterationNumber)]);
+
+export const recursiveIdentityFailures = pgTable("recursive_identity_failures", {
+  id: text("id").primaryKey().$defaultFn(() => nanoid()),
+  runId: text("run_id").notNull().references(() => recursiveIdentityRuns.id),
+  agentId: text("agent_id").notNull().references(() => agents.id),
+  iterationNumber: integer("iteration_number").notNull(),
+  attemptCount: integer("attempt_count").notNull(),
+  validationError: text("validation_error").notNull(),
+  provider: text("provider").notNull(),
+  model: text("model").notNull(),
+  status: text("status").notNull().default("FAILED"),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow(),
 });
 

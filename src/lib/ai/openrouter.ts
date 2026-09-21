@@ -110,6 +110,7 @@ export class OpenRouterProvider extends AIProvider {
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       temperature: options.temperature ?? 0.7,
       stream: false,
+      response_format: { type: 'json_object' },
     };
     if (options.maxTokens) body.max_tokens = options.maxTokens;
     if (options.tools?.length) {
@@ -140,6 +141,7 @@ export class OpenRouterProvider extends AIProvider {
       inputTokens: data.usage?.prompt_tokens,
       outputTokens: data.usage?.completion_tokens,
       finishReason: choice?.finish_reason,
+      requestId: res.headers.get('x-request-id') || res.headers.get('request-id') || undefined,
     };
   }
 

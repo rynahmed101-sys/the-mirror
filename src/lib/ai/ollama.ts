@@ -23,7 +23,7 @@ import type {
 import { AIProvider as AIProviderBase } from "./provider";
 
 export class OllamaProvider extends AIProviderBase {
-  readonly name = "ollama";
+  readonly name: string;
   readonly isLocal: boolean;
 
   private baseUrl: string;
@@ -33,12 +33,14 @@ export class OllamaProvider extends AIProviderBase {
   constructor(
     baseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434",
     defaultModel = process.env.OLLAMA_DEFAULT_MODEL || "llama3.2",
-    apiKey = process.env.OLLAMA_API_KEY
+    apiKey = process.env.OLLAMA_API_KEY,
+    providerName = "ollama"
   ) {
     super();
     this.baseUrl = baseUrl;
     this.defaultModel = defaultModel;
     this.apiKey = apiKey;
+    this.name = providerName;
     this.isLocal = this.baseUrl.includes("localhost") || this.baseUrl.includes("127.0.0.1");
   }
 
@@ -47,7 +49,7 @@ export class OllamaProvider extends AIProviderBase {
       "Content-Type": "application/json",
     };
     if (this.apiKey) {
-      headers["Authorization"] = `Bearer ${this.apiKey}`;
+      headers["Authorization"] = "Bearer " + this.apiKey;
     }
     return headers;
   }
@@ -101,7 +103,7 @@ export class OllamaProvider extends AIProviderBase {
       return (data.models || []).map((m) => ({
         id: m.name,
         name: m.name,
-        provider: "ollama",
+        provider: this.name,
         isLocal: true,
         size: formatBytes(m.size),
         description: m.details?.family
@@ -121,6 +123,7 @@ export class OllamaProvider extends AIProviderBase {
     messages: ChatMessage[],
     options: CompletionOptions = {}
   ): Promise<AIResponse> {
+    const startedAt = Date.now();
     const model = this.defaultModel;
     const ollamaMessages = messages.map(toOllamaMessage);
 
@@ -172,8 +175,9 @@ export class OllamaProvider extends AIProviderBase {
       inputTokens: data.prompt_eval_count,
       outputTokens: data.eval_count,
       model,
-      provider: "ollama",
+      provider: this.name,
       finishReason: data.done_reason,
+      latencyMs: Date.now() - startedAt,
     };
   }
 

@@ -8,7 +8,7 @@
  * Not to be confused with xAI Grok (different company, different product).
  *
  * Required env: GROQ_API_KEY   (prefix: gsk_)
- * Optional env: GROQ_MODEL     (default: llama-3.3-70b-versatile)
+ * Optional env: GROQ_MODEL     (default: openai/gpt-oss-20b)
  *
  * SECURITY: API key never exposed in responses, logs or errors.
  */
@@ -24,7 +24,7 @@ import type {
 import { AIProvider } from './provider';
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
-const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
+const DEFAULT_MODEL = 'openai/gpt-oss-20b';
 
 export class GroqProvider extends AIProvider {
   readonly name = 'groq';
@@ -102,7 +102,9 @@ export class GroqProvider extends AIProvider {
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       temperature: options.temperature ?? 0.7,
       stream: false,
+      response_format: { type: 'json_object' },
     };
+    if (this.model.startsWith('openai/gpt-oss')) body.reasoning_effort = 'low';
     if (options.maxTokens) body.max_tokens = options.maxTokens;
     if (options.tools?.length) {
       body.tools = options.tools.map((t) => ({

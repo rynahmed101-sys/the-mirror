@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `recursive_identity_runs_agent_idx` ON `recursive_identity_runs` (`agent_id`);

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { agentSessions, agents } from "@/lib/db/schema.pg";
-import { eq } from "drizzle-orm";
+import { agentSessions, agents } from "@/lib/db/schema";
+import { eq, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 export async function POST(req: Request) {
@@ -60,6 +60,18 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ error: "Invalid session action" }, { status: 400 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function GET() {
+  try {
+    const sessions = await db
+      .select()
+      .from(agentSessions)
+      .orderBy(sql`${agentSessions.lastActivityAt} DESC`);
+    return NextResponse.json(sessions);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

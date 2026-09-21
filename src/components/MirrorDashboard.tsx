@@ -95,7 +95,7 @@ export default function MirrorDashboard() {
         fetch("/api/v1/agents").then((r) => r.json()).catch(() => []),
         fetch("/api/v1/sessions").then((r) => r.json()).catch(() => []),
         fetch("/api/v1/events?limit=50").then((r) => r.json()).catch(() => []),
-        fetch("/api/v1/self-model").then((r) => r.json()).catch(() => null),
+        fetch("/api/mirror/self-model").then((r) => r.json()).catch(() => null),
         fetch("/api/v1/events/ledger?limit=50&order=desc").then((r) => r.json()).catch(() => null),
       ]);
 
@@ -147,6 +147,87 @@ export default function MirrorDashboard() {
       }
     } catch (err: any) {
       alert("Registration failed: " + err.message);
+    }
+  };
+
+  const handleSendChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const content = chatInput.trim();
+    if (!content || isStreaming) return;
+
+    setChatInput("");
+    const conversation = [...chatMessages, { role: "user", content }]
+      .filter((message) => message.role === "user" || message.role === "assistant")
+      .map(({ role, content: messageContent }) => ({ role, content: messageContent }));
+    setChatMessages((messages) => [...messages, { role: "user", content }]);
+    setIsStreaming(true);
+    setCurrentToolStep(null);
+
+    try {
+      const response = await fetch("/api/agent/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          agentId: selectedAgent,
+          messages: conversation,
+        }),
+      });
+
+      if (!response.ok || !response.body) {
+        throw new Error((await response.text()) || `Chat failed (${response.status})`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let assistantContent = "";
+
+      setChatMessages((messages) => [...messages, { role: "assistant", content: "" }]);
+
+      const updateAssistant = (nextContent: string) => {
+        setChatMessages((messages) => {
+          const next = [...messages];
+          const last = next.length - 1;
+          if (last >= 0 && next[last].role === "assistant") {
+            next[last] = { ...next[last], content: nextContent };
+          }
+          return next;
+        });
+      };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
+
+        for (const event of events) {
+          const dataLine = event.split("\n").find((line) => line.startsWith("data: "));
+          if (!dataLine) continue;
+          const payload = JSON.parse(dataLine.slice(6));
+          if (event.startsWith("event: delta")) {
+            assistantContent += payload.content || "";
+            updateAssistant(assistantContent);
+          } else if (event.startsWith("event: tool_call")) {
+            setCurrentToolStep(`Tool: ${payload.tool} (step ${payload.step})`);
+          } else if (event.startsWith("event: tool_result")) {
+            setCurrentToolStep(`Tool completed: ${payload.tool}`);
+          } else if (event.startsWith("event: error")) {
+            throw new Error(payload.message || "Agent stream failed");
+          }
+        }
+
+        if (done) break;
+      }
+      await fetchAllData();
+    } catch (error: any) {
+      setChatMessages((messages) => [
+        ...messages,
+        { role: "system", content: `Front-door interaction failed: ${error.message}` },
+      ]);
+    } finally {
+      setCurrentToolStep(null);
+      setIsStreaming(false);
     }
   };
 
@@ -689,6 +770,73 @@ export default function MirrorDashboard() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* AGENT TERMINAL TAB */}
+        {activeTab === "agent" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <Terminal className="w-5 h-5 text-cyan-400" /> Agent Terminal
+              </h2>
+              <p className="text-xs text-slate-400">
+                The front door for an external AI: this conversation is sent through the normal agent runtime and recorded by The Mirror.
+              </p>
+            </div>
+            <div className="glass-panel rounded-xl border border-slate-800 overflow-hidden">
+              <div className="p-4 border-b border-slate-800 bg-slate-900/40 flex items-center justify-between">
+                <label className="text-xs font-mono text-slate-400" htmlFor="mirror-agent">
+                  AGENT ID
+                </label>
+                <select
+                  id="mirror-agent"
+                  value={selectedAgent}
+                  onChange={(event) => setSelectedAgent(event.target.value)}
+                  className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-cyan-300"
+                >
+                  <option value="mirror-primary">mirror-primary</option>
+                  {agentsList.map((agent) => (
+                    <option key={agent.id} value={agent.id}>{agent.id}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-h-[360px] max-h-[520px] overflow-y-auto p-4 space-y-3 font-mono text-xs">
+                {chatMessages.length === 0 && (
+                  <div className="text-slate-500">No front-door messages yet. Ask the Mirror what it can observe about this interaction.</div>
+                )}
+                {chatMessages.map((message, index) => (
+                  <div key={`${message.role}-${index}`} className={`rounded-lg border p-3 ${
+                    message.role === "user"
+                      ? "border-cyan-800/60 bg-cyan-950/20 text-cyan-100"
+                      : message.role === "system"
+                      ? "border-rose-800/60 bg-rose-950/20 text-rose-200"
+                      : "border-slate-800 bg-slate-900/60 text-slate-200"
+                  }`}>
+                    <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">{message.role}</div>
+                    <div className="whitespace-pre-wrap">{message.content || "…"}</div>
+                  </div>
+                ))}
+                {currentToolStep && <div className="text-amber-300">{currentToolStep}</div>}
+              </div>
+              <form onSubmit={handleSendChat} className="p-4 border-t border-slate-800 flex gap-2">
+                <textarea
+                  value={chatInput}
+                  onChange={(event) => setChatInput(event.target.value)}
+                  placeholder="Enter an observation or question for The Mirror..."
+                  rows={3}
+                  disabled={isStreaming}
+                  className="flex-1 resize-none bg-slate-950 border border-slate-700 rounded-lg p-3 text-xs text-slate-200"
+                />
+                <button
+                  type="submit"
+                  disabled={isStreaming || !chatInput.trim()}
+                  className="self-end px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white text-xs font-bold flex items-center gap-2"
+                >
+                  <Send className="w-3.5 h-3.5" /> Send
+                </button>
+              </form>
             </div>
           </div>
         )}

@@ -69,6 +69,8 @@ export interface AIResponse {
   model: string;
   provider: string;
   finishReason?: string;
+  requestId?: string;
+  latencyMs?: number;
 }
 
 export interface StreamChunk {

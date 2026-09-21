@@ -17,9 +17,10 @@ import { LlamaCppProvider } from "./llamacpp";
 import { OpenRouterProvider } from "./openrouter";
 import { XAIProvider } from "./xai";
 import { GroqProvider } from "./groq";
+import { LocalProvider } from "./local";
 import type { AIProvider, ModelInfo, ProviderHealth } from "./provider";
 
-export type ProviderName = "ollama" | "llamacpp" | "openrouter" | "xai" | "groq" | "openai" | "anthropic" | "gemini";
+export type ProviderName = "local" | "ollama" | "llamacpp" | "openrouter" | "xai" | "groq" | "openai" | "anthropic" | "gemini";
 
 interface ProviderRegistry {
   [key: string]: AIProvider;
@@ -37,6 +38,7 @@ function buildRegistry(): ProviderRegistry {
 
   return {
     ollama:      new OllamaProvider(ollamaUrl, ollamaModel),
+    local:       new LocalProvider(),
     llamacpp:    new LlamaCppProvider(llamaUrl),
     openrouter:  new OpenRouterProvider(),
     xai:         new XAIProvider(),

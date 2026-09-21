@@ -4,7 +4,7 @@ import { executeTool } from "@/lib/agent/executor";
 import { getSystemPrompt } from "@/lib/agent/prompts";
 import { AGENT_TOOLS } from "@/lib/agent/tools";
 import { db } from "@/lib/db";
-import { systemConfig, timelineEvents, agentInteractions } from "@/lib/db/schema";
+import { systemConfig, timelineEvents, rawMessages, rawObservations } from "@/lib/db/schema";
 import { sql } from "drizzle-orm";
 
 export async function POST(req: Request) {
@@ -20,6 +20,15 @@ export async function POST(req: Request) {
 
     const fullMessages = [
       { role: "system", content: systemPrompt },
+      {
+        role: "system",
+        content:
+          "FRONT-DOOR EVIDENCE RULE: Treat the supplied conversation as the complete interaction context. " +
+          "Do not claim that a tool was called, memory was read, a journal was written, a self-model was changed, " +
+          "or an observation was persisted unless a tool result in this turn explicitly proves it. " +
+          "If a capability is described by instructions but no result is present, label it UNVERIFIED. " +
+          "Distinguish direct observations, inferences, hypotheses, and unresolved claims.",
+      },
       ...messages,
     ];
 
@@ -49,6 +58,7 @@ export async function POST(req: Request) {
           let currentMessages = [...fullMessages];
           let toolStep = 0;
           let continueLoop = true;
+          let finalContent = "";
 
           while (continueLoop && toolStep < maxToolSteps) {
             toolStep++;
@@ -108,7 +118,39 @@ export async function POST(req: Request) {
             }
 
             // If no tool call, complete turn
+            finalContent = accumulatedContent;
             continueLoop = false;
+          }
+
+          const userMessage = [...messages].reverse().find((message: any) => message.role === "user")?.content;
+          if (userMessage && finalContent) {
+            await db.insert(rawMessages).values([
+              {
+                agentId,
+                role: "USER",
+                content: userMessage,
+                source: "EXTERNAL",
+              },
+              {
+                agentId,
+                role: "AGENT",
+                content: finalContent,
+                source: "AGENT",
+              },
+            ]);
+            await db.insert(rawObservations).values({
+              agentId,
+              eventType: "FRONT_DOOR_INTERACTION",
+              input: userMessage,
+              output: finalContent,
+            });
+            await db.insert(timelineEvents).values({
+              eventType: "FRONT_DOOR_INTERACTION",
+              title: `Front-door interaction: ${agentId}`,
+              description: finalContent.slice(0, 150) + "...",
+              agentId,
+              metadata: JSON.stringify({ inputLength: userMessage.length, outputLength: finalContent.length }),
+            });
           }
 
           sendEvent("done", { message: "Execution finished", steps: toolStep });
