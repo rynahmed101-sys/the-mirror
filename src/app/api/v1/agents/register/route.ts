@@ -79,6 +79,12 @@ export async function POST(req: Request) {
       message: "Save this API key safely. It will not be shown again.",
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("external agent registration failed", {
+      name: error?.name,
+      message: error?.message,
+      cause: error?.cause?.message || error?.cause,
+      code: error?.code,
+    });
+    return NextResponse.json({ error: "External agent registration failed", details: error?.message }, { status: 500 });
   }
 }
