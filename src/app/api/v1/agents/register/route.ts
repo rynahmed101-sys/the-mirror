@@ -38,7 +38,6 @@ export async function POST(req: Request) {
         permissions: JSON.stringify(defaultPerms),
         status: "ACTIVE",
         isActive: true,
-        lastSeenAt: new Date(),
       })
       .returning();
 
