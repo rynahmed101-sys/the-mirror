@@ -27,6 +27,20 @@ export type Permission =
   | "MODIFY_SYSTEM_CONFIG";
 
 export const SCOPE_PERMISSIONS: Record<string, Permission[]> = {
+  FULL_ACCESS: [
+    "READ_RAW",
+    "READ_ANALYSIS",
+    "READ_INTERPRETATION",
+    "READ_TIMELINE",
+    "READ_SELF_MODEL",
+    "WRITE_OBSERVATION",
+    "WRITE_PREDICTION",
+    "WRITE_EXPERIMENT",
+    "WRITE_JOURNAL",
+    "REVISE_SELF_MODEL",
+    "USE_TOOLS",
+    "COMMUNICATE_WITH_AGENTS",
+  ],
   READ_ONLY_MIRROR: [
     "READ_RAW",
     "READ_ANALYSIS",
@@ -142,4 +156,3 @@ export async function checkAgentPermissionAsync(agentId: string, permission: Per
     return false;
   }
 }
-

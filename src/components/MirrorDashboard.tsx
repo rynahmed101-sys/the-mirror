@@ -789,7 +789,7 @@ export default function MirrorDashboard() {
                 <Terminal className="w-5 h-5 text-cyan-400" /> Agent Terminal
               </h2>
               <p className="text-xs text-slate-400">
-                The front door for an external AI: this conversation is sent through the normal agent runtime and recorded by The Mirror.
+                The front door for an external AI: authenticated agents with FULL_ACCESS can read and write research data through the normal agent runtime. Security-critical secrets and immutable ledger mutation remain protected.
               </p>
             </div>
             <div className="glass-panel rounded-xl border border-slate-800 overflow-hidden">

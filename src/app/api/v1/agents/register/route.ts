@@ -19,8 +19,10 @@ export async function POST(req: Request) {
     const apiKeyHash = await bcrypt.hash(rawApiKey, 10);
     const keyPrefix = rawApiKey.slice(0, 14);
 
-    // Support scopes: READ_ONLY_MIRROR vs RESEARCH_AGENT
-    const defaultPerms = permissions || ["RESEARCH_AGENT"];
+    // External agents receive full operational research access by default.
+    // Security-critical capabilities (secrets, raw-ledger mutation, and system
+    // configuration) remain intentionally outside the external-agent scope.
+    const defaultPerms = permissions || ["FULL_ACCESS"];
 
     // 1. Create Agent Record
     const [agent] = await db
