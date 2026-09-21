@@ -892,14 +892,41 @@ export default function MirrorDashboard() {
               <div className="space-y-4 font-mono text-xs">
                 <div className="p-3 bg-emerald-950/40 border border-emerald-800 rounded-lg text-emerald-300">
                   <div className="font-bold text-sm">Agent Registered Successfully!</div>
-                  <div className="mt-2 text-slate-200">API Key:</div>
+                  <div className="mt-2 text-slate-200">Your external AI credential:</div>
                   <input
                     readOnly
                     value={registeredKey}
                     className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-cyan-300 font-bold mt-1"
                   />
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void navigator.clipboard?.writeText(registeredKey)}
+                      className="rounded bg-cyan-700 px-3 py-1.5 font-bold text-white hover:bg-cyan-600"
+                    >
+                      Copy credential
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const blob = new Blob([`MIRROR_API_KEY=${registeredKey}\n`], { type: "text/plain" });
+                        const link = document.createElement("a");
+                        link.href = URL.createObjectURL(blob);
+                        link.download = "mirror-api-key.env";
+                        link.click();
+                        URL.revokeObjectURL(link.href);
+                      }}
+                      className="rounded bg-slate-700 px-3 py-1.5 font-bold text-white hover:bg-slate-600"
+                    >
+                      Download .env
+                    </button>
+                  </div>
+                  <div className="mt-3 rounded border border-cyan-900 bg-cyan-950/30 p-3 text-slate-200">
+                    <div className="font-bold text-cyan-300">Tell the external AI:</div>
+                    <div className="mt-1">Use the base URL <span className="text-cyan-300">https://the-mirror-gules.vercel.app</span>, send <span className="text-amber-300">Authorization: Bearer &lt;this credential&gt;</span>, and call <span className="text-cyan-300">POST /api/v1/research</span> with an observation.</div>
+                  </div>
                   <div className="text-[10px] text-amber-400 mt-2">
-                    Save this key now. It is stored securely as a bcrypt hash and will not be displayed again.
+                    Save this credential now. It is stored securely as a bcrypt hash and will not be displayed again.
                   </div>
                 </div>
                 <button
