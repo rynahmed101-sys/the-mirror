@@ -59,7 +59,9 @@ export async function POST(req: Request) {
       const health = await provider.healthCheck();
       if (!health.isHealthy) return NextResponse.json({ success: false, provider: provider.name, health, error: "Inference runtime unavailable." }, { status: 503 });
       const models = await provider.listModels();
-      const configuredModel = process.env.LOCAL_MODEL || process.env.OLLAMA_DEFAULT_MODEL || process.env.OPENROUTER_MODEL || "configured-default";
+      const configuredModel = body.action === "local_smoke"
+        ? process.env.LOCAL_MODEL || process.env.OLLAMA_DEFAULT_MODEL || "configured-default"
+        : process.env.OPENROUTER_MODEL || "configured-default";
       if (body.action === "local_smoke" && configuredModel !== "configured-default" && !models.some((model) => model.id === configuredModel || model.name === configuredModel)) {
         return NextResponse.json({ success: false, provider: provider.name, model: configuredModel, availableModels: models.map((model) => model.id), error: "Configured local model is not installed." }, { status: 409 });
       }
