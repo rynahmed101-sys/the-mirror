@@ -41,7 +41,11 @@ export async function GET(req: Request) {
       || null;
     return NextResponse.json({
       run: await getIdentityRun(agentId),
-      configuration: { provider: configuredProvider, model: configuredModel },
+      configuration: {
+        provider: configuredProvider,
+        model: configuredModel,
+        runtime: process.env.VERCEL ? "vercel" : "local",
+      },
       ledger: await listIdentityLedger(agentId, Number.isFinite(limit) ? limit : 50),
       failures: await db.select().from(recursiveIdentityFailures)
         .where(eq(recursiveIdentityFailures.agentId, agentId))

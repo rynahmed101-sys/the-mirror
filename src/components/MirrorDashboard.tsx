@@ -289,9 +289,9 @@ export default function MirrorDashboard() {
 
           <a
             href="/mirror/identity"
-            className="flex items-center space-x-2 rounded-md border border-red-500 bg-red-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-red-500"
+            className="flex items-center space-x-2 rounded-md border-2 border-red-400 bg-red-600 px-4 py-1.5 text-xs font-bold text-white shadow-lg shadow-red-950/50 transition hover:bg-red-500"
           >
-            <span>Identity Observer</span>
+            <span>RED CONTROL · IDENTITY OBSERVER</span>
           </a>
 
           <button

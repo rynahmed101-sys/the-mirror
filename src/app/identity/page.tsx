@@ -213,6 +213,7 @@ export default function IdentityPage() {
           <Metric label="Status" value={status} tone={status === "RUNNING" ? "text-emerald-300" : status === "ERROR" || status === "FAILED" ? "text-red-300" : "text-amber-200"} />
           <Metric label="Model" value={asText(run.model || configuration.model || "not recorded")} />
           <Metric label="Provider" value={asText(run.provider || configuration.provider || "not recorded")} />
+          <Metric label="Runtime" value={asText(configuration.runtime || "not recorded")} tone={configuration.runtime === "vercel" ? "text-emerald-300" : "text-amber-200"} />
           <Metric label="Cycle / target" value={`${currentIteration} / ${TARGET_CYCLES}`} />
           <Metric label="Last activity" value={formatAge(run.updatedAt, now)} />
           <Metric label="Worker" value={worker ? asText(worker.workerId) : "none"} />
