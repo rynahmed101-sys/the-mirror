@@ -1,3 +1,4 @@
+import crypto from "crypto";
 /**
  * THE MIRROR — Supabase secondary evidence mirror.
  *
@@ -48,7 +49,7 @@ type MirrorRun = {
 };
 
 const supabaseUrl = process.env.SUPABASE_URL?.replace(/\/$/, "");
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const serviceKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export const isSupabaseMirrorConfigured = Boolean(supabaseUrl && serviceKey);
 
@@ -182,6 +183,54 @@ export async function mirrorExperimentRun(run: MirrorRun) {
   }
 }
 
+export async function mirrorExperimentArtifact(run: MirrorRun) {
+  if (!isSupabaseMirrorConfigured) return { configured: false, stored: false };
+  const payload = JSON.stringify({
+    suiteId: run.suiteId,
+    agentId: run.agentId,
+    suiteVersion: run.suiteVersion,
+    seed: run.seed,
+    trialCount: run.trialCount,
+    predictionAccuracy: run.predictionAccuracy,
+    meanBrier: run.meanBrier,
+    toolCalls: run.toolCalls,
+    results: run.results,
+  });
+  const bytes = Buffer.byteLength(payload, "utf8");
+  const sha256 = crypto.createHash("sha256").update(payload, "utf8").digest("hex");
+  const storagePath = `${run.agentId}/${run.suiteId}.json`;
+  try {
+    const response = await fetch(
+      supabaseUrl! + "/storage/v1/object/mirror-experiment-artifacts/" + encodeURIComponent(storagePath),
+      {
+        method: "POST",
+        headers: {
+          ...headers(),
+          "x-upsert": "true",
+          "Content-Type": "application/json",
+        },
+        body: payload,
+        cache: "no-store",
+      },
+    );
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`Supabase Storage returned ${response.status}: ${detail.slice(0, 500)}`);
+    }
+    await post("mirror_experiment_artifacts", {
+      suite_id: run.suiteId,
+      storage_path: storagePath,
+      content_type: "application/json",
+      byte_size: bytes,
+      sha256,
+    });
+    return { configured: true, stored: true, storagePath, byteSize: bytes, sha256 };
+  } catch (error) {
+    await recordFailure(error);
+    return { configured: true, stored: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 async function getJson(path: string) {
   if (!isSupabaseMirrorConfigured) return null;
   const response = await fetch(supabaseUrl! + "/rest/v1/" + path, {
@@ -201,7 +250,7 @@ export async function getSupabaseMirrorStatus() {
       configured: false,
       enabled: false,
       sourceDatabase: "neon",
-      reason: "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are not configured on the server.",
+      reason: "SUPABASE_URL and SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY are not configured on the server.",
     };
   }
 
