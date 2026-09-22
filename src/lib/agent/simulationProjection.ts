@@ -399,7 +399,7 @@ export async function runProjectionSuite(options: { agentIds?: string[]; seed?: 
   const maxToolSteps = Math.min(4, Math.max(1, Math.floor(Number(options.maxToolSteps) || 3)));
   const trialSet = PROJECTION_TRIALS.slice(0,maxTrials);
   const agentIds = Array.from(new Set((options.agentIds || ["mirror-primary"]).filter(Boolean))).slice(0,4);
-  const runs = [];
+  const runs: any[] = [];
   for (const agentId of agentIds) runs.push(await runForAgent(agentId,suiteId,suiteVersion,seed,maxToolSteps,trialSet));
 
   const comparison = runs.map((r:any)=>({
