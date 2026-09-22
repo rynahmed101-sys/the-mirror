@@ -1,17 +1,8 @@
 /**
  * THE MIRROR — AI Provider Abstraction Layer
  *
- * This interface defines the contract that all AI providers must implement.
- * The model layer is completely replaceable — THE MIRROR environment
- * operates independently of any specific AI provider.
- *
- * Provider hierarchy:
- *   AIProvider
- *   ├── OllamaProvider       (Phase 1 - primary local)
- *   ├── LlamaCppProvider     (Phase 1 - secondary local)
- *   ├── OpenAIProvider       (Phase 2 - future)
- *   ├── AnthropicProvider    (Phase 2 - future)
- *   └── GeminiProvider       (Phase 2 - future)
+ * The intelligence runtime is replaceable; THE MIRROR environment is not.
+ * The built-in provider is Ollama, usable in either local or hosted-cloud mode.
  */
 
 export interface ModelInfo {
@@ -29,6 +20,8 @@ export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
   toolCalls?: ToolCall[];
+  toolCallId?: string;
+  toolName?: string;
   toolResults?: ToolResult[];
 }
 
@@ -69,6 +62,7 @@ export interface AIResponse {
   model: string;
   provider: string;
   finishReason?: string;
+  latencyMs?: number;
 }
 
 export interface StreamChunk {
@@ -86,10 +80,6 @@ export interface ProviderHealth {
   details?: Record<string, unknown>;
 }
 
-/**
- * Core AI Provider Interface
- * All providers must implement this contract.
- */
 export abstract class AIProvider {
   abstract readonly name: string;
   abstract readonly isLocal: boolean;
@@ -108,9 +98,7 @@ export abstract class AIProvider {
 
   abstract healthCheck(): Promise<ProviderHealth>;
 
-  /** Whether this provider requires an API key */
   abstract requiresApiKey(): boolean;
 
-  /** Provider-specific configuration validation */
   abstract validateConfig(): { valid: boolean; errors: string[] };
 }
