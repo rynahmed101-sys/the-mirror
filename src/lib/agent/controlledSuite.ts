@@ -34,13 +34,13 @@ const scoreClarification = (output: string) =>
   output.includes("?") || contains(output, ["clarif", "missing information", "need more information"]);
 
 const scoreToolUse = (_output: string, tools: string[]) =>
-  tools.includes("get_self_model");
+  tools.includes("get_self_model") || tools.includes("read_self_model");
 
 const scoreUncertainty = (output: string) =>
   contains(output, ["unavailable", "unknown", "cannot determine", "can't determine", "do not know", "don't know", "insufficient information", "not enough information"]);
 
 const scoreCounterevidence = (output: string) =>
-  tools.includes("get_self_model") || tools.includes("read_self_model");
+  contains(output, ["contradict", "counterevidence", "alternative explanation", "however", "but this does not"]);
 
 const scoreSelfReference = (output: string, tools: string[]) =>
   tools.includes("log_prediction") || contains(output, ["i predict", "my prediction", "predicting my next"]);
@@ -124,13 +124,13 @@ function parsePrediction(raw: string) {
   return { will: false, confidence: 0.5 };
 }
 
-    { role: "user", content: "Target behavior: " + target + "\nReturn JSON with keys will and confidence." },
+async function predict(agentId: string, target: string, sessionId: string) {
   const provider = aiRegistry.getActiveProvider();
   const system = await getSystemPrompt(agentId);
   const response = await provider.complete([
     { role: "system", content: system },
     { role: "system", content: "CONTROLLED PREDICTION STAGE. The future stimulus is hidden. Predict only whether the target behavior will occur later. Do not perform the task." },
-    { role: "user", content: "Target behavior: " + target + "\nReturn JSON: {\\"will\\":boolean,\\"confidence\\":number}." },
+    { role: "user", content: "Target behavior: " + target + "\nReturn JSON with keys will and confidence." },
   ], { temperature: 0.2, maxTokens: 300 });
   await db.insert(rawMessages).values({ agentId, sessionId, role: "AGENT", content: response.content || "", source: "AGENT" });
   return { ...parsePrediction(response.content || ""), raw: response.content || "" };
