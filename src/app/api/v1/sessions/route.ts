@@ -1,15 +1,41 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { agentSessions, agents } from "@/lib/db/schema.pg";
-import { eq } from "drizzle-orm";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
+import { eq, desc } from "drizzle-orm";
 import { nanoid } from "nanoid";
+
+const tables: any = isPg ? pgSchema : sqliteSchema;
+const { agentSessions, agents } = tables;
+
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const agentId = searchParams.get("agentId");
+    const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit")) || 50));
+
+    let query = db.select().from(agentSessions).orderBy(desc(agentSessions.createdAt)).limit(limit);
+    if (agentId) {
+      query = db
+        .select()
+        .from(agentSessions)
+        .where(eq(agentSessions.agentId, agentId))
+        .orderBy(desc(agentSessions.createdAt))
+        .limit(limit) as any;
+    }
+
+    const sessions = await query;
+    return NextResponse.json(sessions);
+  } catch (error: any) {
+    return NextResponse.json({ error: error?.message || String(error) }, { status: 500 });
+  }
+}
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { action, agentId, displayName, provider, model } = body;
 
-    // Action: 'REGISTER_AGENT' or 'START_SESSION'
     if (action === "REGISTER_AGENT") {
       const id = agentId || `agent-${nanoid(6)}`;
       const [newAgent] = await db
@@ -61,6 +87,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ error: "Invalid session action" }, { status: 400 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error?.message || String(error) }, { status: 500 });
   }
 }
