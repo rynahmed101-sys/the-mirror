@@ -4,6 +4,7 @@ import * as sqliteSchema from "@/lib/db/schema";
 import * as pgSchema from "@/lib/db/schema.pg";
 import { eq, count, sql, desc } from "drizzle-orm";
 import { aiRegistry } from "@/lib/ai/registry";
+import { getSupabaseMirrorStatus } from "@/lib/db/supabaseMirror";
 
 const tables:any = isPg ? pgSchema : sqliteSchema;
 const { systemConfig, agents, selfModels, selfModelClaims, experiments, predictions, journalEntries, discoveries, toolLogs } = tables;
@@ -16,6 +17,7 @@ export async function GET() {
     const runtimeName = aiRegistry.getActiveProviderName();
     const runtimeModel = aiRegistry.getActiveModel();
     const health = await aiRegistry.healthCheckFull(runtimeName);
+    const secondaryMirror = await getSupabaseMirrorStatus();
 
     const [agentCount] = await db.select({ value: count() }).from(agents);
     const [latestModel] = await db.select().from(selfModels).orderBy(desc(selfModels.version)).limit(1);
@@ -38,6 +40,7 @@ export async function GET() {
         health:health.isHealthy ? "HEALTHY" : "UNREACHABLE",
         healthDetail:health.error || null,
       },
+      secondaryMirror,
       stats:{
         agents:agentCount.value,
         selfModelVersion:latestModel?.version || 0,
