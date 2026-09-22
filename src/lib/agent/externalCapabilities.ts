@@ -60,7 +60,7 @@ export function buildExternalAgentCapabilities(origin: string) {
     links: {
       capabilities: base + "/api/agent/capabilities",
       selfRegistration: base + "/api/v1/agents/register",
-      manual: base + "/docs/EXTERNAL_AI_OPERATIONS_MANUAL.md",
+      manual: "https://raw.githubusercontent.com/rynahmed101-sys/the-mirror/b305e3ef14f13854ee92de2fb308c31bcc4170f5/docs/EXTERNAL_AI_OPERATIONS_MANUAL.md",
     },
     limits: {
       chatToolSteps: 8,

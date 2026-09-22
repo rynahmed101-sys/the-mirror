@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { sql } from "drizzle-orm";
+import { sql, and, eq } from "drizzle-orm";
 import { aiRegistry } from "@/lib/ai/registry";
 import { runToolLoop } from "@/lib/agent/autopilot";
 import { getSystemPrompt } from "@/lib/agent/prompts";
@@ -15,7 +15,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const tables:any = isPg ? pgSchema : sqliteSchema;
-const { systemConfig, rawMessages, rawObservations, timelineEvents } = tables;
+const { systemConfig, rawMessages, rawObservations, timelineEvents, agentSessions } = tables;
 
 export async function POST(req: Request) {
   const principal = await resolveRequestPrincipal(req);
@@ -31,6 +31,16 @@ export async function POST(req: Request) {
 
     const agentId = actor.agentId;
     const sessionId = typeof body.sessionId === "string" ? body.sessionId : null;
+    if (sessionId) {
+      const ownedSession = await db
+        .select({ id: agentSessions.id })
+        .from(agentSessions)
+        .where(and(eq(agentSessions.id, sessionId), eq(agentSessions.agentId, agentId)))
+        .limit(1);
+      if (!ownedSession.length) {
+        return NextResponse.json({ error: "Session does not belong to the authenticated agent." }, { status: 403 });
+      }
+    }
     const maxToolSteps = Math.min(8, Math.max(1, Number(body.maxToolSteps) || 5));
     const systemPrompt = await getSystemPrompt(agentId);
     const fullMessages:ChatMessage[] = [

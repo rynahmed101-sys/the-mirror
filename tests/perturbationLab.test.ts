@@ -128,5 +128,5 @@ test("external agent capability manifest exposes machine actions without exposin
   assert.ok(manifest.endpoints.some((x) => x.path === "/api/agent/sandbox" && x.method === "POST"));
   assert.ok(manifest.endpoints.some((x) => x.path === "/api/mirror/perturbation-lab" && x.method === "POST"));
   assert.equal(manifest.links.capabilities, "https://mirror.example/api/agent/capabilities");
-  assert.equal(manifest.links.manual, "https://mirror.example/docs/EXTERNAL_AI_OPERATIONS_MANUAL.md");
+  assert.equal(manifest.links.manual.includes("/b305e3ef14f13854ee92de2fb308c31bcc4170f5/docs/EXTERNAL_AI_OPERATIONS_MANUAL.md"), true);
 });
