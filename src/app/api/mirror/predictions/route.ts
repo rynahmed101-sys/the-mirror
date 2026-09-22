@@ -97,10 +97,6 @@ export async function POST(req: Request) {
       })
       .returning();
 
-    if (!updated) {
-      return NextResponse.json({ error: "Prediction not found for the authenticated agent." }, { status: 404 });
-    }
-
     await db.insert(timelineEvents).values({
       eventType: "PREDICTION_MADE",
       title: `Prediction Logged (Confidence: ${Math.round(confidence * 100)}%)`,
@@ -141,6 +137,10 @@ export async function PATCH(req: Request) {
       })
       .where(and(eq(predictions.id, predictionId), eq(predictions.agentId, actor.agentId)))
       .returning();
+
+    if (!updated) {
+      return NextResponse.json({ error: "Prediction not found for the authenticated agent." }, { status: 404 });
+    }
 
     await db.insert(timelineEvents).values({
       eventType: "PREDICTION_EVALUATED",

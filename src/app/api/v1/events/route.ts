@@ -5,9 +5,10 @@ import * as pgSchema from "@/lib/db/schema.pg";
 import { sql, eq, and } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
+
 const tables: any = isPg ? pgSchema : sqliteSchema;
 const { rawEventLedger } = tables;
-import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 
 export async function GET(req: Request) {
   try {
