@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { extractBearerToken, resolveApiPrincipal } from "@/lib/auth";
 import { runAutopilot } from "@/lib/agent/autopilot";
-import { constrainAgentId } from "@/lib/auth/agentScope";
+import { resolveExternalActor } from "@/lib/auth/externalActor";
+import { ensureGuestAgent } from "@/lib/auth/experimentalActor";
 
 /** One bounded autonomous cycle. Use /api/mirror/bot for multi-cycle runs. */
 export async function POST(req: Request) {
@@ -12,9 +13,14 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const requestedAgentId = typeof body.agentId === "string" ? body.agentId : null;
-    let agentId: string | undefined;
-    try { agentId = constrainAgentId(principal, requestedAgentId) || "mirror-primary"; }
-    catch (error:any) { return NextResponse.json({ error: "Forbidden: " + error.message }, { status:403 }); }
+    let agentId: string;
+    try {
+      const actor = resolveExternalActor(principal, requestedAgentId);
+      agentId = actor.agentId;
+      if (actor.mode === "TEMP_EXTERNAL") await ensureGuestAgent(agentId);
+    } catch (error:any) {
+      return NextResponse.json({ error: "Forbidden: " + error.message }, { status:403 });
+    }
     const result = await runAutopilot({
       agentId,
       objective: typeof body.objective === "string" ? body.objective : undefined,
