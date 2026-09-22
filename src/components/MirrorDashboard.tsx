@@ -284,7 +284,7 @@ export default function MirrorDashboard() {
                   <span>ACTIVE SESSIONS</span>
                   <Clock className="w-4 h-4 text-emerald-400" />
                 </div>
-                <div className="text-2xl font-bold mt-2 text-slate-100">{sessionsList.length}</div>
+                <div className="text-2xl font-bold mt-2 text-slate-100">{sessionsList.filter((s: any) => s.status === "ACTIVE").length}</div>
                 <div className="text-[11px] text-emerald-400 mt-1 font-mono">Session Lifecycle</div>
               </div>
 
