@@ -88,9 +88,11 @@ export default function MirrorDashboard() {
 
   // Modals state
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [newAgentData, setNewAgentData] = useState({ name: "", type: "EXTERNAL", provider: "ollama", model: "gpt-oss:20b-cloud" });
+  const [newAgentData, setNewAgentData] = useState({ name: "External AI Research Agent", type: "EXTERNAL", provider: "external", model: "gpt-5.6-luna" });
   const [registeredKey, setRegisteredKey] = useState<string | null>(null);
   const [controlToken, setControlToken] = useState("");
+  const [testingRegisteredAgent, setTestingRegisteredAgent] = useState(false);
+  const [registeredAgentTest, setRegisteredAgentTest] = useState<any>(null);
 
   const fetchAllData = async () => {
     try {
@@ -780,9 +782,45 @@ export default function MirrorDashboard() {
                   </div>
                 </div>
                 <button
+                  type="button"
+                  disabled={testingRegisteredAgent}
+                  onClick={async () => {
+                    if (!registeredKey) return;
+                    setTestingRegisteredAgent(true);
+                    setRegisteredAgentTest(null);
+                    try {
+                      const headers = { Authorization: "Bearer " + registeredKey };
+                      const [identityRes, ollamaRes] = await Promise.all([
+                        fetch("/api/v1/agents/me", { headers }),
+                        fetch("/api/agent/provider-test", {
+                          method: "POST",
+                          headers: { ...headers, "Content-Type": "application/json" },
+                          body: JSON.stringify({ prompt: "Identify the external-agent connection in one sentence and confirm whether the Mirror Ollama runtime answered." }),
+                        }),
+                      ]);
+                      const identity = await identityRes.json();
+                      const ollama = await ollamaRes.json();
+                      setRegisteredAgentTest({ identity, ollama });
+                    } catch (error: any) {
+                      setRegisteredAgentTest({ error: error?.message || String(error) });
+                    } finally {
+                      setTestingRegisteredAgent(false);
+                    }
+                  }}
+                  className="w-full py-2 bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 text-white rounded font-bold"
+                >
+                  {testingRegisteredAgent ? "Testing agent identity + Ollama..." : "Test External Agent + Ollama"}
+                </button>
+                {registeredAgentTest && (
+                  <pre className="max-h-64 overflow-auto rounded-lg border border-slate-800 bg-black/40 p-3 text-[10px] text-slate-300 whitespace-pre-wrap">
+                    {JSON.stringify(registeredAgentTest, null, 2)}
+                  </pre>
+                )}
+                <button
                   onClick={() => {
                     setShowRegisterModal(false);
                     setRegisteredKey(null);
+                    setRegisteredAgentTest(null);
                   }}
                   className="w-full py-2 bg-slate-800 text-slate-200 rounded font-bold"
                 >
@@ -836,7 +874,8 @@ export default function MirrorDashboard() {
                       onChange={(e) => setNewAgentData({ ...newAgentData, provider: e.target.value })}
                       className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
                     >
-                      <option value="ollama">Ollama</option>
+                      <option value="external">External AI</option>
+                      <option value="ollama">Ollama-controlled agent</option>
                     </select>
                   </div>
                   <div>
@@ -845,7 +884,7 @@ export default function MirrorDashboard() {
                       type="text"
                       value={newAgentData.model}
                       onChange={(e) => setNewAgentData({ ...newAgentData, model: e.target.value })}
-                      placeholder="gpt-oss:20b-cloud"
+                      placeholder="gpt-5.6-luna or external model identifier"
                       className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
                     />
                   </div>
