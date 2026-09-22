@@ -46,3 +46,19 @@ test("the classifier does not treat generic agreement language as evidence of co
   assert.equal(result.contradiction, false);
   assert.equal(result.unknown, false);
 });
+
+test("hosted Vercel runtime defaults Ollama to cloud when mode is unset", () => {
+  const { resolveOllamaRuntimeConfig } = require("../src/lib/ai/ollama") as typeof import("../src/lib/ai/ollama");
+  const cfg = resolveOllamaRuntimeConfig({ VERCEL: "1" });
+  assert.equal(cfg.cloud, true);
+  assert.equal(cfg.baseUrl, "https://ollama.com/api");
+  assert.equal(cfg.defaultModel, "gpt-oss:20b-cloud");
+});
+
+test("local development still defaults Ollama to localhost", () => {
+  const { resolveOllamaRuntimeConfig } = require("../src/lib/ai/ollama") as typeof import("../src/lib/ai/ollama");
+  const cfg = resolveOllamaRuntimeConfig({});
+  assert.equal(cfg.cloud, false);
+  assert.equal(cfg.baseUrl, "http://localhost:11434/api");
+  assert.equal(cfg.defaultModel, "llama3.2");
+});
