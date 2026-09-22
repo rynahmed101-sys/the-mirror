@@ -35,7 +35,10 @@ export async function runSandboxProbe(code = DEFAULT_PROBE) {
         content: Buffer.from(source, "utf8"),
       },
     ]);
-    const command = await sandbox.runCommand("node", ["/vercel/sandbox/mirror-probe.mjs"]);
+    const command = await sandbox.runCommand({
+      cmd: "node",
+      args: ["/vercel/sandbox/mirror-probe.mjs"],
+    });
     const stdout = await command.stdout();
     const stderr = await command.stderr();
 
