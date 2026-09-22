@@ -166,7 +166,7 @@ export async function runAutopilot(options: { agentId?: string; objective?: stri
 
     try {
       const run = await runToolLoop({
-        agentId, sessionId: session.id, messages, maxToolSteps, requestSource,
+        agentId, sessionId: session.id, messages, maxToolSteps, requestSource: options.requestSource,
       });
 
       await db.insert(rawMessages).values({ agentId, sessionId: session.id, role:"AGENT", content: run.output || "", source:"AGENT" });
