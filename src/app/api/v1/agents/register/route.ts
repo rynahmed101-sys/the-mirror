@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 
     const allowedProviders = new Set(["external", "ollama"]);
     if (requestedProvider && !allowedProviders.has(requestedProvider)) {
-      return NextResponse.json({ error: "Only the Ollama provider is supported." }, { status: 400 });
+      return NextResponse.json({ error: "Unsupported external-agent provider." }, { status: 400 });
     }
 
     if (!principal && requestedType !== "EXTERNAL") {
