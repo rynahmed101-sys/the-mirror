@@ -10,7 +10,6 @@ type Props = {
 };
 
 export default function AgentTerminal({ agentId, model, onComplete }: Props) {
-  const [token, setToken] = useState("");
   const [objective, setObjective] = useState(
     "Inspect the current Mirror state and choose one bounded evidence-preserving next action."
   );
@@ -19,11 +18,6 @@ export default function AgentTerminal({ agentId, model, onComplete }: Props) {
   const [result, setResult] = useState<any>(null);
 
   async function run() {
-    if (!token.trim()) {
-      setResult({ success: false, error: "Mirror API token required." });
-      return;
-    }
-
     try {
       setBusy(true);
       setResult(null);
@@ -32,7 +26,6 @@ export default function AgentTerminal({ agentId, model, onComplete }: Props) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer " + token.trim(),
         },
         body: JSON.stringify({
           agentId,
@@ -70,17 +63,12 @@ export default function AgentTerminal({ agentId, model, onComplete }: Props) {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="md:col-span-2">
-            <label className="text-[10px] uppercase tracking-wide text-slate-500 font-mono">
-              Mirror API Token
-            </label>
-            <input
-              type="password"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="Held in memory only"
-              autoComplete="off"
-              className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-200 font-mono text-xs"
-            />
+            <div className="text-[10px] uppercase tracking-wide text-slate-500 font-mono">
+              Admin session
+            </div>
+            <div className="mt-1 bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-emerald-300 font-mono text-xs">
+              Authenticated browser session is used automatically. No API key required.
+            </div>
           </div>
           <div>
             <label className="text-[10px] uppercase tracking-wide text-slate-500 font-mono">
