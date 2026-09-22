@@ -1,66 +1,22 @@
 import { NextResponse } from "next/server";
-import { aiRegistry } from "@/lib/ai/registry";
-import { executeTool } from "@/lib/agent/executor";
-import { getSystemPrompt } from "@/lib/agent/prompts";
-import { db } from "@/lib/db";
-import { systemConfig, timelineEvents } from "@/lib/db/schema";
-import { sql } from "drizzle-orm";
+import { extractBearerToken, validateApiToken } from "@/lib/auth";
+import { runAutopilot } from "@/lib/agent/autopilot";
 
+/** One bounded autonomous cycle. Use /api/mirror/bot for multi-cycle runs. */
 export async function POST(req: Request) {
+  const token = extractBearerToken(req.headers.get("authorization"));
+  if (!token || !(await validateApiToken(token))) return NextResponse.json({ error:"Unauthorized" }, { status:401 });
+
   try {
-    const { agentId = "mirror-primary", objective = "Perform routine self-observation and check self-model claims against latest activity." } = await req.json();
-
-    const provider = aiRegistry.getActiveProvider();
-    const systemPrompt = await getSystemPrompt(agentId);
-
-    const messages: any[] = [
-      { role: "system", content: systemPrompt },
-      {
-        role: "user",
-        content: `AUTONOMOUS EXECUTION TURN:\n\nObjective: ${objective}\n\nReview your internal state using environment tools. Record any new observations, test predictions, or revise claims if needed. If no action is required, summarize your current epistemic state.`,
-      },
-    ];
-
-    const response = await provider.complete(messages as any, { temperature: 0.2 });
-
-    // Check for tool calls
-    const outputText = response.content || "";
-    const toolCallMatch = outputText.match(/```json\s*(\{[\s\S]*?"tool"[\s\S]*?\})\s*```/);
-    let toolResult = null;
-    if (toolCallMatch) {
-      try {
-        const toolReq = JSON.parse(toolCallMatch[1]);
-        if (toolReq.tool && toolReq.arguments) {
-          toolResult = await executeTool(toolReq.tool, toolReq.arguments, agentId);
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    // Increment cycle counter
-    await db
-      .update(systemConfig)
-      .set({ totalAgentCycles: sql`${systemConfig.totalAgentCycles} + 1` });
-
-    await db.insert(timelineEvents).values({
-      eventType: "AGENT_CYCLE_COMPLETED",
-      title: `Autonomous Turn: ${agentId}`,
-      description: outputText.slice(0, 150) + "...",
-      agentId,
-      metadata: JSON.stringify({ objective, toolExecuted: !!toolResult }),
+    const body = await req.json().catch(() => ({}));
+    const result = await runAutopilot({
+      agentId: typeof body.agentId === "string" ? body.agentId : "mirror-primary",
+      objective: typeof body.objective === "string" ? body.objective : undefined,
+      maxCycles: 1,
+      maxToolSteps: body.maxToolSteps,
     });
-
-    return NextResponse.json({
-      success: true,
-      agentId,
-      output: outputText,
-      toolResult,
-    });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: "Autonomous step failed", details: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success:true, ...result });
+  } catch (error:any) {
+    return NextResponse.json({ error:"Autonomous step failed", details:error?.message || String(error) }, { status:500 });
   }
 }
