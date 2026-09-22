@@ -11,6 +11,7 @@ import {
   isDirectOllamaCloudUrl,
 } from "../src/lib/ai/ollama";
 import { buildJsonAuthHeaders } from "../src/lib/auth/requestHeaders";
+import { constrainAgentId } from "../src/lib/auth/agentScope";
 
 test("the perturbation lattice is exactly 6 x 16 = 96 nodes", () => {
   const state = createNinetySixNodeState();
@@ -88,4 +89,12 @@ test("registration headers can carry an optional control token without storing i
     Authorization: "Bearer mirror-test-token",
   });
   assert.deepEqual(buildJsonAuthHeaders(""), { "Content-Type": "application/json" });
+});
+
+
+test("external agent identity cannot act as another agent", () => {
+  assert.equal(constrainAgentId({ kind: "AGENT", agentId: "agent_ext_1" }, undefined), "agent_ext_1");
+  assert.equal(constrainAgentId({ kind: "AGENT", agentId: "agent_ext_1" }, "agent_ext_1"), "agent_ext_1");
+  assert.throws(() => constrainAgentId({ kind: "AGENT", agentId: "agent_ext_1" }, "mirror-primary"), /may only act as its own agent/);
+  assert.equal(constrainAgentId({ kind: "CONTROL", tokenType: "ENV" }, "mirror-primary"), "mirror-primary");
 });
