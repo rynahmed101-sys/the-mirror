@@ -12,6 +12,7 @@ import {
 } from "../src/lib/ai/ollama";
 import { resolveExternalActor } from "../src/lib/auth/externalActor";
 import { isTemporaryExternalToken } from "../src/lib/auth";
+import { buildExternalAgentCapabilities } from "../src/lib/agent/externalCapabilities";
 
 
 test("the perturbation lattice is exactly 6 x 16 = 96 nodes", () => {
@@ -112,4 +113,16 @@ test("legacy temporary lab tokens are still recognized as external guests", () =
   assert.equal(isTemporaryExternalToken({ name: "temporary-lab-access", permissions: "full" }), true);
   assert.equal(isTemporaryExternalToken({ name: "other-control-token", permissions: "full" }), false);
   assert.equal(isTemporaryExternalToken({ name: "new-lab-token", permissions: "external_experiment" }), true);
+});
+
+
+test("external agent capability manifest exposes machine actions without exposing admin credentials", () => {
+  const manifest = buildExternalAgentCapabilities("https://mirror.example");
+  assert.equal(manifest.protocolVersion, "1.0");
+  assert.equal(manifest.authentication.registeredAgent.header, "Authorization: Bearer mirror_ak_...");
+  assert.equal(manifest.authentication.temporaryGuest.header, "Authorization: Bearer <temporary-token>");
+  assert.equal(manifest.authentication.admin.externalAgentsMayUse, false);
+  assert.ok(manifest.endpoints.some((x) => x.path === "/api/agent/sandbox" && x.method === "POST"));
+  assert.ok(manifest.endpoints.some((x) => x.path === "/api/mirror/perturbation-lab" && x.method === "POST"));
+  assert.equal(manifest.links.capabilities, "https://mirror.example/api/agent/capabilities");
 });

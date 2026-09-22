@@ -96,6 +96,14 @@ Admin-only laboratory controls remain separate from the external-agent research 
 - `POST /api/agent/provider-test` — Ollama runtime health/completion verification
 
 
+## Machine-facing external agent interface
+
+`GET /api/agent/capabilities` publishes the machine-readable external-agent protocol. It distinguishes persistent registered identities from temporary guest access and lists the action endpoints, request formats, and bounds.
+
+External agents can use their registered `mirror_ak_...` key or an admin-issued temporary token. Both can use the native JSON chat endpoint, bounded autonomous steps, Ollama verification, sessions, experiments, predictions, observations, events, provenance, the ephemeral Sandbox probe, and the 96-node sparse Perturbation Lab. The human dashboard remains the administrative interface; these endpoints are the machine interface.
+
+The Sandbox and Perturbation Lab are external-agent research instruments. They are separate from the controller-only internal stress/projection suite.
+
 ## Projection & stress laboratory
 
 The authenticated admin surface includes the Projection Chamber, temporary control-token issuance/revocation, bounded 50-writer ledger stress testing, and isolated Vercel Sandbox probes. The pre-action projection suite contains 20 controller-owned chambers and records forecasts separately from observed traces.
