@@ -91,6 +91,7 @@ export default function MirrorDashboard() {
   const [registeredKey, setRegisteredKey] = useState<string | null>(null);
   const [testingRegisteredAgent, setTestingRegisteredAgent] = useState(false);
   const [registeredAgentTest, setRegisteredAgentTest] = useState<any>(null);
+  const [agentActionBusy, setAgentActionBusy] = useState<string | null>(null);
 
   const fetchAllData = async () => {
     try {
@@ -154,6 +155,24 @@ export default function MirrorDashboard() {
       }
     } catch (err: any) {
       alert("Registration failed: " + err.message);
+    }
+  };
+
+  const handleToggleAgent = async (agentId: string, blocked: boolean) => {
+    setAgentActionBusy(agentId);
+    try {
+      const res = await fetch(`/api/v1/agents/${agentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blocked }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Agent update failed");
+      await fetchAllData();
+    } catch (error:any) {
+      alert(error?.message || "Agent update failed");
+    } finally {
+      setAgentActionBusy(null);
     }
   };
 
@@ -587,7 +606,17 @@ export default function MirrorDashboard() {
                   </div>
                   <div className="text-slate-400 text-[11px]">ID: <span className="text-slate-200">{a.id}</span></div>
                   <div className="text-slate-400 text-[11px]">Provider: <span className="text-cyan-400">{a.provider}</span> ({a.model})</div>
-                  <div className="text-slate-400 text-[11px]">Status: <span className="text-emerald-400 font-bold">{a.status || "ACTIVE"}</span></div>
+                  <div className="text-slate-400 text-[11px]">Status: <span className={a.isActive === false ? "text-rose-400 font-bold" : "text-emerald-400 font-bold"}>{a.status || "ACTIVE"}</span></div>
+                  {a.id !== "mirror-primary" && (
+                    <button
+                      type="button"
+                      disabled={agentActionBusy === a.id}
+                      onClick={() => handleToggleAgent(a.id, a.isActive !== false)}
+                      className="w-full mt-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-50"
+                    >
+                      {agentActionBusy === a.id ? "Updating..." : a.isActive === false ? "Unblock Agent" : "Block Agent"}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
