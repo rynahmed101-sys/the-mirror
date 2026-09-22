@@ -84,14 +84,14 @@ export default function MirrorDashboard() {
 
   // Modals state
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [newAgentData, setNewAgentData] = useState({ name: "", type: "EXTERNAL", provider: "openai", model: "gpt-4o" });
+  const [newAgentData, setNewAgentData] = useState({ name: "", type: "LOCAL", provider: "ollama", model: "gpt-oss:20b-cloud" });
   const [registeredKey, setRegisteredKey] = useState<string | null>(null);
 
   const fetchAllData = async () => {
     try {
       setLoadingStatus(true);
       const [stRes, agRes, sessRes, evRes, smRes, ledgRes] = await Promise.all([
-        fetch("/api/v1/mirror/status").then((r) => r.json()).catch(() => null),
+        fetch("/api/mirror/status", { cache: "no-store" }).then((r) => r.json()).catch(() => null),
         fetch("/api/v1/agents").then((r) => r.json()).catch(() => []),
         fetch("/api/v1/sessions").then((r) => r.json()).catch(() => []),
         fetch("/api/v1/events?limit=50").then((r) => r.json()).catch(() => []),
@@ -197,6 +197,17 @@ export default function MirrorDashboard() {
             <span className="text-slate-400">Raw Stream:</span>
             <span className="text-cyan-400 font-bold">{rawEventsList.length} Events</span>
           </div>
+          <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-md max-w-[360px]">
+            <Cpu className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <span className="text-slate-400">AI Runtime:</span>
+            <span className={`font-bold ${statusData?.aiRuntime?.health === "HEALTHY" ? "text-emerald-400" : "text-amber-400"}`}>
+              {statusData?.aiRuntime?.provider || "ollama"} / {statusData?.aiRuntime?.model || "loading"}
+            </span>
+            <span className="text-[10px] uppercase text-slate-500">
+              {statusData?.aiRuntime?.mode || "unknown"}
+            </span>
+          </div>
+
 
           <button
             onClick={() => setShowRegisterModal(true)}
@@ -273,7 +284,7 @@ export default function MirrorDashboard() {
                   <span>ACTIVE SESSIONS</span>
                   <Clock className="w-4 h-4 text-emerald-400" />
                 </div>
-                <div className="text-2xl font-bold mt-2 text-slate-100">{sessionsList.length || 1}</div>
+                <div className="text-2xl font-bold mt-2 text-slate-100">{sessionsList.length}</div>
                 <div className="text-[11px] text-emerald-400 mt-1 font-mono">Session Lifecycle</div>
               </div>
 
@@ -291,8 +302,8 @@ export default function MirrorDashboard() {
                   <span>PROVENANCE TRACES</span>
                   <GitBranch className="w-4 h-4 text-amber-400" />
                 </div>
-                <div className="text-2xl font-bold mt-2 text-slate-100">100%</div>
-                <div className="text-[11px] text-amber-400 mt-1 font-mono">Full Event Lineage</div>
+                <div className="text-2xl font-bold mt-2 text-slate-100">AVAILABLE</div>
+                <div className="text-[11px] text-amber-400 mt-1 font-mono">Traceable Event Lineage</div>
               </div>
             </div>
 
@@ -370,7 +381,7 @@ export default function MirrorDashboard() {
                   </div>
                 </div>
                 <span className="px-2.5 py-1 rounded bg-slate-900 border border-slate-700 text-[10px]">
-                  Engine: SQLite WAL + SHA-256
+                  Engine: Dialect-Aware DB + SHA-256
                 </span>
               </div>
             )}
@@ -773,11 +784,7 @@ export default function MirrorDashboard() {
                       onChange={(e) => setNewAgentData({ ...newAgentData, provider: e.target.value })}
                       className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
                     >
-                      <option value="openai">OpenAI</option>
-                      <option value="anthropic">Anthropic</option>
-                      <option value="gemini">Google Gemini</option>
                       <option value="ollama">Ollama</option>
-                      <option value="external">Custom External</option>
                     </select>
                   </div>
                   <div>
@@ -786,7 +793,7 @@ export default function MirrorDashboard() {
                       type="text"
                       value={newAgentData.model}
                       onChange={(e) => setNewAgentData({ ...newAgentData, model: e.target.value })}
-                      placeholder="gpt-4o / claude-3-5"
+                      placeholder="gpt-oss:20b-cloud"
                       className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
                     />
                   </div>
