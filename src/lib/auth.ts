@@ -83,6 +83,13 @@ export async function validateControlToken(token: string): Promise<boolean> {
   return Boolean(envToken && token && token === envToken);
 }
 
+export async function revokeApiToken(id: string) {
+  const tokenTable = isPg ? pgApiTokens : sqliteApiTokens;
+  const result = await db.delete(tokenTable).where(eq(tokenTable.id, id));
+  const affected = Number((result as any)?.rowCount ?? (result as any)?.changes ?? 0);
+  return { id, revoked: affected > 0 };
+}
+
 export async function createApiToken(name: string, description?: string) {
   const token = `mirror_${nanoid(32)}`;
   const hashed = hashToken(token);
