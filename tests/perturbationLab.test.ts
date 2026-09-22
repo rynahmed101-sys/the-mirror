@@ -10,6 +10,7 @@ import {
   normalizeOllamaApiKey,
   isDirectOllamaCloudUrl,
 } from "../src/lib/ai/ollama";
+import { buildJsonAuthHeaders } from "../src/lib/auth/requestHeaders";
 
 test("the perturbation lattice is exactly 6 x 16 = 96 nodes", () => {
   const state = createNinetySixNodeState();
