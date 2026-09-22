@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { extractBearerToken, validateControlToken } from "@/lib/auth";
+import { resolveRequestPrincipal } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { agents, agentApiKeys } from "@/lib/db/schema.pg";
 import { appendRawEventLedger } from "@/lib/agent/eventLedger";
@@ -7,9 +7,9 @@ import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 
 export async function POST(req: Request) {
-  const token = extractBearerToken(req.headers.get("authorization"));
-  if (!token || !(await validateControlToken(token))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const principal = await resolveRequestPrincipal(req);
+  if (!principal || principal.kind !== "CONTROL") {
+    return NextResponse.json({ error: "Admin session or control token required." }, { status: 401 });
   }
 
   try {
