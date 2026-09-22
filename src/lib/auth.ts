@@ -83,6 +83,23 @@ export async function validateControlToken(token: string): Promise<boolean> {
   return Boolean(envToken && token && token === envToken);
 }
 
+export async function createApiToken(name: string, description?: string) {
+  const token = `mirror_${nanoid(32)}`;
+  const hashed = hashToken(token);
+
+  const id = nanoid();
+  const tokenTable = isPg ? pgApiTokens : sqliteApiTokens;
+  await db.insert(tokenTable).values({
+    id,
+    name,
+    tokenPrefix: token.slice(0, 8) + "...",
+    tokenHash: hashed,
+    permissions: "full",
+  });
+
+  return { id, token };
+}
+
 // ── Dashboard password auth ─────────────────────────────────
 
 export async function verifyAdminPassword(password: string): Promise<boolean> {
