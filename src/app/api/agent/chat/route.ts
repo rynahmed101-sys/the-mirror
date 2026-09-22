@@ -6,12 +6,20 @@ import { db, isPg } from "@/lib/db";
 import * as sqliteSchema from "@/lib/db/schema";
 import * as pgSchema from "@/lib/db/schema.pg";
 import type { ChatMessage } from "@/lib/ai/provider";
+import { extractBearerToken, validateApiToken } from "@/lib/auth";
+
+export const runtime = "nodejs";
 import { sql } from "drizzle-orm";
 
 const tables:any = isPg ? pgSchema : sqliteSchema;
 const { systemConfig, rawMessages, rawObservations, timelineEvents } = tables;
 
 export async function POST(req:Request) {
+  const token = extractBearerToken(req.headers.get("authorization"));
+  if (!token || !(await validateApiToken(token))) {
+    return NextResponse.json({ error:"Unauthorized" }, { status:401 });
+  }
+
   try {
     const body = await req.json();
     const messages = Array.isArray(body.messages) ? body.messages as ChatMessage[] : null;
