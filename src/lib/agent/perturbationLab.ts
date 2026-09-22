@@ -288,6 +288,8 @@ export async function runPerturbationLab(options: {
   const tables: any = isPg ? pgSchema : sqliteSchema;
   const { agents, experiments, rawObservations, selfModels, selfModelClaims, timelineEvents, agentSessions } = tables;
 
+  const runtime = await assertRuntimeReady();
+
   const agent = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
   if (!agent.length || !agent[0].isActive) throw new Error("Agent not found or inactive: " + agentId);
 
@@ -305,8 +307,6 @@ export async function runPerturbationLab(options: {
   const baselineClaimRows = baselineSelfModelRows[0]
     ? await db.select().from(selfModelClaims).where(eq(selfModelClaims.selfModelId, baselineSelfModelRows[0].id))
     : [];
-
-  const runtime = await assertRuntimeReady();
 
   const [session] = await db.insert(agentSessions).values({ agentId, status: "ACTIVE" }).returning();
   const suiteId = "perturbation_" + nanoid(8);
@@ -704,6 +704,7 @@ export async function runPerturbationLab(options: {
       stdout: sandbox.stdout,
       stderr: sandbox.stderr,
       durationMs: sandbox.durationMs,
+      error: sandbox.error || null,
     },
     stages: summaries,
   };
