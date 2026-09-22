@@ -20,7 +20,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Agent name required" }, { status: 400 });
     }
 
-    const allowedProviders = new Set(["ollama"]);
+    const allowedProviders = new Set(["external", "ollama"]);
     if (provider && !allowedProviders.has(String(provider))) {
       return NextResponse.json({ error: "Only the Ollama provider is supported." }, { status: 400 });
     }
@@ -48,8 +48,8 @@ export async function POST(req: Request) {
         displayName: displayName || name,
         type: type || "EXTERNAL",
         role: "EXTERNAL_AGENT",
-        provider: provider || "ollama",
-        model: model || "gpt-oss:20b-cloud",
+        provider: provider || "external",
+        model: model || "external-agent",
         permissions: JSON.stringify(defaultPerms),
         status: "ACTIVE",
         isActive: true,
