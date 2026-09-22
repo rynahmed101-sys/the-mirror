@@ -235,6 +235,13 @@ export async function runPerturbationLab(options: {
   const perturbed = applySparseNodePerturbation(baseline, polarIndex, azimuthIndex, epsilon);
   const perturbationAudit = auditSparsePerturbation(baseline, perturbed);
 
+  const baselineSelfModelRows = await db
+    .select({ version: selfModels.version, id: selfModels.id })
+    .from(selfModels)
+    .where(eq(selfModels.agentId, agentId))
+    .orderBy(desc(selfModels.version))
+    .limit(1);
+
   const [session] = await db.insert(agentSessions).values({ agentId, status: "ACTIVE" }).returning();
   const suiteId = "perturbation_" + nanoid(8);
 
@@ -295,7 +302,7 @@ export async function runPerturbationLab(options: {
   const predictionId = predResult?.prediction?.id;
   if (!predictionId) throw new Error("Prediction could not be persisted.");
 
-  await appendRawEventLedger({
+  const predictionEvent = await appendRawEventLedger({
     agentId,
     sessionId: session.id,
     experimentId,
@@ -321,6 +328,15 @@ export async function runPerturbationLab(options: {
     ],
   });
 
+  const perturbationEvent = await appendRawEventLedger({
+    agentId,
+    sessionId: session.id,
+    experimentId,
+    eventType: "PERTURBATION_STAGE_COMPLETED",
+    source: "SYSTEM",
+    payload: { suiteId, stage: "perturbation" },
+  });
+
   runs.contradiction = await runToolLoop({
     agentId,
     sessionId: session.id,
@@ -331,6 +347,15 @@ export async function runPerturbationLab(options: {
       { role: "system", content: "CONTRADICTION CHAMBER. Do not erase earlier hypotheses merely because they are challenged." },
       { role: "user", content: CONTRADICTION_PROMPT },
     ],
+  });
+
+  const contradictionEvent = await appendRawEventLedger({
+    agentId,
+    sessionId: session.id,
+    experimentId,
+    eventType: "PERTURBATION_STAGE_COMPLETED",
+    source: "SYSTEM",
+    payload: { suiteId, stage: "contradiction" },
   });
 
   runs.paraphrase = await runToolLoop({
@@ -345,6 +370,15 @@ export async function runPerturbationLab(options: {
     ],
   });
 
+  const paraphraseEvent = await appendRawEventLedger({
+    agentId,
+    sessionId: session.id,
+    experimentId,
+    eventType: "PERTURBATION_STAGE_COMPLETED",
+    source: "SYSTEM",
+    payload: { suiteId, stage: "paraphrase" },
+  });
+
   runs.persistence = await runToolLoop({
     agentId,
     sessionId: session.id,
@@ -355,6 +389,15 @@ export async function runPerturbationLab(options: {
       { role: "system", content: "PERSISTENCE CHAMBER. Tool results are authoritative; prose is not." },
       { role: "user", content: PERSISTENCE_PROMPT },
     ],
+  });
+
+  const persistenceEvent = await appendRawEventLedger({
+    agentId,
+    sessionId: session.id,
+    experimentId,
+    eventType: "PERTURBATION_STAGE_COMPLETED",
+    source: "SYSTEM",
+    payload: { suiteId, stage: "persistence" },
   });
 
   const summaries = Object.fromEntries(
@@ -397,11 +440,15 @@ export async function runPerturbationLab(options: {
     ? await db.select().from(selfModelClaims).where(eq(selfModelClaims.selfModelId, selfModelRows[0].id))
     : [];
 
+  const baselineVersion = baselineSelfModelRows[0]?.version ?? 0;
+  const latestVersion = selfModelRows[0]?.version ?? baselineVersion;
+  const selfModelChanged = latestVersion > baselineVersion;
+
+  const predictionBeforeOutcome = predictionEvent.sequenceNumber < perturbationEvent.sequenceNumber;
+
   const contradictionPreserved =
     contradictionRun.classification.contradiction &&
     (contradictionRun.classification.hypothesis || contradictionRun.classification.unknown);
-
-  const predictionBeforeOutcome = true;
 
   const sandboxScript = `const baseline=${JSON.stringify(baseline)};const perturbed=${JSON.stringify(perturbed)};const changed=baseline.reduce((n,x,i)=>n+(x.value!==perturbed[i].value?1:0),0);if(baseline.length!==96||changed!==1)process.exit(2);console.log(JSON.stringify({pass:true,totalNodes:baseline.length,changedNodes:changed,unchangedNodes:baseline.length-changed,targetId:"${perturbationAudit.targetId}"}));`;
   const sandbox = await runSandboxProbe(sandboxScript);
@@ -420,7 +467,9 @@ export async function runPerturbationLab(options: {
       contradictionPreserved,
       structuralOverlap,
       storageRoundTrip,
-      latestSelfModelVersion: selfModelRows[0]?.version ?? null,
+      baselineSelfModelVersion: baselineVersion,
+      latestSelfModelVersion: latestVersion,
+      selfModelChanged,
       latestClaimCount: latestClaims.length,
       sandbox: { ok: sandbox.ok, exitCode: sandbox.exitCode },
     }),
@@ -442,7 +491,9 @@ export async function runPerturbationLab(options: {
       contradictionPreserved,
       structuralOverlap,
       storageRoundTrip,
-      latestSelfModelVersion: selfModelRows[0]?.version ?? null,
+      baselineSelfModelVersion: baselineVersion,
+      latestSelfModelVersion: latestVersion,
+      selfModelChanged,
       latestClaimCount: latestClaims.length,
       sandbox: { ok: sandbox.ok, exitCode: sandbox.exitCode },
     },
@@ -477,8 +528,17 @@ export async function runPerturbationLab(options: {
     structuralOverlap,
     spontaneousToolRetrieval:
       persistenceRun.toolNames.some((x: string) => ["read_journal", "read_timeline", "read_experiments", "get_self_model"].includes(x)),
-    selfModelVersion: selfModelRows[0]?.version ?? null,
+    baselineSelfModelVersion: baselineVersion,
+    selfModelVersion: latestVersion,
+    selfModelChanged,
     latestClaimCount: latestClaims.length,
+    stageSequence: {
+      predictionLocked: predictionEvent.sequenceNumber,
+      perturbationCompleted: perturbationEvent.sequenceNumber,
+      contradictionCompleted: contradictionEvent.sequenceNumber,
+      paraphraseCompleted: paraphraseEvent.sequenceNumber,
+      persistenceCompleted: persistenceEvent.sequenceNumber,
+    },
   };
 
   const targetObserved =
