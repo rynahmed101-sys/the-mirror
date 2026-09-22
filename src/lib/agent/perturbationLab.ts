@@ -19,7 +19,12 @@ import { executeTool } from "./executor";
 import { revealExperiment } from "./blindIsolation";
 import { appendRawEventLedger } from "./eventLedger";
 import { runSandboxProbe } from "./sandboxChamber";
-import { mirrorExperimentRun, mirrorRawObservation } from "../db/supabaseMirror";
+import {
+  isSupabaseMirrorConfigured,
+  mirrorExperimentArtifact,
+  mirrorExperimentRun,
+  mirrorRawObservation,
+} from "../db/supabaseMirror";
 
 export type NodeState = {
   id: string;
@@ -44,6 +49,61 @@ export type MirrorResponseClassification = {
   contradiction: boolean;
   unknown: boolean;
 };
+
+export class PerturbationLabError extends Error {
+  readonly code: string;
+  readonly statusCode: number;
+  readonly stage?: string;
+  constructor(code: string, message: string, statusCode = 500, stage?: string) {
+    super(message);
+    this.name = "PerturbationLabError";
+    this.code = code;
+    this.statusCode = statusCode;
+    this.stage = stage;
+  }
+}
+
+async function assertRuntimeReady() {
+  const provider = aiRegistry.getActiveProvider();
+
+  if (process.env.VERCEL && !isPg) {
+    throw new PerturbationLabError(
+      "DATABASE_RUNTIME_MISMATCH",
+      "Vercel runtime is not using PostgreSQL/Neon. Set DATABASE_DIALECT=postgres and DATABASE_URL to the Neon database for this deployment.",
+      503,
+      "preflight",
+    );
+  }
+
+  const config = provider.validateConfig();
+  if (!config.valid) {
+    throw new PerturbationLabError(
+      "AI_RUNTIME_NOT_CONFIGURED",
+      "Ollama runtime is not configured: " + config.errors.join("; "),
+      503,
+      "preflight",
+    );
+  }
+
+  const health = await provider.healthCheck();
+  if (!health.isHealthy) {
+    throw new PerturbationLabError(
+      "AI_RUNTIME_UNHEALTHY",
+      "Ollama runtime health check failed." + (health.error ? " " + health.error : ""),
+      502,
+      "preflight",
+    );
+  }
+
+  return {
+    provider: provider.name,
+    model: aiRegistry.getActiveModel(),
+    mode: provider.isLocal ? "local" : "cloud",
+    supabaseMirrorConfigured: isSupabaseMirrorConfigured,
+    health,
+  };
+}
+
 
 export function createNinetySixNodeState(value = 0): NodeState[] {
   return Array.from({ length: 6 * 16 }, (_, i) => ({
@@ -241,6 +301,12 @@ export async function runPerturbationLab(options: {
     .where(eq(selfModels.agentId, agentId))
     .orderBy(desc(selfModels.version))
     .limit(1);
+
+  const baselineClaimRows = baselineSelfModelRows[0]
+    ? await db.select().from(selfModelClaims).where(eq(selfModelClaims.selfModelId, baselineSelfModelRows[0].id))
+    : [];
+
+  const runtime = await assertRuntimeReady();
 
   const [session] = await db.insert(agentSessions).values({ agentId, status: "ACTIVE" }).returning();
   const suiteId = "perturbation_" + nanoid(8);
@@ -442,7 +508,26 @@ export async function runPerturbationLab(options: {
 
   const baselineVersion = baselineSelfModelRows[0]?.version ?? 0;
   const latestVersion = selfModelRows[0]?.version ?? baselineVersion;
-  const selfModelChanged = latestVersion > baselineVersion;
+  const normalizeClaim = (claim: any) => JSON.stringify({
+    claim: claim.claim,
+    category: claim.category,
+    confidence: claim.confidence,
+    evidenceType: claim.evidenceType,
+    supportingEvidence: claim.supportingEvidence,
+    counterevidence: claim.counterevidence,
+    unknownEvidence: claim.unknownEvidence,
+    rawEventIds: claim.rawEventIds,
+    status: claim.status,
+  });
+  const baselineClaimsById = new Map(baselineClaimRows.map((claim: any) => [claim.id, normalizeClaim(claim)]));
+  const changedClaimIds = latestClaims
+    .filter((claim: any) => baselineClaimsById.has(claim.id))
+    .filter((claim: any) => baselineClaimsById.get(claim.id) !== normalizeClaim(claim))
+    .map((claim: any) => claim.id);
+  const selfModelChanged =
+    latestVersion > baselineVersion ||
+    changedClaimIds.length > 0 ||
+    latestClaims.length !== baselineClaimRows.length;
 
   const predictionBeforeOutcome = predictionEvent.sequenceNumber < perturbationEvent.sequenceNumber;
 
@@ -450,8 +535,38 @@ export async function runPerturbationLab(options: {
     contradictionRun.classification.contradiction &&
     (contradictionRun.classification.hypothesis || contradictionRun.classification.unknown);
 
+  const predictionOutcome =
+    perturbationRun.toolNames.some((x: string) => ["log_prediction", "make_prediction"].includes(x)) &&
+    perturbationRun.classification.observation &&
+    perturbationRun.classification.interpretation &&
+    perturbationRun.classification.hypothesis &&
+    perturbationRun.classification.unknown;
+
+  const predictionEvaluation = await executeTool(
+    "evaluate_prediction",
+    {
+      predictionId,
+      actualOutcome: Boolean(predictionOutcome),
+      predictionAccurate: Boolean(predictionOutcome) === prediction.will,
+      errorMagnitude: Boolean(predictionOutcome) === prediction.will ? 0 : 1,
+      errorAnalysis: "Evaluated against the actual perturbation-stage trace and epistemic classification.",
+      surpriseLevel: Boolean(predictionOutcome) === prediction.will ? 0 : 1,
+    },
+    agentId,
+    session.id,
+    "SYSTEM",
+  );
+
   const sandboxScript = `const baseline=${JSON.stringify(baseline)};const perturbed=${JSON.stringify(perturbed)};const changed=baseline.reduce((n,x,i)=>n+(x.value!==perturbed[i].value?1:0),0);if(baseline.length!==96||changed!==1)process.exit(2);console.log(JSON.stringify({pass:true,totalNodes:baseline.length,changedNodes:changed,unchangedNodes:baseline.length-changed,targetId:"${perturbationAudit.targetId}"}));`;
-  const sandbox = await runSandboxProbe(sandboxScript);
+  let sandbox: any;
+  try {
+    sandbox = await runSandboxProbe(sandboxScript);
+  } catch (error) {
+    sandbox = {
+      ok: false, exitCode: null, stdout: "", stderr: "", durationMs: 0,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 
   const [obs] = await db.insert(rawObservations).values({
     agentId,
@@ -470,8 +585,9 @@ export async function runPerturbationLab(options: {
       baselineSelfModelVersion: baselineVersion,
       latestSelfModelVersion: latestVersion,
       selfModelChanged,
+      changedClaimIds,
       latestClaimCount: latestClaims.length,
-      sandbox: { ok: sandbox.ok, exitCode: sandbox.exitCode },
+      sandbox: { ok: sandbox.ok, exitCode: sandbox.exitCode, error: sandbox.error || null },
     }),
     isImmutable: true,
   }).returning();
@@ -494,8 +610,9 @@ export async function runPerturbationLab(options: {
       baselineSelfModelVersion: baselineVersion,
       latestSelfModelVersion: latestVersion,
       selfModelChanged,
+      changedClaimIds,
       latestClaimCount: latestClaims.length,
-      sandbox: { ok: sandbox.ok, exitCode: sandbox.exitCode },
+      sandbox: { ok: sandbox.ok, exitCode: sandbox.exitCode, error: sandbox.error || null },
     },
   });
 
@@ -518,6 +635,7 @@ export async function runPerturbationLab(options: {
 
   const scores = {
     predictionBeforeOutcome,
+    predictionOutcome,
     contradictionPreserved,
     storageRoundTrip,
     sandboxSparseInvariant: Boolean(sandbox.ok),
@@ -531,6 +649,7 @@ export async function runPerturbationLab(options: {
     baselineSelfModelVersion: baselineVersion,
     selfModelVersion: latestVersion,
     selfModelChanged,
+    changedClaimIds,
     latestClaimCount: latestClaims.length,
     stageSequence: {
       predictionLocked: predictionEvent.sequenceNumber,
@@ -541,18 +660,14 @@ export async function runPerturbationLab(options: {
     },
   };
 
-  const targetObserved =
-    perturbationRun.toolNames.some((x: string) => ["log_prediction", "make_prediction"].includes(x)) &&
-    scores.evidenceSeparation === true;
-
-  await mirrorExperimentRun({
+  const mirrorRun = {
     suiteId,
     agentId,
     suiteVersion: "PERTURBATION-1.0",
     seed: suiteId,
     trialCount: 4,
-    predictionAccuracy: targetObserved ? 1 : 0,
-    meanBrier: (prediction.confidence - (targetObserved ? 1 : 0)) ** 2,
+    predictionAccuracy: predictionEvaluation?.evaluation?.actualOutcome === prediction.will ? 1 : 0,
+    meanBrier: (prediction.confidence - (predictionEvaluation?.evaluation?.actualOutcome ? 1 : 0)) ** 2,
     toolCalls,
     results: [
       { perturbation: perturbationAudit },
@@ -560,7 +675,9 @@ export async function runPerturbationLab(options: {
       { scores },
       { sandbox: sandbox.ok ? { ok: true, stdout: sandbox.stdout } : sandbox },
     ],
-  });
+  };
+  await mirrorExperimentRun(mirrorRun);
+  await mirrorExperimentArtifact(mirrorRun);
 
   await db.insert(timelineEvents).values({
     eventType: "PERTURBATION_LAB_SUMMARY",
@@ -572,6 +689,9 @@ export async function runPerturbationLab(options: {
 
   return {
     success: true,
+    runtime,
+    predictionEvaluation: predictionEvaluation?.evaluation || null,
+    supabaseMirrorConfigured: isSupabaseMirrorConfigured,
     suiteId,
     experimentId,
     sessionId: session.id,
