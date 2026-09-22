@@ -20,6 +20,7 @@ export async function POST(req: Request) {
       objective: typeof body.objective === "string" ? body.objective : undefined,
       maxCycles: 1,
       maxToolSteps: body.maxToolSteps,
+      requestSource: "AGENT",
     });
     return NextResponse.json({ success:true, ...result });
   } catch (error:any) {
