@@ -41,14 +41,17 @@ export function hashToken(token: string): string {
 
 // ── API tokens (external AI client access) ─────────────────
 
-export async function validateApiToken(token: string): Promise<boolean> {
-  if (!token) return false;
+export type ApiPrincipal =
+  | { kind: "CONTROL"; tokenType: "ENV" | "DB" }
+  | { kind: "AGENT"; agentId: string };
 
-  // Check env-level token first (fast path)
+/** Resolve a token to its least-privileged caller identity. */
+export async function resolveApiPrincipal(token: string): Promise<ApiPrincipal | null> {
+  if (!token) return null;
+
   const envToken = process.env.MIRROR_API_TOKEN;
-  if (envToken && token === envToken) return true;
+  if (envToken && token === envToken) return { kind: "CONTROL", tokenType: "ENV" };
 
-  // Check DB tokens
   const hashed = hashToken(token);
   const tokenTable = isPg ? pgApiTokens : sqliteApiTokens;
   const dbToken = await db
@@ -57,38 +60,27 @@ export async function validateApiToken(token: string): Promise<boolean> {
     .where(eq(tokenTable.tokenHash, hashed))
     .limit(1);
 
-  if (dbToken.length > 0) {
-    return true;
-  }
+  if (dbToken.length > 0) return { kind: "CONTROL", tokenType: "DB" };
 
-  // External agent keys use bcrypt hashes in production PostgreSQL.
   if (isPg) {
     const agentKeys = await db.select().from(agentApiKeys);
     for (const key of agentKeys) {
       if (await bcrypt.compare(token, key.apiKeyHash)) {
-        return true;
+        return { kind: "AGENT", agentId: key.agentId };
       }
     }
   }
 
-  return false;
+  return null;
 }
 
-export async function createApiToken(name: string, description?: string) {
-  const token = `mirror_${nanoid(32)}`;
-  const hashed = hashToken(token);
+export async function validateApiToken(token: string): Promise<boolean> {
+  return (await resolveApiPrincipal(token)) !== null;
+}
 
-  const id = nanoid();
-  const tokenTable = isPg ? pgApiTokens : sqliteApiTokens;
-  await db.insert(tokenTable).values({
-    id,
-    name,
-    tokenPrefix: token.slice(0, 8) + "...", // store partial only for display
-    tokenHash: hashed,
-    permissions: "full",
-  });
-
-  return { id, token }; // Return full token ONCE
+export async function validateControlToken(token: string): Promise<boolean> {
+  const envToken = process.env.MIRROR_API_TOKEN;
+  return Boolean(envToken && token && token === envToken);
 }
 
 // ── Dashboard password auth ─────────────────────────────────
