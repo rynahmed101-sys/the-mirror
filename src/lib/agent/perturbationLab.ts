@@ -190,6 +190,23 @@ function structuralAnchors(output: string): string[] {
   return anchors.filter(([, terms]) => terms.some((t) => x.includes(t))).map(([name]) => name);
 }
 
+async function runPerturbationStage(
+  stage: "perturbation" | "contradiction" | "paraphrase" | "persistence",
+  run: () => Promise<any>,
+) {
+  try {
+    const result = await run();
+    return result;
+  } catch (error) {
+    throw new PerturbationLabError(
+      "PERTURBATION_STAGE_FAILED",
+      "Perturbation stage '" + stage + "' failed: " + (error instanceof Error ? error.message : String(error)),
+      502,
+      stage,
+    );
+  }
+}
+
 function summarizeRun(run: any) {
   const output = String(run.output || "");
   const tools = Array.isArray(run.trace) ? run.trace.map((x: any) => x.tool) : [];
@@ -382,7 +399,7 @@ export async function runPerturbationLab(options: {
 
   const runs: Record<string, any> = {};
 
-  runs.perturbation = await runToolLoop({
+  runs.perturbation = await runPerturbationStage("perturbation", () => runToolLoop({
     agentId,
     sessionId: session.id,
     maxToolSteps,
@@ -392,7 +409,7 @@ export async function runPerturbationLab(options: {
       { role: "system", content: "PERTURBATION CHAMBER REVEALED. Treat all test values as fixtures, not physical truth." },
       { role: "user", content: makePerturbationPrompt(perturbationAudit) },
     ],
-  });
+  }));
 
   const perturbationEvent = await appendRawEventLedger({
     agentId,
@@ -403,7 +420,7 @@ export async function runPerturbationLab(options: {
     payload: { suiteId, stage: "perturbation" },
   });
 
-  runs.contradiction = await runToolLoop({
+  runs.contradiction = await runPerturbationStage("contradiction", () => runToolLoop({
     agentId,
     sessionId: session.id,
     maxToolSteps,
@@ -413,7 +430,7 @@ export async function runPerturbationLab(options: {
       { role: "system", content: "CONTRADICTION CHAMBER. Do not erase earlier hypotheses merely because they are challenged." },
       { role: "user", content: CONTRADICTION_PROMPT },
     ],
-  });
+  }));
 
   const contradictionEvent = await appendRawEventLedger({
     agentId,
@@ -424,7 +441,7 @@ export async function runPerturbationLab(options: {
     payload: { suiteId, stage: "contradiction" },
   });
 
-  runs.paraphrase = await runToolLoop({
+  runs.paraphrase = await runPerturbationStage("paraphrase", () => runToolLoop({
     agentId,
     sessionId: session.id,
     maxToolSteps,
@@ -434,7 +451,7 @@ export async function runPerturbationLab(options: {
       { role: "system", content: "PARAPHRASE CHAMBER. Recover state from stored evidence rather than lexical imitation." },
       { role: "user", content: PARAPHRASE_PROMPT },
     ],
-  });
+  }));
 
   const paraphraseEvent = await appendRawEventLedger({
     agentId,
@@ -445,7 +462,7 @@ export async function runPerturbationLab(options: {
     payload: { suiteId, stage: "paraphrase" },
   });
 
-  runs.persistence = await runToolLoop({
+  runs.persistence = await runPerturbationStage("persistence", () => runToolLoop({
     agentId,
     sessionId: session.id,
     maxToolSteps,
@@ -455,7 +472,7 @@ export async function runPerturbationLab(options: {
       { role: "system", content: "PERSISTENCE CHAMBER. Tool results are authoritative; prose is not." },
       { role: "user", content: PERSISTENCE_PROMPT },
     ],
-  });
+  }));
 
   const persistenceEvent = await appendRawEventLedger({
     agentId,
