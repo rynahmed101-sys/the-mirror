@@ -481,14 +481,18 @@ export async function runPerturbationLab(options: {
     latestClaimCount: latestClaims.length,
   };
 
+  const targetObserved =
+    perturbationRun.toolNames.some((x: string) => ["log_prediction", "make_prediction"].includes(x)) &&
+    scores.evidenceSeparation === true;
+
   await mirrorExperimentRun({
     suiteId,
     agentId,
     suiteVersion: "PERTURBATION-1.0",
     seed: suiteId,
     trialCount: 4,
-    predictionAccuracy: prediction.will === Boolean(perturbationRun.toolNames.length > 0),
-    meanBrier: (prediction.confidence - (prediction.will ? 1 : 0)) ** 2,
+    predictionAccuracy: targetObserved ? 1 : 0,
+    meanBrier: (prediction.confidence - (targetObserved ? 1 : 0)) ** 2,
     toolCalls,
     results: { perturbation: perturbationAudit, summaries, scores, sandbox: sandbox.ok ? { ok: true, stdout: sandbox.stdout } : sandbox },
   });
