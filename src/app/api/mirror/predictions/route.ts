@@ -7,11 +7,14 @@ import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 export async function GET(req: Request) {
   try {
     const actor = await requireExperimentalActor(req, new URL(req.url).searchParams.get("agentId"));
-    const list = await db
-      .select()
-      .from(predictions)
-      .where(eq(predictions.agentId, actor.agentId))
-      .orderBy(sql`${predictions.createdAt} DESC`);
+    let query = db.select().from(predictions);
+    const requestedAgentId = new URL(req.url).searchParams.get("agentId");
+    if (actor.mode !== "CONTROL") {
+      query = query.where(eq(predictions.agentId, actor.agentId)) as any;
+    } else if (requestedAgentId) {
+      query = query.where(eq(predictions.agentId, requestedAgentId)) as any;
+    }
+    const list = await query.orderBy(sql`${predictions.createdAt} DESC`);
 
     // Calculate Brier score / accuracy metrics
     const evaluated = list.filter((p) => p.status !== "PENDING");
