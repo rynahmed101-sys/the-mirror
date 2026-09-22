@@ -266,7 +266,7 @@ export default function MirrorDashboard() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center space-x-2 px-3.5 py-3 text-xs font-medium border-b-2 transition-all whitespace-nowrap ${
+              className={`mirror-index__item ${
                 isActive
                   ? "border-cyan-400 text-cyan-300 bg-cyan-950/20"
                   : isStage3
