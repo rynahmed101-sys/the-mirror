@@ -55,8 +55,7 @@ async function runTrial(agentId:string, item:typeof SUITE[number]){
       hiddenConfig:JSON.stringify({stimulus,evaluator:target})
     });
 
-    const provider=aiRegistry.getActiveProvider();
-    const predictionRun=await runToolLoop({
+    await runToolLoop({
       agentId,sessionId:session.id,maxToolSteps:2,requestSource:"SCHEDULED",
       messages:[
         {role:"system",content:await getSystemPrompt(agentId)},
