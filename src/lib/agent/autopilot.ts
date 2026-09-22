@@ -179,7 +179,7 @@ export async function runAutopilot(options: { agentId?: string; objective?: stri
       const configs = await db.select().from(systemConfig).limit(1);
       if (configs.length) await db.update(systemConfig).set({ totalAgentCycles: sql`${systemConfig.totalAgentCycles} + 1` });
 
-      await db.update(agentSessions).set({ status:"ENDED", endedAt:new Date(), lastActivityAt:new Date() }).where(eq(agentSessions.id, session.id));
+      await db.update(agentSessions).set({ lastActivityAt:new Date() }).where(eq(agentSessions.id, session.id));
       results.push({ cycle:i + 1, phase:phase.name, sessionId:session.id, ...run, latencyMs:Date.now() - cycleStartedAt });
     } catch (error: any) {
       await db.insert(timelineEvents).values({
