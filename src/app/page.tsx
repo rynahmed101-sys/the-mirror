@@ -10,5 +10,9 @@ export default async function Home() {
   );
 
   if (!session) redirect("/admin");
-  return <MirrorDashboard />;
+  return (
+    <div className="mirror-app">
+      <MirrorDashboard />
+    </div>
+  );
 }
