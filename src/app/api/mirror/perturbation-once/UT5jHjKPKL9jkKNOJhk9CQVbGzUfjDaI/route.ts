@@ -1,17 +1,9 @@
 import { NextResponse } from "next/server";
 import { runPerturbationLab } from "@/lib/agent/perturbationLab";
 
-const NONCE = "UT5jHjKPKL9jkKNOJhk9CQVbGzUfjDaI";
-
 export const maxDuration = 300;
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ nonce: string }> },
-) {
-  const { nonce } = await params;
-  if (nonce !== NONCE) return new NextResponse("Not found", { status: 404 });
-
+export async function GET() {
   try {
     return NextResponse.json(await runPerturbationLab({
       agentId: "mirror-primary",
