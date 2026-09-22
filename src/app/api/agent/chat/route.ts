@@ -7,6 +7,8 @@ import * as sqliteSchema from "@/lib/db/schema";
 import * as pgSchema from "@/lib/db/schema.pg";
 import type { ChatMessage } from "@/lib/ai/provider";
 import { resolveRequestPrincipal } from "@/lib/auth";
+import { resolveExternalActor } from "@/lib/auth/externalActor";
+import { ensureGuestAgent } from "@/lib/auth/experimentalActor";
 
 export const runtime = "nodejs";
 import { sql } from "drizzle-orm";
@@ -23,9 +25,13 @@ export async function POST(req:Request) {
   try {
     const body = await req.json();
     const messages = Array.isArray(body.messages) ? body.messages as ChatMessage[] : null;
-    const agentId = typeof body.agentId === "string" ? body.agentId : "mirror-primary";
-    if (principal.kind === "AGENT" && principal.agentId !== agentId) {
-      return NextResponse.json({ error:"Forbidden: agent key may only chat as its own agent." }, { status:403 });
+    let agentId: string;
+    try {
+      const actor = resolveExternalActor(principal, typeof body.agentId === "string" ? body.agentId : null);
+      agentId = actor.agentId;
+      if (actor.mode === "TEMP_EXTERNAL") await ensureGuestAgent(agentId);
+    } catch (error:any) {
+      return NextResponse.json({ error:"Forbidden: " + error.message }, { status:403 });
     }
     const maxToolSteps = Math.min(8, Math.max(1, Number(body.maxToolSteps) || 5));
     if (!messages) return NextResponse.json({ error:"Messages array required" }, { status:400 });
