@@ -49,7 +49,8 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { action, agentId, displayName, provider, model } = body;
+    const { action, displayName, provider, model } = body;
+    let agentId = typeof body.agentId === "string" ? body.agentId : null;
 
     if (action === "REGISTER_AGENT") {
       if (principal.kind !== "CONTROL") {
@@ -83,10 +84,6 @@ export async function POST(req: Request) {
     }
 
     if (action === "START_SESSION") {
-      if (!agentId) {
-        return NextResponse.json({ error: "agentId required to start session" }, { status: 400 });
-      }
-
       try {
         const actor = resolveExternalActor(principal, agentId);
         agentId = actor.agentId;
