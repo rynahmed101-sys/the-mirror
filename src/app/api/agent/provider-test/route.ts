@@ -32,7 +32,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const principal = await authenticate(req);\n  if (!principal) return NextResponse.json({ error:"Unauthorized" }, { status:401 });
+  const principal = await authenticate(req);
+  if (!principal) return NextResponse.json({ error:"Unauthorized" }, { status:401 });
   const body = await req.json().catch(() => ({}));
   const prompt = typeof body.prompt === "string" && body.prompt.trim() ? body.prompt.trim() : "Reply in one sentence confirming that the Mirror online runtime is reachable.";
   let agentId: string;
