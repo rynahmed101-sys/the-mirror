@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { predictions, timelineEvents } from "@/lib/db/schema.pg";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
 import { sql, eq, and } from "drizzle-orm";
 import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
+
+const tables: any = isPg ? pgSchema : sqliteSchema;
+const { predictions, timelineEvents, experiments } = tables;
 
 export async function GET(req: Request) {
   try {
@@ -61,10 +65,24 @@ export async function POST(req: Request) {
     const body = await req.json();
     const actor = await requireExperimentalActor(req, typeof body.agentId === "string" ? body.agentId : null);
     const { prediction, confidence, rationale, experimentId } = body;
+    const numericConfidence = Number(confidence);
     const agentId = actor.agentId;
 
     if (!prediction || confidence === undefined) {
       return NextResponse.json({ error: "Prediction text and confidence required" }, { status: 400 });
+    }
+    if (!Number.isFinite(numericConfidence) || numericConfidence < 0 || numericConfidence > 1) {
+      return NextResponse.json({ error: "Confidence must be a number between 0 and 1." }, { status: 400 });
+    }
+    if (experimentId) {
+      const ownedExperiment = await db
+        .select({ id: experiments.id })
+        .from(experiments)
+        .where(and(eq(experiments.id, String(experimentId)), eq(experiments.agentId, agentId)))
+        .limit(1);
+      if (!ownedExperiment.length) {
+        return NextResponse.json({ error: "Experiment does not belong to the authenticated agent." }, { status: 403 });
+      }
     }
 
     const [pred] = await db
@@ -73,18 +91,22 @@ export async function POST(req: Request) {
         agentId,
         experimentId: experimentId || null,
         prediction,
-        confidence,
+        confidence: numericConfidence,
         rationale: rationale || null,
         status: "PENDING",
       })
       .returning();
+
+    if (!updated) {
+      return NextResponse.json({ error: "Prediction not found for the authenticated agent." }, { status: 404 });
+    }
 
     await db.insert(timelineEvents).values({
       eventType: "PREDICTION_MADE",
       title: `Prediction Logged (Confidence: ${Math.round(confidence * 100)}%)`,
       description: prediction,
       agentId: agentId || "mirror-primary",
-      metadata: JSON.stringify({ predictionId: pred.id, confidence, experimentId }),
+      metadata: JSON.stringify({ predictionId: pred.id, confidence: numericConfidence, experimentId }),
     });
 
     return NextResponse.json({ success: true, prediction: pred });

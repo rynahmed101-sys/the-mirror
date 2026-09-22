@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { experiments, predictions, timelineEvents } from "@/lib/db/schema.pg";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
 import { filterExperimentForAgent } from "@/lib/agent/blindIsolation";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
+
+const tables: any = isPg ? pgSchema : sqliteSchema;
+const { experiments, predictions, timelineEvents } = tables;
 
 export async function GET(req: Request) {
   try {
@@ -26,7 +30,7 @@ export async function GET(req: Request) {
       const preds = await db
         .select()
         .from(predictions)
-        .where(eq(predictions.experimentId, exp.id));
+        .where(and(eq(predictions.experimentId, exp.id), eq(predictions.agentId, exp.agentId)));
 
       const sanitized = filterExperimentForAgent(exp, agentId);
 

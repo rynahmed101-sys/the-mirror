@@ -122,7 +122,11 @@ test("external agent capability manifest exposes machine actions without exposin
   assert.equal(manifest.authentication.registeredAgent.header, "Authorization: Bearer mirror_ak_...");
   assert.equal(manifest.authentication.temporaryGuest.header, "Authorization: Bearer <temporary-token>");
   assert.equal(manifest.authentication.admin.externalAgentsMayUse, false);
+  assert.equal(manifest.roleModel.environment, "THE MIRROR is the persistent experimental environment and evidence store.");
+  assert.equal(manifest.executionModes.externalAsActor.includes("Mirror tools directly"), true);
+  assert.equal(manifest.executionModes.externalAsProvider.includes("Not yet supported"), true);
   assert.ok(manifest.endpoints.some((x) => x.path === "/api/agent/sandbox" && x.method === "POST"));
   assert.ok(manifest.endpoints.some((x) => x.path === "/api/mirror/perturbation-lab" && x.method === "POST"));
   assert.equal(manifest.links.capabilities, "https://mirror.example/api/agent/capabilities");
+  assert.equal(manifest.links.manual, "https://mirror.example/docs/EXTERNAL_AI_OPERATIONS_MANUAL.md");
 });

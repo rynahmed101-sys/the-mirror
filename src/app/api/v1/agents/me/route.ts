@@ -52,11 +52,27 @@ export async function GET(req: Request) {
       lastSeenAt: agent.lastSeenAt,
     },
     capabilities: {
+      role: "external-agent-actor",
+      environment: "THE MIRROR",
+      builtInInference: "Ollama (local or Ollama Cloud)",
+      executionModes: [
+        "external-agent-owns-its-own-Mirror-identity",
+        "external-agent-controls-Ollama-backed-Mirror-agent",
+        "external-agent-observes-its-own-Mirror-events",
+      ],
+      providerSubstitution: {
+        supported: false,
+        note: "The current internal inference provider remains Ollama. An external model can occupy the agent/researcher role directly, but cannot replace the internal provider synchronously through this API yet.",
+      },
       chat: "POST /api/agent/chat",
+      jsonChat: "POST /api/agent/chat/json",
       ollamaProbe: "POST /api/agent/provider-test",
       runStep: "POST /api/agent/run-step",
       startSession: "POST /api/v1/sessions",
       readEvents: "GET /api/v1/events",
+      readOwnObservations: "GET /api/v1/observations",
+      perturbationLab: "POST /api/mirror/perturbation-lab",
+      sandbox: "POST /api/agent/sandbox",
     },
   });
 }

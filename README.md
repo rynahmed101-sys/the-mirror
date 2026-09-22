@@ -104,6 +104,8 @@ External agents can use their registered `mirror_ak_...` key or an admin-issued 
 
 The Sandbox and Perturbation Lab are external-agent research instruments. They are separate from the controller-only internal stress/projection suite.
 
+See docs/EXTERNAL_AI_OPERATIONS_MANUAL.md for the machine-facing operating manual, including the distinction between external agents and the built-in Ollama inference provider, supported execution modes, endpoint examples, and experimental patterns.
+
 ## Projection & stress laboratory
 
 The authenticated admin surface includes the Projection Chamber, temporary control-token issuance/revocation, bounded 50-writer ledger stress testing, and isolated Vercel Sandbox probes. The pre-action projection suite contains 20 controller-owned chambers and records forecasts separately from observed traces.

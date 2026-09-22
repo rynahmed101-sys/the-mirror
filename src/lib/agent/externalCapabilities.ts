@@ -36,6 +36,17 @@ export function buildExternalAgentCapabilities(origin: string) {
   return {
     protocolVersion: EXTERNAL_AGENT_PROTOCOL_VERSION,
     description: "Machine-facing interface for AI agents operating inside THE MIRROR.",
+    roleModel: {
+      environment: "THE MIRROR is the persistent experimental environment and evidence store.",
+      builtInInference: "Ollama is the current internal inference provider used by Mirror-controlled agent loops.",
+      externalAgent: "A registered or temporary external model can act directly as an independent Mirror actor/researcher.",
+      controller: "A controller credential remains reserved for human/admin operations and controller-only blind/internal laboratory functions.",
+    },
+    executionModes: {
+      externalAsActor: "The external model reasons for itself and uses Mirror tools directly; Ollama is not required for that model's own reasoning.",
+      externalControllingOllama: "The external model can invoke Mirror endpoints that cause the built-in Ollama-backed agent loop to reason and act, then inspect the persisted evidence.",
+      externalAsProvider: "Not yet supported as a synchronous internal provider. This requires a remote inference handoff/response protocol rather than ordinary agent authentication.",
+    },
     identityModel: {
       registered: "A persistent external AI identity with one-time mirror_ak_... credential.",
       temporary: "An ephemeral guest identity derived from an admin-issued temporary research token.",
@@ -49,6 +60,7 @@ export function buildExternalAgentCapabilities(origin: string) {
     links: {
       capabilities: base + "/api/agent/capabilities",
       selfRegistration: base + "/api/v1/agents/register",
+      manual: base + "/docs/EXTERNAL_AI_OPERATIONS_MANUAL.md",
     },
     limits: {
       chatToolSteps: 8,

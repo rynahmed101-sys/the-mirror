@@ -1,18 +1,23 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { rawObservations, derivedAnalysis } from "@/lib/db/schema.pg";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
 import { processRawObservationToLayer1 } from "@/lib/agent/analysisEngine";
 import { sql, eq } from "drizzle-orm";
 import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 
+const tables: any = isPg ? pgSchema : sqliteSchema;
+const { rawObservations, derivedAnalysis } = tables;
+
 export async function GET(req: Request) {
   try {
-    const actor = await requireExperimentalActor(req, new URL(req.url).searchParams.get("agentId"));
+    const requestUrl = new URL(req.url);
+    const actor = await requireExperimentalActor(req, requestUrl.searchParams.get("agentId"));
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get("limit") || "50");
 
     let query = db.select().from(rawObservations);
-    const requestedAgentId = new URL(req.url).searchParams.get("agentId");
+    const requestedAgentId = requestUrl.searchParams.get("agentId");
     if (actor.mode !== "CONTROL") {
       query = query.where(eq(rawObservations.agentId, actor.agentId)) as any;
     } else if (requestedAgentId) {
