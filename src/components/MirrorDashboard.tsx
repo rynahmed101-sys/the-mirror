@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { buildJsonAuthHeaders } from "@/lib/auth/requestHeaders";
 import AdminLabControls from "./AdminLabControls";
 import AgentTerminal from "./AgentTerminal";
 import {
@@ -87,8 +88,9 @@ export default function MirrorDashboard() {
 
   // Modals state
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [newAgentData, setNewAgentData] = useState({ name: "", type: "LOCAL", provider: "ollama", model: "gpt-oss:20b-cloud" });
+  const [newAgentData, setNewAgentData] = useState({ name: "", type: "EXTERNAL", provider: "ollama", model: "gpt-oss:20b-cloud" });
   const [registeredKey, setRegisteredKey] = useState<string | null>(null);
+  const [controlToken, setControlToken] = useState("");
 
   const fetchAllData = async () => {
     try {
@@ -140,9 +142,7 @@ export default function MirrorDashboard() {
     try {
       const res = await fetch("/api/v1/agents/register", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: buildJsonAuthHeaders(controlToken),
         body: JSON.stringify(newAgentData),
       });
       const data = await res.json();
@@ -792,8 +792,21 @@ export default function MirrorDashboard() {
             ) : (
               <form onSubmit={handleRegisterAgent} className="space-y-4 text-xs font-mono">
                 <div className="text-[10px] text-emerald-300">
-                  Your authenticated admin session authorizes this operation. No API key required.
+                  Your authenticated admin session authorizes this operation. A temporary control token may be supplied for a protected Preview deployment.
                 </div>
+                <div>
+                  <label className="text-slate-400">Temporary Control Token (optional):</label>
+                  <input
+                    type="password"
+                    autoComplete="off"
+                    value={controlToken}
+                    onChange={(e) => setControlToken(e.target.value)}
+                    placeholder="mirror_…"
+                    className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
+                  />
+                  <div className="text-[9px] text-slate-500 mt-1">Kept only in this page session and sent as an Authorization header; it is not persisted by the UI.</div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-slate-400">Agent Display Name:</label>
                   <input
@@ -805,7 +818,18 @@ export default function MirrorDashboard() {
                     className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-slate-400">Type:</label>
+                    <select
+                      value={newAgentData.type}
+                      onChange={(e) => setNewAgentData({ ...newAgentData, type: e.target.value })}
+                      className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
+                    >
+                      <option value="EXTERNAL">External</option>
+                      <option value="LOCAL">Local</option>
+                    </select>
+                  </div>
                   <div>
                     <label className="text-slate-400">Provider:</label>
                     <select
