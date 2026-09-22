@@ -8,21 +8,27 @@ import { nanoid } from "nanoid";
 
 export async function POST(req: Request) {
   const principal = await resolveRequestPrincipal(req);
-  if (!principal || principal.kind !== "CONTROL") {
-    return NextResponse.json({ error: "Admin session or control token required." }, { status: 401 });
-  }
 
   try {
     const body = await req.json();
     const { name, displayName, type, provider, model, permissions } = body;
+    const requestedType = String(type || "EXTERNAL").toUpperCase();
+    const requestedProvider = String(provider || "external").toLowerCase();
 
     if (!name) {
       return NextResponse.json({ error: "Agent name required" }, { status: 400 });
     }
 
     const allowedProviders = new Set(["external", "ollama"]);
-    if (provider && !allowedProviders.has(String(provider))) {
+    if (requestedProvider && !allowedProviders.has(requestedProvider)) {
       return NextResponse.json({ error: "Only the Ollama provider is supported." }, { status: 400 });
+    }
+
+    if (!principal && requestedType !== "EXTERNAL") {
+      return NextResponse.json({ error: "Unauthenticated self-registration is limited to EXTERNAL agents." }, { status: 403 });
+    }
+    if (principal?.kind === "AGENT" || principal?.kind === "TEMP_EXTERNAL") {
+      return NextResponse.json({ error: "External agents do not provision other agents. Use this endpoint without a credential to create your own persistent identity." }, { status: 403 });
     }
 
     const requestedPermissions = Array.isArray(permissions) ? permissions : ["RESEARCH_AGENT"];
@@ -46,9 +52,9 @@ export async function POST(req: Request) {
         id: agentId,
         name,
         displayName: displayName || name,
-        type: type || "EXTERNAL",
+        type: requestedType,
         role: "EXTERNAL_AGENT",
-        provider: provider || "external",
+        provider: requestedProvider,
         model: model || "external-agent",
         permissions: JSON.stringify(defaultPerms),
         status: "ACTIVE",
