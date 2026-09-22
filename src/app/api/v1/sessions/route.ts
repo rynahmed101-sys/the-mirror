@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { extractBearerToken, resolveApiPrincipal, validateControlToken } from "@/lib/auth";
 import { resolveExternalActor } from "@/lib/auth/externalActor";
-import { ensureGuestAgent } from "@/lib/auth/experimentalActor";
+import { ensureGuestAgent, requireExperimentalActor } from "@/lib/auth/experimentalActor";
 import { db, isPg } from "@/lib/db";
 import * as sqliteSchema from "@/lib/db/schema";
 import * as pgSchema from "@/lib/db/schema.pg";
@@ -14,15 +14,23 @@ const { agentSessions, agents } = tables;
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const agentId = searchParams.get("agentId");
+    const requestedAgentId = searchParams.get("agentId");
     const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit")) || 50));
+    const actor = await requireExperimentalActor(req, requestedAgentId);
 
     let query = db.select().from(agentSessions).orderBy(desc(agentSessions.startedAt)).limit(limit);
-    if (agentId) {
+    if (actor.mode !== "CONTROL") {
       query = db
         .select()
         .from(agentSessions)
-        .where(eq(agentSessions.agentId, agentId))
+        .where(eq(agentSessions.agentId, actor.agentId))
+        .orderBy(desc(agentSessions.startedAt))
+        .limit(limit) as any;
+    } else if (requestedAgentId) {
+      query = db
+        .select()
+        .from(agentSessions)
+        .where(eq(agentSessions.agentId, requestedAgentId))
         .orderBy(desc(agentSessions.startedAt))
         .limit(limit) as any;
     }
