@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminCredentials } from "@/lib/auth";
+import { verifyEdgeAdminCredentials } from "@/lib/admin-edge";
 
 function deny() {
   return new NextResponse("THE MIRROR admin authentication required.", {
@@ -27,7 +27,7 @@ export async function middleware(request: NextRequest) {
     const username = decoded.slice(0, split);
     const credential = decoded.slice(split + 1);
 
-    if (!(await verifyAdminCredentials(username, credential))) {
+    if (!verifyEdgeAdminCredentials(username, credential)) {
       return deny();
     }
 
