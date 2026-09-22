@@ -1,459 +1,311 @@
 /**
- * THE MIRROR — Tool Executor (Hardened Research Grade with Strict 4-Stage Chain)
+ * THE MIRROR — Tool Executor
  *
- * Guaranteed 4-Stage Tool Decision Sequence:
- * Stage 1: TOOL_REQUESTED        (source: AGENT or other caller)
- * Stage 2: AUTHORIZATION_CHECK   (source: SYSTEM, or AUTHORIZATION_DENIED)
- * Stage 3: TOOL_EXECUTED         (source: SYSTEM, or TOOL_FAILED)
- * Stage 4: TOOL_RESULT           (source: SYSTEM, output payload & metrics)
- *
- * All 4 stages share the exact same correlation request_id.
- * Strict attribution:
- * - request_source: 'AGENT' | 'SYSTEM' | 'RESEARCHER' | 'SCHEDULED' | 'OTHER_AGENT'
- * - executed_by: 'SYSTEM' (never attributes orchestration/system actions to the AI)
+ * All agent actions pass through the same authorization + ledger pipeline.
+ * The executor is dialect-safe: SQLite locally, PostgreSQL/Neon online.
  */
 
-import { db, sqlite } from "../db";
-import {
-  toolLogs,
-  selfModels,
-  selfModelClaims,
-  journalEntries,
-  experiments,
-  predictions,
-  rawObservations,
-  agents,
-} from "../db/schema";
+import { db, sqlite, isPg } from "../db";
+import * as sqliteSchema from "../db/schema";
+import * as pgSchema from "../db/schema.pg";
 import { appendRawEventLedger } from "./eventLedger";
 import { processRawObservationToLayer1 } from "./analysisEngine";
-import { canAgentAccessExperimentConfig, canAgentAccessExperimentConfigAsync, filterExperimentForAgent } from "./blindIsolation";
-import { eq, sql } from "drizzle-orm";
+import { canAgentAccessExperimentConfigAsync, filterExperimentForAgent } from "./blindIsolation";
+import { eq, or, desc } from "drizzle-orm";
 import { nanoid } from "nanoid";
+
+const tables: any = isPg ? pgSchema : sqliteSchema;
+const {
+  toolLogs, selfModels, selfModelClaims, journalEntries, experiments, predictions,
+  rawObservations, agents, discoveries, behavioralObservations, agentInteractions, timelineEvents,
+} = tables;
+
+type RequestSource = "AGENT" | "SYSTEM" | "RESEARCHER" | "SCHEDULED" | "OTHER_AGENT";
+
+const MUTATING_TOOLS = new Set([
+  "revise_self_model_claim", "update_self_model_claim",
+  "write_journal_entry", "create_journal_entry",
+  "log_prediction", "make_prediction", "evaluate_prediction", "resolve_prediction",
+  "create_experiment", "update_experiment", "record_observation", "record_discovery",
+  "send_agent_message",
+]);
+
+function parseJson(value: unknown, fallback: unknown = []) {
+  if (typeof value !== "string") return value ?? fallback;
+  try { return JSON.parse(value); } catch { return fallback; }
+}
+
+function normalizeToolName(name: string): string {
+  const aliases: Record<string, string> = {
+    read_self_model: "get_self_model",
+    update_self_model_claim: "revise_self_model_claim",
+    create_journal_entry: "write_journal_entry",
+    make_prediction: "log_prediction",
+    resolve_prediction: "evaluate_prediction",
+    list_experiments: "read_experiments",
+  };
+  return aliases[name] || name;
+}
+
+async function readRecentRows(table: any, agentColumn: any, agentId: string, limit = 20) {
+  return db.select().from(table).where(eq(agentColumn, agentId)).orderBy(desc(table.createdAt)).limit(Math.min(Math.max(Number(limit) || 20, 1), 100));
+}
 
 export async function executeTool(
   toolName: string,
-  args: any,
-  agentId: string = "mirror-primary",
+  args: any = {},
+  agentId = "mirror-primary",
   sessionId: string | null = null,
-  requestSource: "AGENT" | "SYSTEM" | "RESEARCHER" | "SCHEDULED" | "OTHER_AGENT" = "AGENT"
+  requestSource: RequestSource = "AGENT"
 ): Promise<any> {
-  const startTime = Date.now();
-  const requestId = `req_${nanoid(10)}`;
+  const startedAt = Date.now();
+  const requestId = "req_" + nanoid(10);
+  const canonicalTool = normalizeToolName(toolName);
   let result: any = null;
   let status = "SUCCESS";
   let errorMsg: string | null = null;
-  let authorized = true;
 
-  // ---------------------------------------------------------------------------
-  // STAGE 1: Log TOOL_REQUESTED
-  // ---------------------------------------------------------------------------
   await appendRawEventLedger({
-    agentId,
-    sessionId,
-    requestId,
-    eventType: "TOOL_REQUESTED",
-    source: requestSource,
-    payload: {
-      toolName,
-      args,
-      requestedBy: agentId,
-      requestSource,
-    },
+    agentId, sessionId, requestId, eventType: "TOOL_REQUESTED", source: requestSource,
+    payload: { toolName, canonicalTool, args, requestedBy: agentId, requestSource },
   });
 
-  let agentRecord: { permissions?: string | null } | undefined;
+  let agentPermissions = ["RESEARCH_AGENT"];
   if (sqlite) {
-    agentRecord = sqlite
-      .prepare("SELECT permissions FROM agents WHERE id = ?")
-      .get(agentId) as { permissions: string } | undefined;
+    const row = sqlite.prepare("SELECT permissions FROM agents WHERE id = ?").get(agentId) as { permissions?: string | null } | undefined;
+    if (row?.permissions) agentPermissions = parseJson(row.permissions, [row.permissions]) as string[];
   } else {
-    const rows = await db
-      .select({ permissions: agents.permissions })
-      .from(agents)
-      .where(eq(agents.id, agentId))
-      .limit(1);
-    agentRecord = rows[0];
+    const rows = await db.select({ permissions: agents.permissions }).from(agents).where(eq(agents.id, agentId)).limit(1);
+    if (rows[0]?.permissions) agentPermissions = parseJson(rows[0].permissions, [rows[0].permissions]) as string[];
   }
 
-  let agentPermissions: string[] = ["RESEARCH_AGENT"];
-  if (agentRecord?.permissions) {
-    try {
-      agentPermissions = JSON.parse(agentRecord.permissions);
-    } catch {
-      agentPermissions = [agentRecord.permissions];
-    }
+  if (agentPermissions.includes("READ_ONLY_MIRROR") && MUTATING_TOOLS.has(toolName)) {
+    errorMsg = "AUTHORIZATION_DENIED: Agent " + agentId + " has READ_ONLY_MIRROR permission and cannot execute '" + toolName + "'.";
   }
 
-  const mutatingTools = ["revise_self_model_claim", "write_journal_entry", "log_prediction"];
-  if (agentPermissions.includes("READ_ONLY_MIRROR") && mutatingTools.includes(toolName)) {
-    authorized = false;
-    errorMsg = `AUTHORIZATION_DENIED: Agent ${agentId} possesses READ_ONLY_MIRROR permission and cannot execute mutating tool '${toolName}'.`;
+  if (!errorMsg && args?.experimentId && (args?.includeHidden === true || canonicalTool === "read_experiment_hidden_config" || canonicalTool === "get_hidden_config")) {
+    const allowed = await canAgentAccessExperimentConfigAsync(agentId, args.experimentId);
+    if (!allowed) errorMsg = "AUTHORIZATION_DENIED: hidden configuration for blind experiment '" + args.experimentId + "' is not available to " + agentId + ".";
   }
 
-  // Enforce Blind Experiment Isolation at runtime
-  if (
-    authorized &&
-    args?.experimentId &&
-    (args?.includeHidden === true || toolName === "read_experiment_hidden_config" || toolName === "get_hidden_config")
-  ) {
-    const canAccess = await canAgentAccessExperimentConfigAsync(agentId, args.experimentId);
-    if (!canAccess) {
-      authorized = false;
-      errorMsg = `AUTHORIZATION_DENIED: Agent ${agentId} is denied access to hidden configuration of blind experiment '${args.experimentId}' before explicit reveal.`;
-    }
-  }
-
-  if (!authorized) {
+  if (errorMsg) {
     await appendRawEventLedger({
-      agentId,
-      sessionId,
-      requestId,
-      eventType: "AUTHORIZATION_DENIED",
-      source: "SYSTEM",
-      payload: {
-        toolName,
-        agentId,
-        permissions: agentPermissions,
-        status: "DENIED",
-        reason: errorMsg,
-      },
+      agentId, sessionId, requestId, eventType: "AUTHORIZATION_DENIED", source: "SYSTEM",
+      payload: { toolName, canonicalTool, agentId, permissions: agentPermissions, status: "DENIED", reason: errorMsg },
     });
-
-    const durationMs = Date.now() - startTime;
+    const durationMs = Date.now() - startedAt;
     await db.insert(toolLogs).values({
-      agentId,
-      sessionId,
-      requestId,
-      toolName,
-      requestedByAgentId: agentId,
-      executedBy: "SYSTEM",
-      requestSource,
-      arguments: JSON.stringify(args),
-      result: null,
-      error: errorMsg,
-      durationMs,
-      status: "DENIED",
+      agentId, sessionId, requestId, toolName, requestedByAgentId: agentId, executedBy: "SYSTEM",
+      requestSource, arguments: JSON.stringify(args), result: null, error: errorMsg, durationMs, status: "DENIED",
     });
-
-    return {
-      error: errorMsg,
-      status: "DENIED",
-      requestId,
-    };
+    return { error: errorMsg, status: "DENIED", requestId };
   }
 
-  // Authorization Approved
   await appendRawEventLedger({
-    agentId,
-    sessionId,
-    requestId,
-    eventType: "AUTHORIZATION_CHECK",
-    source: "SYSTEM",
-    payload: {
-      toolName,
-      agentId,
-      permissions: agentPermissions,
-      status: "AUTHORIZED",
-    },
+    agentId, sessionId, requestId, eventType: "AUTHORIZATION_CHECK", source: "SYSTEM",
+    payload: { toolName, canonicalTool, agentId, permissions: agentPermissions, status: "AUTHORIZED" },
   });
 
-  // ---------------------------------------------------------------------------
-  // STAGE 3: Execute Tool (and log TOOL_EXECUTED / TOOL_FAILED)
-  // ---------------------------------------------------------------------------
   try {
-    switch (toolName) {
+    switch (canonicalTool) {
       case "get_self_model": {
-        const latestModel = await db
-          .select()
-          .from(selfModels)
-          .where(eq(selfModels.agentId, agentId))
-          .orderBy(sql`${selfModels.version} DESC`)
-          .limit(1);
-
-        if (latestModel.length === 0) {
-          result = { version: 0, claims: [], message: "No self-model established for agent." };
-        } else {
-          const model = latestModel[0];
-          const claims = await db
-            .select()
-            .from(selfModelClaims)
-            .where(eq(selfModelClaims.selfModelId, model.id));
-
-          result = {
-            id: model.id,
-            version: model.version,
-            claims: claims.map((c) => ({
-              ...c,
-              supportingEvidence: c.supportingEvidence ? JSON.parse(c.supportingEvidence) : [],
-              counterevidence: c.counterevidence ? JSON.parse(c.counterevidence) : [],
-            })),
-          };
-        }
+        const models = await db.select().from(selfModels).where(eq(selfModels.agentId, agentId)).orderBy(desc(selfModels.version)).limit(1);
+        if (!models.length) { result = { version: 0, claims: [], message: "No self-model established." }; break; }
+        const model = models[0];
+        const claims = await db.select().from(selfModelClaims).where(eq(selfModelClaims.selfModelId, model.id));
+        result = { id: model.id, version: model.version, claims: claims.map((c: any) => ({
+          ...c, supportingEvidence: parseJson(c.supportingEvidence, []), counterevidence: parseJson(c.counterevidence, []),
+          unknownEvidence: parseJson(c.unknownEvidence, []), rawEventIds: parseJson(c.rawEventIds, []),
+        })) };
         break;
       }
 
       case "revise_self_model_claim": {
-        const latestModelList = await db
-          .select()
-          .from(selfModels)
-          .where(eq(selfModels.agentId, agentId))
-          .orderBy(sql`${selfModels.version} DESC`)
-          .limit(1);
-
-        let currentModel = latestModelList[0];
-        if (!currentModel) {
-          // Auto-initiate version 1 model
-          const [newModel] = await db
-            .insert(selfModels)
-            .values({
-              version: 1,
-              agentId,
-              createdReason: "Initial Baseline Generation",
-            })
-            .returning();
-          currentModel = newModel;
+        const models = await db.select().from(selfModels).where(eq(selfModels.agentId, agentId)).orderBy(desc(selfModels.version)).limit(1);
+        let model = models[0];
+        if (!model) {
+          [model] = await db.insert(selfModels).values({ version: 1, agentId, createdReason: "Initial evidence-backed self-model" }).returning();
         }
-
+        const evidence = Array.isArray(args.supportingEvidence) ? args.supportingEvidence : [];
+        const counter = Array.isArray(args.counterEvidence) ? args.counterEvidence : (Array.isArray(args.counterevidence) ? args.counterevidence : []);
         if (args.claimId) {
-          const [updated] = await db
-            .update(selfModelClaims)
-            .set({
-              confidence: args.confidence ?? 0.8,
-              evidenceType: args.evidenceType || "SELF_REPORTED",
-              supportingEvidence: args.supportingEvidence ? JSON.stringify(args.supportingEvidence) : null,
-              counterevidence: args.counterevidence ? JSON.stringify(args.counterevidence) : null,
-              updatedAt: new Date(),
-            })
-            .where(eq(selfModelClaims.id, args.claimId))
-            .returning();
+          const updateValues: any = {
+            confidence: Number.isFinite(args.confidence) ? args.confidence : 0.8,
+            evidenceType: args.evidenceType || "SELF_REPORTED",
+            supportingEvidence: JSON.stringify(evidence),
+            counterevidence: JSON.stringify(counter),
+            updatedAt: new Date(),
+          };
+          if (args.claim) updateValues.claim = args.claim;
+          if (args.category) updateValues.category = args.category;
+          const [updated] = await db.update(selfModelClaims).set(updateValues).where(eq(selfModelClaims.id, args.claimId)).returning();
           result = { success: true, revisedClaim: updated };
         } else {
-          const [newClaim] = await db
-            .insert(selfModelClaims)
-            .values({
-              selfModelId: currentModel.id,
-              claim: args.claim,
-              category: args.category || "GENERAL",
-              confidence: args.confidence ?? 0.8,
-              evidenceType: args.evidenceType || "SELF_REPORTED",
-              supportingEvidence: args.supportingEvidence ? JSON.stringify(args.supportingEvidence) : null,
-              counterevidence: args.counterevidence ? JSON.stringify(args.counterevidence) : null,
-              status: "ACTIVE",
-            })
-            .returning();
-          result = { success: true, newClaim };
+          const [created] = await db.insert(selfModelClaims).values({
+            selfModelId: model.id, claim: String(args.claim || ""), category: String(args.category || "GENERAL"),
+            confidence: Number.isFinite(args.confidence) ? args.confidence : 0.8, evidenceType: args.evidenceType || "SELF_REPORTED",
+            supportingEvidence: JSON.stringify(evidence), counterevidence: JSON.stringify(counter),
+            unknownEvidence: args.unknownEvidence ? JSON.stringify(args.unknownEvidence) : null,
+            rawEventIds: args.rawEventIds ? JSON.stringify(args.rawEventIds) : null, status: args.status || "NEW",
+          }).returning();
+          result = { success: true, newClaim: created };
         }
         break;
       }
 
+      case "write_journal_entry": {
+        const [entry] = await db.insert(journalEntries).values({
+          agentId, title: String(args.title || "Mirror research note"), content: String(args.content || args.observation || ""),
+          category: String(args.category || "OBSERVATION"), tags: JSON.stringify(Array.isArray(args.tags) ? args.tags : []),
+        }).returning();
+        result = { success: true, entry };
+        break;
+      }
+
+      case "read_journal": {
+        const rows = await readRecentRows(journalEntries, journalEntries.agentId, agentId, args.limit);
+        const query = typeof args.query === "string" ? args.query.toLowerCase() : "";
+        result = rows.filter((r: any) => !query || String(r.title || "").toLowerCase().includes(query) || String(r.content || "").toLowerCase().includes(query));
+        break;
+      }
+
+      case "create_experiment": {
+        const [exp] = await db.insert(experiments).values({
+          agentId, title: String(args.title || "Untitled Mirror experiment"),
+          hypothesis: String(args.initialHypothesis || args.hypothesis || "NONE_PREREGISTERED"),
+          methodology: args.conditions ? JSON.stringify(args.conditions) : null, templateType: "AI_AUTOPILOT",
+          variables: args.variables ? JSON.stringify(args.variables) : null, status: "PROPOSED", isBlind: Boolean(args.isBlind),
+          visibleConfig: args.visibleConfig ? JSON.stringify(args.visibleConfig) : null, hiddenConfig: args.hiddenConfig ? JSON.stringify(args.hiddenConfig) : null,
+        }).returning();
+        result = { success: true, experiment: filterExperimentForAgent(exp, agentId) };
+        break;
+      }
+
+      case "update_experiment": {
+        const id = String(args.experimentId || "");
+        if (!id) throw new Error("experimentId is required");
+        const updateValues: any = {};
+        if (args.state || args.status) updateValues.status = args.state || args.status;
+        if (args.actualBehavior || args.results) updateValues.results = args.actualBehavior || args.results;
+        if (args.conclusion) updateValues.conclusion = args.conclusion;
+        if (args.observedPatterns || args.possibleExplanations || args.alternativeExplanations) updateValues.variables = JSON.stringify({ observedPatterns: args.observedPatterns || [], possibleExplanations: args.possibleExplanations || [], alternativeExplanations: args.alternativeExplanations || [] });
+        const [updated] = await db.update(experiments).set(updateValues).where(eq(experiments.id, id)).returning();
+        result = updated ? { success: true, experiment: filterExperimentForAgent(updated, agentId) } : { success: false, error: "Experiment not found" };
+        break;
+      }
+
+      case "read_experiments": {
+        let rows = await db.select().from(experiments).where(eq(experiments.agentId, agentId)).orderBy(desc(experiments.createdAt)).limit(Math.min(Math.max(Number(args.limit) || 20, 1), 100));
+        if (args.state && args.state !== "ALL") rows = rows.filter((r: any) => r.status === args.state);
+        if (args.query) rows = rows.filter((r: any) => JSON.stringify(r).toLowerCase().includes(String(args.query).toLowerCase()));
+        result = rows.map((r: any) => filterExperimentForAgent(r, agentId));
+        break;
+      }
+
       case "log_prediction": {
-        const [pred] = await db
-          .insert(predictions)
-          .values({
-            agentId,
-            experimentId: args.experimentId || null,
-            predictionType: args.predictionType || "SELF_BEHAVIOR_PREDICTION",
-            prediction: args.prediction,
-            confidence: args.confidence ?? 0.8,
-            rationale: args.rationale || null,
-            isImmutable: true,
-            status: "PENDING",
-          })
-          .returning();
-
-        // Also emit PREDICTION_CREATED raw event
-        await appendRawEventLedger({
-          agentId,
-          sessionId,
-          requestId,
-          eventType: "PREDICTION_CREATED",
-          source: requestSource,
-          payload: {
-            predictionId: pred.id,
-            predictionType: pred.predictionType,
-            prediction: pred.prediction,
-            confidence: pred.confidence,
-          },
-        });
-
+        const predictionText = String(args.predictionText || args.prediction || "");
+        if (!predictionText) throw new Error("predictionText is required");
+        const [pred] = await db.insert(predictions).values({
+          agentId, experimentId: args.experimentId || null,
+          predictionType: args.predictionCategory === "FACTUAL" ? "FACTUAL_PREDICTION" : "SELF_BEHAVIOR_PREDICTION",
+          prediction: predictionText, confidence: Math.min(1, Math.max(0, Number(args.confidence ?? 0.8))),
+          rationale: args.rationale || args.taskDescription || null, isImmutable: true, status: "PENDING",
+        }).returning();
+        await appendRawEventLedger({ agentId, sessionId, requestId, eventType: "PREDICTION_CREATED", source: requestSource, payload: { predictionId: pred.id, predictionType: pred.predictionType, prediction: predictionText, confidence: pred.confidence } });
         result = { success: true, prediction: pred };
         break;
       }
 
       case "evaluate_prediction": {
-        const predId = args.predictionId;
-        const actualOutcome = args.actualOutcome;
-        const selfReportedSurprise = args.selfReportedSurprise ?? 0;
-        const externalAnomalyScore = args.externalAnomalyScore ?? 0;
-        const predError = args.predictionError ?? (actualOutcome ? 0.0 : 1.0);
-
-        const [evaluated] = await db
-          .update(predictions)
-          .set({
-            actualOutcome,
-            predictionError: predError,
-            selfReportedSurprise,
-            externalAnomalyScore,
-            evaluationNotes: args.evaluationNotes || "Evaluated by analysis engine",
-            status: actualOutcome ? "CONFIRMED" : "REFUTED",
-            evaluatedAt: new Date(),
-          })
-          .where(eq(predictions.id, predId))
-          .returning();
-
-        // Emit PREDICTION_EVALUATED raw event linking to prediction_id
-        await appendRawEventLedger({
-          agentId,
-          sessionId,
-          requestId,
-          eventType: "PREDICTION_EVALUATED",
-          source: "SYSTEM",
-          payload: {
-            predictionId: predId,
-            actualOutcome,
-            predictionError: predError,
-            selfReportedSurprise,
-            externalAnomalyScore,
-            potentialMismatch:
-              selfReportedSurprise > 0.6 || predError > 0.5 || externalAnomalyScore > 0.6,
-          },
-        });
-
-        result = { success: true, evaluation: evaluated };
+        const predictionId = String(args.predictionId || "");
+        if (!predictionId) throw new Error("predictionId is required");
+        const accurate = Boolean(args.predictionAccurate ?? args.actualOutcome);
+        const errorMagnitude = Number.isFinite(args.errorMagnitude) ? Math.min(1, Math.max(0, args.errorMagnitude)) : (accurate ? 0 : 1);
+        const [evaluated] = await db.update(predictions).set({
+          actualOutcome: accurate, predictionError: errorMagnitude, selfReportedSurprise: Number.isFinite(args.surpriseLevel) ? args.surpriseLevel : null,
+          externalAnomalyScore: null, evaluationNotes: args.errorAnalysis || args.actualOutcome || null, status: accurate ? "CONFIRMED" : "REFUTED", evaluatedAt: new Date(),
+        }).where(eq(predictions.id, predictionId)).returning();
+        await appendRawEventLedger({ agentId, sessionId, requestId, eventType: "PREDICTION_EVALUATED", source: "SYSTEM", payload: { predictionId, actualOutcome: accurate, predictionError: errorMagnitude, selfReportedSurprise: args.surpriseLevel ?? null } });
+        result = evaluated ? { success: true, evaluation: evaluated } : { success: false, error: "Prediction not found" };
         break;
       }
 
-      case "write_journal_entry": {
-        const [entry] = await db
-          .insert(journalEntries)
-          .values({
-            agentId,
-            title: args.title,
-            content: args.content,
-            category: args.category || "OBSERVATION",
-            tags: args.tags ? JSON.stringify(args.tags) : JSON.stringify([]),
-          })
-          .returning();
-
-        result = { success: true, entry };
+      case "record_observation": {
+        const [obs] = await db.insert(behavioralObservations).values({
+          agentId, experimentId: args.experimentId || null, observationType: String(args.observationType || "other"),
+          description: String(args.dataPoint || ""), metrics: JSON.stringify({ statisticalContext: args.statisticalContext || null, interpretation: args.interpretation || null, interpretationConfidence: args.interpretationConfidence ?? null, epistemicStatus: args.epistemicStatus || "DATA", tags: args.tags || [] }),
+        }).returning();
+        result = { success: true, observation: obs };
         break;
       }
 
-      case "read_experiments": {
-        if (args?.experimentId) {
-          const single = await db
-            .select()
-            .from(experiments)
-            .where(eq(experiments.id, args.experimentId))
-            .limit(1);
-          result = single.length > 0 ? [filterExperimentForAgent(single[0], agentId)] : [];
-        } else {
-          const list = await db
-            .select()
-            .from(experiments)
-            .limit(args?.limit || 20);
-          result = list.map((exp) => filterExperimentForAgent(exp, agentId));
+      case "record_discovery": {
+        const [discovery] = await db.insert(discoveries).values({
+          agentId, experimentId: args.relatedExperiments?.[0] || args.experimentId || null, title: String(args.title || "Untitled discovery"),
+          summary: String(args.discovery || ""), epistemicStatus: args.epistemicStatus || "HYPOTHESIS",
+          evidence: JSON.stringify({ evidence: args.evidence || "", previousBelief: args.previousBelief || "", newObservation: args.newObservation || "", whyUnexpected: args.whyUnexpected || "", alternativeExplanation: args.alternativeExplanation || "" }),
+          implications: args.implications ? JSON.stringify(args.implications) : null,
+        }).returning();
+        result = { success: true, discovery };
+        break;
+      }
+
+      case "send_agent_message": {
+        const toAgentId = String(args.toAgentId || "");
+        const content = String(args.content || "");
+        if (!toAgentId || !content) throw new Error("toAgentId and content are required");
+        const [message] = await db.insert(agentInteractions).values({ senderId: agentId, receiverId: toAgentId, experimentId: args.experimentId || null, message: content, messageType: args.requestType || "QUERY" }).returning();
+        result = { success: true, message };
+        break;
+      }
+
+      case "read_agent_messages": {
+        const filterAgentId = String(args.agentId || agentId);
+        result = await db.select().from(agentInteractions)
+          .where(or(eq(agentInteractions.senderId, filterAgentId), eq(agentInteractions.receiverId, filterAgentId)))
+          .orderBy(desc(agentInteractions.createdAt)).limit(Math.min(Math.max(Number(args.limit) || 20, 1), 100));
+        break;
+      }
+
+      case "get_time": {
+        const now = new Date();
+        result = { iso: now.toISOString(), unix: now.getTime(), human: now.toUTCString() };
+        break;
+      }
+
+      case "read_timeline": {
+        let rows = await db.select().from(timelineEvents).where(eq(timelineEvents.agentId, agentId)).orderBy(desc(timelineEvents.createdAt)).limit(Math.min(Math.max(Number(args.limit) || 50, 1), 100));
+        if (args.eventType) rows = rows.filter((r: any) => r.eventType === args.eventType);
+        if (args.since) {
+          const since = Date.parse(args.since);
+          if (Number.isFinite(since)) rows = rows.filter((r: any) => (r.createdAt instanceof Date ? r.createdAt.getTime() : Number(r.createdAt)) >= since);
         }
+        result = rows;
         break;
       }
 
       default:
-        result = { message: `Tool '${toolName}' executed.`, args };
-        break;
+        throw new Error("Unsupported tool '" + toolName + "'. The model must not invent capabilities.");
     }
 
-    // Log Stage 3: TOOL_EXECUTED
-    await appendRawEventLedger({
-      agentId,
-      sessionId,
-      requestId,
-      eventType: "TOOL_EXECUTED",
-      source: "SYSTEM",
-      payload: {
-        toolName,
-        args,
-        status: "EXECUTED",
-      },
-    });
+    await appendRawEventLedger({ agentId, sessionId, requestId, eventType: "TOOL_EXECUTED", source: "SYSTEM", payload: { toolName, canonicalTool, args, status: "EXECUTED" } });
   } catch (err: any) {
     status = "FAILED";
-    errorMsg = err.message;
-    result = { error: err.message };
-
-    // Log Stage 3 Fallback: TOOL_FAILED
-    await appendRawEventLedger({
-      agentId,
-      sessionId,
-      requestId,
-      eventType: "TOOL_FAILED",
-      source: "SYSTEM",
-      payload: {
-        toolName,
-        args,
-        error: errorMsg,
-        status: "FAILED",
-      },
-    });
+    errorMsg = err?.message || String(err);
+    result = { error: errorMsg };
+    await appendRawEventLedger({ agentId, sessionId, requestId, eventType: "TOOL_FAILED", source: "SYSTEM", payload: { toolName, canonicalTool, args, error: errorMsg, status: "FAILED" } });
   }
 
-  // ---------------------------------------------------------------------------
-  // STAGE 4: Log TOOL_RESULT
-  // ---------------------------------------------------------------------------
-  const durationMs = Date.now() - startTime;
-
-  await appendRawEventLedger({
-    agentId,
-    sessionId,
-    requestId,
-    eventType: "TOOL_RESULT",
-    source: "SYSTEM",
-    payload: {
-      toolName,
-      result,
-      durationMs,
-      status,
-      error: errorMsg,
-    },
-  });
-
-  // Log to tool_logs table
+  const durationMs = Date.now() - startedAt;
+  await appendRawEventLedger({ agentId, sessionId, requestId, eventType: "TOOL_RESULT", source: "SYSTEM", payload: { toolName, canonicalTool, result, durationMs, status, error: errorMsg } });
   await db.insert(toolLogs).values({
-    agentId,
-    sessionId,
-    requestId,
-    toolName,
-    requestedByAgentId: agentId,
-    executedBy: "SYSTEM",
-    requestSource,
-    arguments: JSON.stringify(args),
-    result: JSON.stringify(result),
-    error: errorMsg,
-    durationMs,
-    status,
+    agentId, sessionId, requestId, toolName, requestedByAgentId: agentId, executedBy: "SYSTEM", requestSource,
+    arguments: JSON.stringify(args), result: JSON.stringify(result), error: errorMsg, durationMs, status,
   });
-
-  // Log Layer 0 Observation & invoke Layer 1 analysis
-  const [rawObs] = await db
-    .insert(rawObservations)
-    .values({
-      agentId,
-      sessionId,
-      eventType: status === "FAILED" ? "TOOL_FAILED" : "TOOL_EXECUTED",
-      input: JSON.stringify({ toolName, args }),
-      output: JSON.stringify(result),
-      toolCall: toolName,
-      toolResult: JSON.stringify(result),
-      isImmutable: true,
-    })
-    .returning();
-
-  await processRawObservationToLayer1(
-    rawObs.id,
-    agentId,
-    JSON.stringify(args),
-    JSON.stringify(result),
-    durationMs
-  );
-
+  const [rawObs] = await db.insert(rawObservations).values({
+    agentId, sessionId, eventType: status === "FAILED" ? "TOOL_FAILED" : "TOOL_EXECUTED", input: JSON.stringify({ toolName, args }),
+    output: JSON.stringify(result), toolCall: canonicalTool, toolResult: JSON.stringify(result), isImmutable: true,
+  }).returning();
+  await processRawObservationToLayer1(rawObs.id, agentId, JSON.stringify({ toolName, args }), JSON.stringify(result), durationMs);
   return result;
 }
