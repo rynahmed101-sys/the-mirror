@@ -53,7 +53,7 @@ export default function AdminLabControls() {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="mirror-lab-controls flex items-center gap-2">
       <button
         onClick={mintToken}
         disabled={!!busy}
