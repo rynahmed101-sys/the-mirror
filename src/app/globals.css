@@ -417,8 +417,13 @@
 
 .mirror-index > * {
   display: flex;
+  min-width: 0;
+  padding: 0;
+}
+
+.mirror-index > .mirror-index__item {
   min-width: max-content;
-  padding: 0 1rem;
+  padding: 0.7rem 0.85rem;
 }
 
 .mirror-index__item {
@@ -545,5 +550,46 @@
 @media (max-width: 640px) {
   .mirror-lab-page .mirror-lab-shell {
     width: min(100%, calc(100% - 1rem));
+  }
+}
+
+.mirror-lab-page .text-cyan-300,
+.mirror-lab-page .text-cyan-400,
+.mirror-lab-page .text-purple-300,
+.mirror-lab-page .text-purple-400 {
+  color: #f87171 !important;
+}
+
+.mirror-lab-page [class*="bg-cyan-"],
+.mirror-lab-page [class*="bg-purple-"] {
+  background-color: #991b1b !important;
+}
+
+.mirror-lab-page [class*="hover:bg-cyan-"]:hover,
+.mirror-lab-page [class*="hover:bg-purple-"]:hover {
+  background-color: #b91c1c !important;
+}
+
+.mirror-lab-page [class*="border-cyan-"],
+.mirror-lab-page [class*="border-purple-"] {
+  border-color: rgba(239, 68, 68, 0.34) !important;
+}
+
+.mirror-lab-page [class*="bg-slate-950"],
+.mirror-lab-page [class*="bg-slate-900"] {
+  background-color: rgba(10, 10, 12, 0.82) !important;
+}
+
+.mirror-lab-page .overflow-x-auto,
+.mirror-lab-page .overflow-y-auto {
+  scrollbar-width: thin;
+}
+
+@media (max-width: 700px) {
+  .mirror-lab-page .grid.lg\:grid-cols-3 {
+    grid-template-columns: 1fr;
+  }
+  .mirror-lab-page .grid.lg\:grid-cols-2 {
+    grid-template-columns: 1fr;
   }
 }
