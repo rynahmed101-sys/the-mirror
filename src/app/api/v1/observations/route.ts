@@ -11,12 +11,14 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get("limit") || "50");
 
-    const list = await db
-      .select()
-      .from(rawObservations)
-      .where(eq(rawObservations.agentId, actor.agentId))
-      .orderBy(sql`${rawObservations.timestamp} DESC`)
-      .limit(limit);
+    let query = db.select().from(rawObservations);
+    const requestedAgentId = new URL(req.url).searchParams.get("agentId");
+    if (actor.mode !== "CONTROL") {
+      query = query.where(eq(rawObservations.agentId, actor.agentId)) as any;
+    } else if (requestedAgentId) {
+      query = query.where(eq(rawObservations.agentId, actor.agentId)) as any;
+    }
+    const list = await query.orderBy(sql`${rawObservations.timestamp} DESC`).limit(limit);
 
     const result: any[] = [];
     for (const raw of list) {
