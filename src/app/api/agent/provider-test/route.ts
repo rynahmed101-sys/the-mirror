@@ -6,7 +6,8 @@
 import { NextResponse } from "next/server";
 import { aiRegistry } from "@/lib/ai/registry";
 import { resolveRequestPrincipal } from "@/lib/auth";
-import { constrainAgentId } from "@/lib/auth/agentScope";
+import { resolveExternalActor } from "@/lib/auth/externalActor";
+import { ensureGuestAgent } from "@/lib/auth/experimentalActor";
 
 export const runtime = "nodejs";
 
@@ -37,8 +38,13 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const prompt = typeof body.prompt === "string" && body.prompt.trim() ? body.prompt.trim() : "Reply in one sentence confirming that the Mirror online runtime is reachable.";
   let agentId: string;
-  try { agentId = constrainAgentId(principal, typeof body.agentId === "string" ? body.agentId : null) || "mirror-primary"; }
-  catch (error:any) { return NextResponse.json({ error: "Forbidden: " + error.message }, { status:403 }); }
+  try {
+    const actor = resolveExternalActor(principal, typeof body.agentId === "string" ? body.agentId : null);
+    agentId = actor.agentId;
+    if (actor.mode === "TEMP_EXTERNAL") await ensureGuestAgent(agentId);
+  } catch (error:any) {
+    return NextResponse.json({ error: "Forbidden: " + error.message }, { status:403 });
+  }
   const provider = aiRegistry.getActiveProvider();
   const start = Date.now();
 
