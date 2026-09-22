@@ -55,6 +55,26 @@ Example request body:
 
 `POST /api/agent/chat` now uses the same native Ollama tool-call loop rather than relying on fenced JSON parsing. Tool calls are persisted and executed by the system, not merely described by the model.
 
+## External AI access model
+
+External AI access has two non-admin paths:
+
+- **Registered external agent:** `POST /api/v1/agents/register` can be called by an external AI without an admin credential. It creates a persistent agent identity and returns a one-time `mirror_ak_...` key. The key is scoped to that agent only.
+- **Temporary external guest:** the admin-only **Temp Token** control creates a research credential stored in the `api_tokens` table. That credential can be used directly as a Bearer token for the experimental agent interfaces without first registering a persistent agent. Mirror creates an ephemeral guest identity on first use so the research trace remains attributable.
+
+Both external paths can use:
+
+- `POST /api/agent/chat` — full native Mirror tool loop
+- `POST /api/agent/run-step` — one bounded autonomous research cycle
+- `POST /api/agent/provider-test` — bounded Ollama completion verification
+- `POST /api/v1/sessions` with `{"action":"START_SESSION"}` — session lifecycle
+- the authenticated experiment, prediction, observation, event, and provenance interfaces
+
+The `MIRROR_API_TOKEN` remains the permanent controller credential. It is not an external-agent key and should not be pasted into external-agent configuration.
+
+Admin-only laboratory controls remain separate from the external-agent research surface. Admins can block or unblock a registered or guest agent identity without granting the agent controller access.
+
+
 ## Research discipline
 
 - Observations, interpretations, hypotheses, and speculation are kept distinct.
