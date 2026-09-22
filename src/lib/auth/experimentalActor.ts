@@ -1,8 +1,8 @@
-import { db, isPg } from "./../db";
+import { db, isPg } from "../db";
 import * as sqliteSchema from "../db/schema";
 import * as pgSchema from "../db/schema.pg";
 import { eq } from "drizzle-orm";
-import { nanoid } from "nanoid";
+import { resolveRequestPrincipal } from "./index";
 import type { ApiPrincipal } from "./index";
 import { resolveExternalActor } from "./externalActor";
 
@@ -15,7 +15,6 @@ export type ExperimentalActor = {
 };
 
 export async function requireExperimentalActor(req: Request, requestedAgentId?: string | null): Promise<ExperimentalActor> {
-  const { resolveRequestPrincipal } = await import("./index");
   const principal = await resolveRequestPrincipal(req);
   if (!principal) throw new Error("Unauthorized");
 
@@ -46,7 +45,6 @@ export async function ensureGuestAgent(agentId: string) {
       status: "ACTIVE",
       isActive: true,
       lastSeenAt: new Date(),
-      ...(isPg ? {} : {}),
     }).returning();
   } catch {
     const retry = await db.select({ id: agents.id, isActive: agents.isActive }).from(agents).where(eq(agents.id, agentId)).limit(1);
