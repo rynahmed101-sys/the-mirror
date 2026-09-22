@@ -20,6 +20,19 @@ import type {
 } from "./provider";
 import { AIProvider as AIProviderBase } from "./provider";
 
+export function resolveOllamaRuntimeConfig(env: Record<string, string | undefined> = process.env) {
+  const requestedMode = (env.OLLAMA_MODE || "").toLowerCase();
+  const cloudByDeployment = Boolean(env.VERCEL || env.VERCEL_ENV);
+  const cloud = requestedMode === "cloud" || requestedMode === "online" || requestedMode === "remote" ||
+    (!requestedMode && cloudByDeployment);
+
+  return {
+    cloud,
+    baseUrl: (env.OLLAMA_BASE_URL || (cloud ? "https://ollama.com/api" : "http://localhost:11434/api")).replace(/\/$/, ""),
+    defaultModel: env.OLLAMA_DEFAULT_MODEL || (cloud ? "gpt-oss:20b-cloud" : "llama3.2"),
+  };
+}
+
 export class OllamaProvider extends AIProviderBase {
   readonly name = "ollama";
   readonly isLocal: boolean;
@@ -34,15 +47,16 @@ export class OllamaProvider extends AIProviderBase {
   ) {
     super();
 
-    const mode = (process.env.OLLAMA_MODE || "local").toLowerCase();
-    const cloud = mode === "cloud" || mode === "online" || mode === "remote";
+    const cfg = resolveOllamaRuntimeConfig({
+      ...process.env,
+      OLLAMA_BASE_URL: baseUrl,
+      OLLAMA_DEFAULT_MODEL: defaultModel,
+    });
 
-    this.baseUrl =
-      (baseUrl || (cloud ? "https://ollama.com/api" : "http://localhost:11434/api")).replace(/\/$/, "");
-    this.defaultModel =
-      defaultModel || (cloud ? "gpt-oss:20b-cloud" : "llama3.2");
+    this.baseUrl = cfg.baseUrl;
+    this.defaultModel = cfg.defaultModel;
     this.apiKey = process.env.OLLAMA_API_KEY;
-    this.isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/i.test(this.baseUrl);
+    this.isLocal = !cfg.cloud && /^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/i.test(this.baseUrl);
   }
 
   private getHeaders(): Record<string, string> {
