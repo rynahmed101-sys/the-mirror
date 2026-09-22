@@ -64,7 +64,3 @@ export async function POST(req:Request) {
     return NextResponse.json({error:"Agent chat failed",details:error?.message || String(error)},{status:500});
   }
 }
-
-function totalAgentCyclesSafe() {
-  return ""system_config"."total_agent_cycles" + 1";
-}
