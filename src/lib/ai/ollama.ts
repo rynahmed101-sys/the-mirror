@@ -1,13 +1,11 @@
 /**
  * THE MIRROR — Ollama Provider
  *
- * Implements AIProvider for Ollama local model runtime.
- * No API key required. Models run entirely on local hardware.
+ * One adapter, two runtimes:
+ *   local:  http://localhost:11434/api (no key)
+ *   cloud:  https://ollama.com/api       (Bearer key)
  *
- * Prerequisites:
- *   1. Install Ollama: https://ollama.ai
- *   2. Pull a model: ollama pull llama3.2
- *   3. Ollama runs automatically on http://localhost:11434
+ * This keeps the local and online Mirror versions behaviorally identical.
  */
 
 import type {
@@ -28,48 +26,84 @@ export class OllamaProvider extends AIProviderBase {
 
   private baseUrl: string;
   private defaultModel: string;
+  private apiKey?: string;
 
   constructor(
-    baseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434",
-    defaultModel = process.env.OLLAMA_DEFAULT_MODEL || "llama3.2"
+    baseUrl = process.env.OLLAMA_BASE_URL,
+    defaultModel = process.env.OLLAMA_DEFAULT_MODEL
   ) {
     super();
-    this.baseUrl = baseUrl;
-    this.defaultModel = defaultModel;
-    this.isLocal = this.baseUrl.includes("localhost") || this.baseUrl.includes("127.0.0.1");
+
+    const mode = (process.env.OLLAMA_MODE || "local").toLowerCase();
+    const cloud = mode === "cloud" || mode === "online" || mode === "remote";
+
+    this.baseUrl =
+      (baseUrl || (cloud ? "https://ollama.com/api" : "http://localhost:11434/api")).replace(/\/$/, "");
+    this.defaultModel =
+      defaultModel || (cloud ? "gpt-oss:20b-cloud" : "llama3.2");
+    this.apiKey = process.env.OLLAMA_API_KEY;
+    this.isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/i.test(this.baseUrl);
   }
 
   private getHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
+
+    if (!this.isLocal && this.apiKey) {
+      headers.Authorization = `Bearer ${this.apiKey}`;
+    }
+
     return headers;
   }
 
   requiresApiKey(): boolean {
-    return false;
+    return !this.isLocal;
   }
 
   validateConfig(): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
-    if (!this.baseUrl) errors.push("OLLAMA_BASE_URL is not set");
+
+    if (!this.baseUrl) {
+      errors.push("OLLAMA_BASE_URL is not set");
+    }
+
+    if (!this.isLocal && !this.apiKey) {
+      errors.push("OLLAMA_API_KEY is required for hosted Ollama");
+    }
+
     return { valid: errors.length === 0, errors };
   }
 
   async healthCheck(): Promise<ProviderHealth> {
     const start = Date.now();
+
     try {
-      const res = await fetch(`${this.baseUrl}/api/tags`, {
+      if (!this.isLocal && !this.apiKey) {
+        return {
+          isHealthy: false,
+          provider: this.name,
+          error: "OLLAMA_API_KEY is required for hosted Ollama",
+          details: { baseUrl: this.baseUrl, mode: "cloud" },
+        };
+      }
+
+      const res = await fetch(`${this.baseUrl}/tags`, {
         headers: this.getHeaders(),
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(8000),
       });
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const latencyMs = Date.now() - start;
+
       return {
         isHealthy: true,
         provider: this.name,
-        latencyMs,
-        details: { baseUrl: this.baseUrl },
+        latencyMs: Date.now() - start,
+        details: {
+          baseUrl: this.baseUrl,
+          mode: this.isLocal ? "local" : "cloud",
+          model: this.defaultModel,
+        },
       };
     } catch (err) {
       return {
@@ -78,7 +112,7 @@ export class OllamaProvider extends AIProviderBase {
         error: err instanceof Error ? err.message : "Unknown error",
         details: {
           baseUrl: this.baseUrl,
-          hint: "Make sure Ollama is running: ollama serve",
+          mode: this.isLocal ? "local" : "cloud",
         },
       };
     }
@@ -86,18 +120,21 @@ export class OllamaProvider extends AIProviderBase {
 
   async listModels(): Promise<ModelInfo[]> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/tags`, {
+      const res = await fetch(`${this.baseUrl}/tags`, {
         headers: this.getHeaders(),
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(8000),
       });
+
       if (!res.ok) return [];
-      const data = (await res.json()) as { models: OllamaModel[] };
+
+      const data = (await res.json()) as { models?: OllamaModel[] };
+
       return (data.models || []).map((m) => ({
         id: m.name,
         name: m.name,
-        provider: "ollama",
-        isLocal: true,
-        size: formatBytes(m.size),
+        provider: this.name,
+        isLocal: this.isLocal,
+        size: m.size ? formatBytes(m.size) : undefined,
         description: m.details?.family
           ? `${m.details.family} • ${m.details.parameter_size || ""}`
           : undefined,
@@ -115,12 +152,10 @@ export class OllamaProvider extends AIProviderBase {
     messages: ChatMessage[],
     options: CompletionOptions = {}
   ): Promise<AIResponse> {
-    const model = this.defaultModel;
-    const ollamaMessages = messages.map(toOllamaMessage);
-
+    const startedAt = Date.now();
     const body: Record<string, unknown> = {
-      model,
-      messages: ollamaMessages,
+      model: this.defaultModel,
+      messages: messages.map(toOllamaMessage),
       stream: false,
       options: {
         temperature: options.temperature ?? 0.7,
@@ -128,7 +163,7 @@ export class OllamaProvider extends AIProviderBase {
       },
     };
 
-    if (options.tools && options.tools.length > 0) {
+    if (options.tools?.length) {
       body.tools = options.tools.map((t) => ({
         type: "function",
         function: {
@@ -139,11 +174,11 @@ export class OllamaProvider extends AIProviderBase {
       }));
     }
 
-    const res = await fetch(`${this.baseUrl}/api/chat`, {
+    const res = await fetch(`${this.baseUrl}/chat`, {
       method: "POST",
       headers: this.getHeaders(),
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(180_000),
     });
 
     if (!res.ok) {
@@ -152,22 +187,23 @@ export class OllamaProvider extends AIProviderBase {
 
     const data = (await res.json()) as OllamaResponse;
 
-    const toolCalls: ToolCall[] = (
-      data.message?.tool_calls || []
-    ).map((tc, i) => ({
-      id: `tc_${i}`,
-      name: tc.function.name,
-      arguments: tc.function.arguments || {},
-    }));
+    const toolCalls: ToolCall[] = (data.message?.tool_calls || []).map(
+      (tc, i) => ({
+        id: `ollama_tc_${Date.now()}_${i}`,
+        name: tc.function.name,
+        arguments: tc.function.arguments || {},
+      })
+    );
 
     return {
       content: data.message?.content || "",
-      toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      toolCalls: toolCalls.length ? toolCalls : undefined,
       inputTokens: data.prompt_eval_count,
       outputTokens: data.eval_count,
-      model,
-      provider: "ollama",
+      model: this.defaultModel,
+      provider: this.name,
       finishReason: data.done_reason,
+      latencyMs: Date.now() - startedAt,
     };
   }
 
@@ -175,12 +211,9 @@ export class OllamaProvider extends AIProviderBase {
     messages: ChatMessage[],
     options: CompletionOptions = {}
   ): AsyncGenerator<StreamChunk> {
-    const model = this.defaultModel;
-    const ollamaMessages = messages.map(toOllamaMessage);
-
     const body: Record<string, unknown> = {
-      model,
-      messages: ollamaMessages,
+      model: this.defaultModel,
+      messages: messages.map(toOllamaMessage),
       stream: true,
       options: {
         temperature: options.temperature ?? 0.7,
@@ -188,7 +221,7 @@ export class OllamaProvider extends AIProviderBase {
       },
     };
 
-    if (options.tools && options.tools.length > 0) {
+    if (options.tools?.length) {
       body.tools = options.tools.map((t) => ({
         type: "function",
         function: {
@@ -199,7 +232,7 @@ export class OllamaProvider extends AIProviderBase {
       }));
     }
 
-    const res = await fetch(`${this.baseUrl}/api/chat`, {
+    const res = await fetch(`${this.baseUrl}/chat`, {
       method: "POST",
       headers: this.getHeaders(),
       body: JSON.stringify(body),
@@ -218,12 +251,17 @@ export class OllamaProvider extends AIProviderBase {
     const decoder = new TextDecoder();
 
     try {
+      let buffer = "";
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const lines = decoder.decode(value).split("\n").filter(Boolean);
-        for (const line of lines) {
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines.filter(Boolean)) {
           try {
             const chunk = JSON.parse(line) as OllamaStreamChunk;
 
@@ -231,25 +269,45 @@ export class OllamaProvider extends AIProviderBase {
               yield { type: "text", content: chunk.message.content };
             }
 
-            if (chunk.message?.tool_calls) {
-              for (const tc of chunk.message.tool_calls) {
-                yield {
-                  type: "tool_call",
-                  toolCall: {
-                    id: `tc_${Date.now()}`,
-                    name: tc.function.name,
-                    arguments: tc.function.arguments || {},
-                  },
-                };
-              }
+            for (const tc of chunk.message?.tool_calls || []) {
+              yield {
+                type: "tool_call",
+                toolCall: {
+                  id: `ollama_tc_${Date.now()}`,
+                  name: tc.function.name,
+                  arguments: tc.function.arguments || {},
+                },
+              };
             }
 
             if (chunk.done) {
               yield { type: "done" };
             }
           } catch {
-            // Skip malformed chunks
+            // Ignore malformed stream frames.
           }
+        }
+      }
+
+      if (buffer.trim()) {
+        try {
+          const chunk = JSON.parse(buffer) as OllamaStreamChunk;
+          if (chunk.message?.content) {
+            yield { type: "text", content: chunk.message.content };
+          }
+          for (const tc of chunk.message?.tool_calls || []) {
+            yield {
+              type: "tool_call",
+              toolCall: {
+                id: `ollama_tc_${Date.now()}`,
+                name: tc.function.name,
+                arguments: tc.function.arguments || {},
+              },
+            };
+          }
+          if (chunk.done) yield { type: "done" };
+        } catch {
+          // Ignore incomplete final frame.
         }
       }
     } finally {
@@ -258,13 +316,9 @@ export class OllamaProvider extends AIProviderBase {
   }
 }
 
-// ============================================================
-// Ollama API Types
-// ============================================================
-
 interface OllamaModel {
   name: string;
-  size: number;
+  size?: number;
   details?: {
     family?: string;
     parameter_size?: string;
@@ -273,7 +327,6 @@ interface OllamaModel {
 }
 
 interface OllamaResponse {
-  model: string;
   message?: {
     role: string;
     content: string;
@@ -289,7 +342,7 @@ interface OllamaStreamChunk {
   model: string;
   message?: {
     role: string;
-    content: string;
+    content?: string;
     tool_calls?: OllamaToolCall[];
   };
   done: boolean;
@@ -303,16 +356,33 @@ interface OllamaToolCall {
 }
 
 function toOllamaMessage(msg: ChatMessage): Record<string, unknown> {
-  return {
+  const out: Record<string, unknown> = {
     role: msg.role,
     content: msg.content,
   };
+
+  if (msg.toolCalls?.length) {
+    out.tool_calls = msg.toolCalls.map((call) => ({
+      function: {
+        name: call.name,
+        arguments: call.arguments,
+      },
+    }));
+  }
+
+  if (msg.toolName) {
+    out.tool_name = msg.toolName;
+  }
+
+  return out;
 }
 
 function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  if (bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.min(
+    units.length - 1,
+    Math.floor(Math.log(bytes) / Math.log(1024))
+  );
+  return `${parseFloat((bytes / Math.pow(1024, i)).toFixed(1))} ${units[i]}${units[i] === "B" ? "" : ""}`;
 }
