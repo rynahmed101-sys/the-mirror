@@ -593,3 +593,24 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+.mirror-lab-controls {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .mirror-header__actions .mirror-lab-controls {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .mirror-header__actions .mirror-lab-controls > button {
+    min-width: 0;
+    width: 100%;
+    justify-content: center;
+  }
+}
