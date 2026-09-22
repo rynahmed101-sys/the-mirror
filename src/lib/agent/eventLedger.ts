@@ -14,6 +14,7 @@ import { rawEventLedger as rawEventLedgerPg, ledgerStateLock as ledgerStateLockP
 import { desc, asc, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { nanoid } from "nanoid";
+import { mirrorRawEvent } from "./supabaseMirror";
 
 export const GENESIS_HASH = "0000000000000000000000000000000000000000000000000000000000000000";
 
@@ -190,7 +191,7 @@ export async function appendRawEventLedger(event: {
           prevHash
         );
 
-        return {
+        const result = {
           id,
           sequenceNumber: nextSeq,
           serverTimestamp,
@@ -206,6 +207,33 @@ export async function appendRawEventLedger(event: {
           previousEventHash: prevHash,
           isImmutable: true,
         };
+        await mirrorRawEvent({
+          sourceEventId: id,
+          sequenceNumber: nextSeq,
+          serverTimestamp,
+          agentId: event.agentId,
+          sessionId: event.sessionId || null,
+          experimentId: event.experimentId || null,
+          requestId: event.requestId || null,
+          eventType: event.eventType,
+          source: event.source,
+          payload: JSON.parse(canonicalPayload),
+          canonicalEvent: canonicalizeEvent({
+            sequence_number: nextSeq,
+            previous_event_hash: prevHash,
+            server_timestamp: serverTimestamp,
+            agent_id: event.agentId,
+            session_id: event.sessionId || null,
+            experiment_id: event.experimentId || null,
+            request_id: event.requestId || null,
+            event_type: event.eventType,
+            source: event.source,
+            payload: JSON.parse(canonicalPayload),
+          }),
+          eventHash,
+          previousEventHash: prevHash,
+        });
+        return result;
       });
 
       return appendTransaction();
@@ -327,7 +355,7 @@ export async function appendRawEventLedger(event: {
             });
           }
 
-          return {
+          const result = {
             id,
             sequenceNumber: nextSeq,
             serverTimestamp,
@@ -343,6 +371,33 @@ export async function appendRawEventLedger(event: {
             previousEventHash: prevHash,
             isImmutable: true,
           };
+          await mirrorRawEvent({
+            sourceEventId: id,
+            sequenceNumber: nextSeq,
+            serverTimestamp,
+            agentId: event.agentId,
+            sessionId: event.sessionId || null,
+            experimentId: event.experimentId || null,
+            requestId: event.requestId || null,
+            eventType: event.eventType,
+            source: event.source,
+            payload: JSON.parse(canonicalPayload),
+            canonicalEvent: canonicalizeEvent({
+              sequence_number: nextSeq,
+              previous_event_hash: prevHash,
+              server_timestamp: serverTimestamp,
+              agent_id: event.agentId,
+              session_id: event.sessionId || null,
+              experiment_id: event.experimentId || null,
+              request_id: event.requestId || null,
+              event_type: event.eventType,
+              source: event.source,
+              payload: JSON.parse(canonicalPayload),
+            }),
+            eventHash,
+            previousEventHash: prevHash,
+          });
+          return result;
         } catch (err: any) {
           if ((isTransientPgError(err) || err.message === "CONCURRENCY_CONFLICT") && attempt < MAX_RETRIES) {
             const delay = Math.min(25 * Math.pow(1.5, attempt) + Math.random() * 25, 600);

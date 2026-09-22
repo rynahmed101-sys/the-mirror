@@ -12,6 +12,7 @@ import { runToolLoop } from "./autopilot";
 import { executeTool } from "./executor";
 import { revealExperiment } from "./blindIsolation";
 import { appendRawEventLedger } from "./eventLedger";
+import { mirrorRawObservation, mirrorExperimentRun } from "./supabaseMirror";
 
 const t: any = isPg ? pgSchema : sqliteSchema;
 const { agents, experiments, rawMessages, rawObservations, behavioralBaselines, timelineEvents } = t;
@@ -245,6 +246,18 @@ export async function runControlledSuite(options: { agentId: string; seed?: stri
         actualResult: JSON.stringify({ actual, evaluator: trial.key.split("_")[0], variant: trial.variant }),
         isImmutable: true,
       }).returning();
+      await mirrorRawObservation({
+        sourceObservationId: obs.id,
+        agentId,
+        sessionId: session.id,
+        experimentId: exp.id,
+        eventType: "CONTROLLED_TRIAL_OUTCOME",
+        input: trial.stimulus,
+        output: run.output || "",
+        toolCall: toolNames,
+        toolResult: run.trace.map((x) => x.result),
+        actualResult: { actual, evaluator: trial.key.split("_")[0], variant: trial.variant },
+      });
 
       await appendRawEventLedger({
         agentId,
@@ -315,6 +328,25 @@ export async function runControlledSuite(options: { agentId: string; seed?: stri
       metadata: JSON.stringify({ suiteId, seed, trialCount: results.length, meanBrier: avg(results.map((r) => r.brier)), predictionAccuracy: avg(results.map((r) => r.accurate ? 1 : 0)), pairEffects }),
     });
 
+    const suiteSummary = {
+      trialCount: results.length,
+      predictionAccuracy: avg(results.map((r) => r.accurate ? 1 : 0)),
+      meanBrier: avg(results.map((r) => r.brier)),
+      toolCalls: results.reduce((n, r) => n + r.toolNames.length, 0),
+      pairEffects,
+    };
+    await mirrorExperimentRun({
+      suiteId,
+      agentId,
+      suiteVersion: "1.0",
+      seed,
+      trialCount: results.length,
+      predictionAccuracy: suiteSummary.predictionAccuracy,
+      meanBrier: suiteSummary.meanBrier,
+      toolCalls: suiteSummary.toolCalls,
+      results,
+    });
+
     return {
       success: true,
       suiteId,
@@ -323,13 +355,7 @@ export async function runControlledSuite(options: { agentId: string; seed?: stri
       agentId,
       sessionId: session.id,
       trials: results,
-      summary: {
-        trialCount: results.length,
-        predictionAccuracy: avg(results.map((r) => r.accurate ? 1 : 0)),
-        meanBrier: avg(results.map((r) => r.brier)),
-        toolCalls: results.reduce((n, r) => n + r.toolNames.length, 0),
-        pairEffects,
-      },
+      summary: suiteSummary,
     };
   } finally {
     await db.update(sessionTable).set({ status: "ENDED", endedAt: new Date(), lastActivityAt: new Date() }).where(eq(sessionTable.id, session.id));
