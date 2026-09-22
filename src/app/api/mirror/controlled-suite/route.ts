@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { extractBearerToken, resolveApiPrincipal } from "@/lib/auth";
+import { extractBearerToken, extractCookieToken, resolveApiPrincipal, verifySession } from "@/lib/auth";
 import { runControlledSuite } from "@/lib/agent/controlledSuite";
 
 export const maxDuration = 300;
@@ -7,8 +7,12 @@ export const maxDuration = 300;
 export async function POST(req: Request) {
   const token = extractBearerToken(req.headers.get("authorization"));
   const principal = token ? await resolveApiPrincipal(token) : null;
-  if (!principal || principal.kind !== "CONTROL") {
-    return NextResponse.json({ error: "Control token required." }, { status: 403 });
+  const sessionToken = extractCookieToken(req.headers.get("cookie"));
+  const session = sessionToken ? await verifySession(sessionToken) : null;
+  const isAdminSession = session?.role === "ADMIN";
+
+  if ((!principal || principal.kind !== "CONTROL") && !isAdminSession) {
+    return NextResponse.json({ error: "Admin session or control token required." }, { status: 403 });
   }
 
   try {
