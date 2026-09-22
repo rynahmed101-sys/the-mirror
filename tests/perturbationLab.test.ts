@@ -11,6 +11,8 @@ import {
   isDirectOllamaCloudUrl,
 } from "../src/lib/ai/ollama";
 import { buildJsonAuthHeaders } from "../src/lib/auth/requestHeaders";
+import { resolveExternalActor } from "../src/lib/auth/externalActor";
+
 import { constrainAgentId } from "../src/lib/auth/agentScope";
 
 test("the perturbation lattice is exactly 6 x 16 = 96 nodes", () => {
@@ -97,4 +99,26 @@ test("external agent identity cannot act as another agent", () => {
   assert.equal(constrainAgentId({ kind: "AGENT", agentId: "agent_ext_1" }, "agent_ext_1"), "agent_ext_1");
   assert.throws(() => constrainAgentId({ kind: "AGENT", agentId: "agent_ext_1" }, "mirror-primary"), /may only act as its own agent/);
   assert.equal(constrainAgentId({ kind: "CONTROL", tokenType: "ENV" }, "mirror-primary"), "mirror-primary");
+});
+
+test("temporary control tokens are translated into guest external-agent identities", () => {
+  assert.deepEqual(resolveExternalActor({ kind: "TEMP_EXTERNAL", tokenId: "abc123" }, undefined), {
+    agentId: "agent_guest_abc123",
+    mode: "TEMP_EXTERNAL",
+  });
+  assert.throws(
+    () => resolveExternalActor({ kind: "TEMP_EXTERNAL", tokenId: "abc123" }, "mirror-primary"),
+    /temporary external token may not select another agent/,
+  );
+});
+
+test("registered external agents retain ownership of their own identity", () => {
+  assert.deepEqual(resolveExternalActor({ kind: "AGENT", agentId: "agent_ext_9" }, undefined), {
+    agentId: "agent_ext_9",
+    mode: "AGENT",
+  });
+  assert.throws(
+    () => resolveExternalActor({ kind: "AGENT", agentId: "agent_ext_9" }, "mirror-primary"),
+    /may only act as its own agent/,
+  );
 });
