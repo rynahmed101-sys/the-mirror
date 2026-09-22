@@ -1,4 +1,4 @@
-import type { ApiPrincipal } from "./index";
+import type { ApiPrincipal } from "../auth";
 
 export type ExternalActor =
   | { agentId: string; mode: "AGENT" }
