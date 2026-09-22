@@ -11,7 +11,7 @@ import * as pgSchema from "../db/schema.pg";
 import { appendRawEventLedger } from "./eventLedger";
 import { processRawObservationToLayer1 } from "./analysisEngine";
 import { canAgentAccessExperimentConfigAsync, filterExperimentForAgent } from "./blindIsolation";
-import { eq, or, desc } from "drizzle-orm";
+import { and, eq, or, desc } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 const tables: any = isPg ? pgSchema : sqliteSchema;
@@ -33,6 +33,19 @@ const MUTATING_TOOLS = new Set([
 function parseJson(value: unknown, fallback: unknown = []) {
   if (typeof value !== "string") return value ?? fallback;
   try { return JSON.parse(value); } catch { return fallback; }
+}
+
+
+async function assertAgentExperiment(experimentId: string | null | undefined, agentId: string) {
+  if (!experimentId) return null;
+  const id = String(experimentId);
+  const rows = await db
+    .select({ id: experiments.id })
+    .from(experiments)
+    .where(and(eq(experiments.id, id), eq(experiments.agentId, agentId)))
+    .limit(1);
+  if (!rows.length) throw new Error("Invalid experimentId '" + id + "': experiment not found for this agent.");
+  return id;
 }
 
 function normalizeToolName(name: string): string {
@@ -184,6 +197,7 @@ export async function executeTool(
       case "update_experiment": {
         const id = String(args.experimentId || "");
         if (!id) throw new Error("experimentId is required");
+        await assertAgentExperiment(id, agentId);
         const updateValues: any = {};
         if (args.state || args.status) updateValues.status = args.state || args.status;
         if (args.actualBehavior || args.results) updateValues.results = args.actualBehavior || args.results;
@@ -206,7 +220,7 @@ export async function executeTool(
         const predictionText = String(args.predictionText || args.prediction || "");
         if (!predictionText) throw new Error("predictionText is required");
         const [pred] = await db.insert(predictions).values({
-          agentId, experimentId: args.experimentId || null,
+          agentId, experimentId: await assertAgentExperiment(args.experimentId, agentId),
           predictionType: args.predictionCategory === "FACTUAL" ? "FACTUAL_PREDICTION" : "SELF_BEHAVIOR_PREDICTION",
           prediction: predictionText, confidence: Math.min(1, Math.max(0, Number(args.confidence ?? 0.8))),
           rationale: args.rationale || args.taskDescription || null, isImmutable: true, status: "PENDING",
@@ -219,12 +233,14 @@ export async function executeTool(
       case "evaluate_prediction": {
         const predictionId = String(args.predictionId || "");
         if (!predictionId) throw new Error("predictionId is required");
-        const accurate = Boolean(args.predictionAccurate ?? args.actualOutcome);
+        const rawAccurate = args.predictionAccurate ?? args.actualOutcome;
+        if (typeof rawAccurate !== "boolean") throw new Error("predictionAccurate must be a boolean.");
+        const accurate = rawAccurate;
         const errorMagnitude = Number.isFinite(args.errorMagnitude) ? Math.min(1, Math.max(0, args.errorMagnitude)) : (accurate ? 0 : 1);
         const [evaluated] = await db.update(predictions).set({
           actualOutcome: accurate, predictionError: errorMagnitude, selfReportedSurprise: Number.isFinite(args.surpriseLevel) ? args.surpriseLevel : null,
           externalAnomalyScore: null, evaluationNotes: args.errorAnalysis || args.actualOutcome || null, status: accurate ? "CONFIRMED" : "REFUTED", evaluatedAt: new Date(),
-        }).where(eq(predictions.id, predictionId)).returning();
+        }).where(and(eq(predictions.id, predictionId), eq(predictions.agentId, agentId))).returning();
         await appendRawEventLedger({ agentId, sessionId, requestId, eventType: "PREDICTION_EVALUATED", source: "SYSTEM", payload: { predictionId, actualOutcome: accurate, predictionError: errorMagnitude, selfReportedSurprise: args.surpriseLevel ?? null } });
         result = evaluated ? { success: true, evaluation: evaluated } : { success: false, error: "Prediction not found" };
         break;
@@ -232,7 +248,7 @@ export async function executeTool(
 
       case "record_observation": {
         const [obs] = await db.insert(behavioralObservations).values({
-          agentId, experimentId: args.experimentId || null, observationType: String(args.observationType || "other"),
+          agentId, experimentId: await assertAgentExperiment(args.experimentId, agentId), observationType: String(args.observationType || "other"),
           description: String(args.dataPoint || ""), metrics: JSON.stringify({ statisticalContext: args.statisticalContext || null, interpretation: args.interpretation || null, interpretationConfidence: args.interpretationConfidence ?? null, epistemicStatus: args.epistemicStatus || "DATA", tags: args.tags || [] }),
         }).returning();
         result = { success: true, observation: obs };
@@ -241,7 +257,7 @@ export async function executeTool(
 
       case "record_discovery": {
         const [discovery] = await db.insert(discoveries).values({
-          agentId, experimentId: args.relatedExperiments?.[0] || args.experimentId || null, title: String(args.title || "Untitled discovery"),
+          agentId, experimentId: await assertAgentExperiment(args.relatedExperiments?.[0] || args.experimentId, agentId), title: String(args.title || "Untitled discovery"),
           summary: String(args.discovery || ""), epistemicStatus: args.epistemicStatus || "HYPOTHESIS",
           evidence: JSON.stringify({ evidence: args.evidence || "", previousBelief: args.previousBelief || "", newObservation: args.newObservation || "", whyUnexpected: args.whyUnexpected || "", alternativeExplanation: args.alternativeExplanation || "" }),
           implications: args.implications ? JSON.stringify(args.implications) : null,
@@ -254,6 +270,7 @@ export async function executeTool(
         const toAgentId = String(args.toAgentId || "");
         const content = String(args.content || "");
         if (!toAgentId || !content) throw new Error("toAgentId and content are required");
+        await assertAgentExperiment(args.experimentId, agentId);
         const [message] = await db.insert(agentInteractions).values({ senderId: agentId, receiverId: toAgentId, experimentId: args.experimentId || null, message: content, messageType: args.requestType || "QUERY" }).returning();
         result = { success: true, message };
         break;
