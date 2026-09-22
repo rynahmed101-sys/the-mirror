@@ -4,7 +4,8 @@ import * as sqliteSchema from "@/lib/db/schema";
 import * as pgSchema from "@/lib/db/schema.pg";
 import { eq } from "drizzle-orm";
 import { resolveRequestPrincipal } from "@/lib/auth";
-import { constrainAgentId } from "@/lib/auth/agentScope";
+import { resolveExternalActor } from "@/lib/auth/externalActor";
+import { ensureGuestAgent } from "@/lib/auth/experimentalActor";
 
 const tables: any = isPg ? pgSchema : sqliteSchema;
 const { agents } = tables;
@@ -21,8 +22,15 @@ export async function GET(req: Request) {
     });
   }
 
-  const agentId = constrainAgentId(principal);
-  const rows = await db.select().from(agents).where(eq(agents.id, agentId!)).limit(1);
+  let actor;
+  try {
+    actor = resolveExternalActor(principal);
+    if (actor.mode === "TEMP_EXTERNAL") await ensureGuestAgent(actor.agentId);
+  } catch (error:any) {
+    return NextResponse.json({ error: "Forbidden: " + error.message }, { status:403 });
+  }
+  const agentId = actor.agentId;
+  const rows = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
   const agent = rows[0];
   if (!agent || !agent.isActive) {
     return NextResponse.json({ error: "Agent identity not found or inactive." }, { status: 404 });
