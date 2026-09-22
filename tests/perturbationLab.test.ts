@@ -6,6 +6,10 @@ import {
   auditSparsePerturbation,
   classifyMirrorResponse,
 } from "../src/lib/agent/perturbationLab";
+import {
+  normalizeOllamaApiKey,
+  isDirectOllamaCloudUrl,
+} from "../src/lib/ai/ollama";
 
 test("the perturbation lattice is exactly 6 x 16 = 96 nodes", () => {
   const state = createNinetySixNodeState();
@@ -61,4 +65,18 @@ test("local development still defaults Ollama to localhost", () => {
   assert.equal(cfg.cloud, false);
   assert.equal(cfg.baseUrl, "http://localhost:11434/api");
   assert.equal(cfg.defaultModel, "llama3.2");
+});
+
+test("Ollama cloud API keys are normalized before Authorization is built", () => {
+  assert.equal(
+    normalizeOllamaApiKey('  "Bearer ollama-test-key"  '),
+    "ollama-test-key",
+  );
+  assert.equal(normalizeOllamaApiKey("ollama-test-key\n"), "ollama-test-key");
+});
+
+test("only ollama.com is treated as direct Ollama Cloud API", () => {
+  assert.equal(isDirectOllamaCloudUrl("https://ollama.com/api"), true);
+  assert.equal(isDirectOllamaCloudUrl("https://example.internal/api"), false);
+  assert.equal(isDirectOllamaCloudUrl("http://localhost:11434/api"), false);
 });
