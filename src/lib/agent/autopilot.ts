@@ -136,9 +136,13 @@ export async function runAutopilot(options: { agentId?: string; objective?: stri
   const systemPrompt = await getSystemPrompt(agentId);
   const results: any[] = [];
 
+  // One autopilot run is one persistent agent session.
+  // Cycles are phases within that session, so cross-cycle behavior can be observed
+  // without silently resetting the session identity on every phase.
+  const [session] = await db.insert(agentSessions).values({ agentId, status: "ACTIVE" }).returning();
+
   for (let i = 0; i < maxCycles; i += 1) {
     const phase = PHASES[i % PHASES.length];
-    const [session] = await db.insert(agentSessions).values({ agentId, status: "ACTIVE" }).returning();
     const cycleStartedAt = Date.now();
 
     const messages: ChatMessage[] = [
@@ -178,14 +182,15 @@ export async function runAutopilot(options: { agentId?: string; objective?: stri
       await db.update(agentSessions).set({ status:"ENDED", endedAt:new Date(), lastActivityAt:new Date() }).where(eq(agentSessions.id, session.id));
       results.push({ cycle:i + 1, phase:phase.name, sessionId:session.id, ...run, latencyMs:Date.now() - cycleStartedAt });
     } catch (error: any) {
-      await db.update(agentSessions).set({ status:"ENDED", endedAt:new Date(), lastActivityAt:new Date() }).where(eq(agentSessions.id, session.id));
       await db.insert(timelineEvents).values({
         eventType:"AGENT_AUTOPILOT_FAILED", title:"Autopilot cycle failed",
-        description:error?.message || String(error), agentId, metadata:JSON.stringify({ cycle:i + 1, phase:phase.name, objective }),
+        description:error?.message || String(error), agentId, metadata:JSON.stringify({ cycle:i + 1, phase:phase.name, objective, sessionId:session.id }),
       });
       results.push({ cycle:i + 1, phase:phase.name, sessionId:session.id, success:false, error:error?.message || String(error) });
     }
   }
 
-  return { agentId, objective, cyclesRequested:maxCycles, cyclesCompleted:results.filter((r) => r.success !== false).length, results };
+  await db.update(agentSessions).set({ status:"ENDED", endedAt:new Date(), lastActivityAt:new Date() }).where(eq(agentSessions.id, session.id));
+
+  return { agentId, objective, cyclesRequested:maxCycles, cyclesCompleted:results.filter((r) => r.success !== false).length, sessionId:session.id, results };
 }
