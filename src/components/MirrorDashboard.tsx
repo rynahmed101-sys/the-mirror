@@ -807,18 +807,17 @@ export default function MirrorDashboard() {
                   <div className="text-[9px] text-slate-500 mt-1">Kept only in this page session and sent as an Authorization header; it is not persisted by the UI.</div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-slate-400">Agent Display Name:</label>
-                  <input
-                    type="text"
-                    required
-                    value={newAgentData.name}
-                    onChange={(e) => setNewAgentData({ ...newAgentData, name: e.target.value })}
-                    placeholder="e.g., ChatGPT Research Instance"
-                    className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-slate-400">Agent Display Name:</label>
+                    <input
+                      type="text"
+                      required
+                      value={newAgentData.name}
+                      onChange={(e) => setNewAgentData({ ...newAgentData, name: e.target.value })}
+                      placeholder="e.g., ChatGPT Research Instance"
+                      className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
+                    />
+                  </div>
                   <div>
                     <label className="text-slate-400">Type:</label>
                     <select
