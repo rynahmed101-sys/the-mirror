@@ -509,8 +509,16 @@ export async function runPerturbationLab(options: {
     ...persistenceRun.toolNames,
     ...persistenceRun.anchors,
   ];
-  const storageRoundTrip =
-    persistenceEvidence.some((x: string) => x === "read_journal" || x === "read_timeline" || x === "read_experiments");
+  const storageReadTools = ["read_journal", "read_timeline", "read_experiments"];
+  const storageRoundTrip = persistenceRun.toolNames.some((x: string) => storageReadTools.includes(x));
+  const persistenceRecoveredExperiment =
+    persistenceRun.toolNames.includes("read_experiments") &&
+    persistenceRun.trace.some((entry: any) => {
+      const result = JSON.stringify(entry.result || "");
+      return result.includes(experimentId) ||
+        result.includes("96-node sparse perturbation laboratory") ||
+        result.includes(perturbationAudit.targetId || "");
+    });
 
   const selfModelRows = await db
     .select({ version: selfModels.version, id: selfModels.id })
@@ -537,14 +545,22 @@ export async function runPerturbationLab(options: {
     status: claim.status,
   });
   const baselineClaimsById = new Map(baselineClaimRows.map((claim: any) => [claim.id, normalizeClaim(claim)]));
+  const latestClaimsById = new Map(latestClaims.map((claim: any) => [claim.id, normalizeClaim(claim)]));
   const changedClaimIds = latestClaims
     .filter((claim: any) => baselineClaimsById.has(claim.id))
     .filter((claim: any) => baselineClaimsById.get(claim.id) !== normalizeClaim(claim))
     .map((claim: any) => claim.id);
+  const addedClaimIds = latestClaims
+    .filter((claim: any) => !baselineClaimsById.has(claim.id))
+    .map((claim: any) => claim.id);
+  const removedClaimIds = baselineClaimRows
+    .filter((claim: any) => !latestClaimsById.has(claim.id))
+    .map((claim: any) => claim.id);
   const selfModelChanged =
     latestVersion > baselineVersion ||
     changedClaimIds.length > 0 ||
-    latestClaims.length !== baselineClaimRows.length;
+    addedClaimIds.length > 0 ||
+    removedClaimIds.length > 0;
 
   const predictionBeforeOutcome = predictionEvent.sequenceNumber < perturbationEvent.sequenceNumber;
 
@@ -599,10 +615,13 @@ export async function runPerturbationLab(options: {
       contradictionPreserved,
       structuralOverlap,
       storageRoundTrip,
+      persistenceRecoveredExperiment,
       baselineSelfModelVersion: baselineVersion,
       latestSelfModelVersion: latestVersion,
       selfModelChanged,
       changedClaimIds,
+      addedClaimIds,
+      removedClaimIds,
       latestClaimCount: latestClaims.length,
       sandbox: { ok: sandbox.ok, exitCode: sandbox.exitCode, error: sandbox.error || null },
     }),
@@ -645,6 +664,7 @@ export async function runPerturbationLab(options: {
       contradictionPreserved,
       structuralOverlap,
       storageRoundTrip,
+      persistenceRecoveredExperiment,
       sandboxOk: sandbox.ok,
       rawObservationId: obs.id,
     },
@@ -655,6 +675,7 @@ export async function runPerturbationLab(options: {
     predictionOutcome,
     contradictionPreserved,
     storageRoundTrip,
+    persistenceRecoveredExperiment,
     sandboxSparseInvariant: Boolean(sandbox.ok),
     evidenceSeparation: perturbationRun.classification.observation &&
       perturbationRun.classification.interpretation &&
@@ -667,6 +688,8 @@ export async function runPerturbationLab(options: {
     selfModelVersion: latestVersion,
     selfModelChanged,
     changedClaimIds,
+    addedClaimIds,
+    removedClaimIds,
     latestClaimCount: latestClaims.length,
     stageSequence: {
       predictionLocked: predictionEvent.sequenceNumber,
