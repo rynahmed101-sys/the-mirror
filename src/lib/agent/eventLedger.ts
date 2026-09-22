@@ -191,7 +191,7 @@ export async function appendRawEventLedger(event: {
           prevHash
         );
 
-        const result = {
+        return {
           id,
           sequenceNumber: nextSeq,
           serverTimestamp,
@@ -207,36 +207,36 @@ export async function appendRawEventLedger(event: {
           previousEventHash: prevHash,
           isImmutable: true,
         };
-        await mirrorRawEvent({
-          sourceEventId: id,
-          sequenceNumber: nextSeq,
-          serverTimestamp,
-          agentId: event.agentId,
-          sessionId: event.sessionId || null,
-          experimentId: event.experimentId || null,
-          requestId: event.requestId || null,
-          eventType: event.eventType,
-          source: event.source,
-          payload: JSON.parse(canonicalPayload),
-          canonicalEvent: canonicalizeEvent({
-            sequence_number: nextSeq,
-            previous_event_hash: prevHash,
-            server_timestamp: serverTimestamp,
-            agent_id: event.agentId,
-            session_id: event.sessionId || null,
-            experiment_id: event.experimentId || null,
-            request_id: event.requestId || null,
-            event_type: event.eventType,
-            source: event.source,
-            payload: JSON.parse(canonicalPayload),
-          }),
-          eventHash,
-          previousEventHash: prevHash,
-        });
-        return result;
       });
 
-      return appendTransaction();
+      const result = appendTransaction();
+      await mirrorRawEvent({
+        sourceEventId: result.id,
+        sequenceNumber: result.sequenceNumber,
+        serverTimestamp: result.serverTimestamp,
+        agentId: event.agentId,
+        sessionId: event.sessionId || null,
+        experimentId: event.experimentId || null,
+        requestId: event.requestId || null,
+        eventType: event.eventType,
+        source: event.source,
+        payload: JSON.parse(canonicalPayload),
+        canonicalEvent: canonicalizeEvent({
+          sequence_number: result.sequenceNumber,
+          previous_event_hash: result.previousEventHash,
+          server_timestamp: result.serverTimestamp,
+          agent_id: event.agentId,
+          session_id: event.sessionId || null,
+          experiment_id: event.experimentId || null,
+          request_id: event.requestId || null,
+          event_type: event.eventType,
+          source: event.source,
+          payload: JSON.parse(canonicalPayload),
+        }),
+        eventHash: result.eventHash,
+        previousEventHash: result.previousEventHash,
+      });
+      return result;
     } else {
       // PostgreSQL atomic append path with atomic batch execution and optimistic CAS concurrency retry
       const MAX_RETRIES = 10;
