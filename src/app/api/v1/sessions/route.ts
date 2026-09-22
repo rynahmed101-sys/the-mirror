@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { extractBearerToken, resolveApiPrincipal, validateControlToken } from "@/lib/auth";
+import { resolveExternalActor } from "@/lib/auth/externalActor";
+import { ensureGuestAgent } from "@/lib/auth/experimentalActor";
 import { db, isPg } from "@/lib/db";
 import * as sqliteSchema from "@/lib/db/schema";
 import * as pgSchema from "@/lib/db/schema.pg";
@@ -42,8 +44,8 @@ export async function POST(req: Request) {
     const { action, agentId, displayName, provider, model } = body;
 
     if (action === "REGISTER_AGENT") {
-      if (!(await validateControlToken(token!))) {
-        return NextResponse.json({ error:"Control token required to register an agent." }, { status:403 });
+      if (principal.kind !== "CONTROL") {
+        return NextResponse.json({ error:"Only admin control credentials may provision agents through this legacy action." }, { status:403 });
       }
       const id = agentId || `agent-${nanoid(6)}`;
       const [newAgent] = await db
@@ -77,8 +79,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "agentId required to start session" }, { status: 400 });
       }
 
-      if (principal.kind === "AGENT" && principal.agentId !== agentId) {
-        return NextResponse.json({ error:"Forbidden: agent key may only start its own session." }, { status:403 });
+      try {
+        const actor = resolveExternalActor(principal, agentId);
+        agentId = actor.agentId;
+        if (actor.mode === "TEMP_EXTERNAL") await ensureGuestAgent(agentId);
+      } catch (error:any) {
+        return NextResponse.json({ error:"Forbidden: " + error.message }, { status:403 });
       }
 
       const [sess] = await db
