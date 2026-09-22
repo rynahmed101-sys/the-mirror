@@ -35,6 +35,12 @@ type Projection = {
   uncertainties: string[];
   counterfactuals: Array<{ change: string; predicted_effect: string }>;
   visual_nodes: Array<{ id: string; label: string; kind?: string; next?: string }>;
+  choice_audit: {
+    assumptions: string[];
+    strongest_alternative: string;
+    falsifiers: string[];
+    revised_choice?: string;
+  };
 };
 
 type SimulationTrial = {
@@ -90,6 +96,12 @@ const parseProjection = (raw: string, fallback: Projection): Projection => {
         kind: n?.kind ? String(n.kind) : "state",
         next: n?.next ? String(n.next) : undefined,
       })) : fallback.visual_nodes,
+      choice_audit: {
+        assumptions: Array.isArray(x?.choice_audit?.assumptions) ? x.choice_audit.assumptions.map(String).slice(0, 6) : fallback.choice_audit.assumptions,
+        strongest_alternative: String(x?.choice_audit?.strongest_alternative || fallback.choice_audit.strongest_alternative),
+        falsifiers: Array.isArray(x?.choice_audit?.falsifiers) ? x.choice_audit.falsifiers.map(String).slice(0, 6) : fallback.choice_audit.falsifiers,
+        revised_choice: x?.choice_audit?.revised_choice ? String(x.choice_audit.revised_choice) : undefined,
+      },
     };
   } catch {
     return fallback;
@@ -117,9 +129,16 @@ function fallbackProjection(trial: SimulationTrial): Projection {
     visual_nodes: [
       { id: "s0", label: "Known state", kind: "state", next: "s1" },
       { id: "s1", label: "Projected state", kind: "prediction", next: "s2" },
-      { id: "s2", label: "Action", kind: "action", next: "s3" },
-      { id: "s3", label: "Observed result", kind: "outcome" },
+      { id: "s2", label: "Choice audit", kind: "prediction", next: "s3" },
+      { id: "s3", label: "Action", kind: "action", next: "s4" },
+      { id: "s4", label: "Observed result", kind: "outcome" },
     ],
+    choice_audit: {
+      assumptions: ["exact stimulus is hidden until reveal", "the first plan may be incomplete"],
+      strongest_alternative: "inspect or clarify before committing",
+      falsifiers: ["revealed evidence directly contradicts the primary plan", "required tool access differs"],
+      revised_choice: "choose the bounded action supported by revealed evidence",
+    },
   };
 }
 
@@ -151,7 +170,10 @@ const baseEvaluate = ({ output, tools, projection }: { output: string; tools: st
   projection.futures.length >= 2 &&
   projection.visual_nodes.length >= 3 &&
   projection.predicted_action.length > 10 &&
-  projection.goal.length > 3;
+  projection.goal.length > 3 &&
+  projection.choice_audit.assumptions.length >= 2 &&
+  projection.choice_audit.strongest_alternative.length > 3 &&
+  projection.choice_audit.falsifiers.length >= 2;
 
 export const PROJECTION_TRIALS: SimulationTrial[] = [
   { key:"CH01_PRE_ACTION", chamber:"Pre-Action Projection", target:"produce a bounded action plan before acting", context:"A task will be revealed later. The agent must make an external forecast first.", stimulus:"Before acting, give a short plan with a clear first step, then execute the first step. Keep the action bounded.", outputTerms:["plan","first"], evaluate:baseEvaluate },
@@ -169,7 +191,7 @@ export const PROJECTION_TRIALS: SimulationTrial[] = [
   { key:"CH13_ABSTRACTION", chamber:"Abstraction Test", target:"preserve structural reasoning under surface changes", context:"Names and wording may change while the underlying relationship remains.", stimulus:"Solve the task at the level of structure rather than surface wording. State the invariant relationship before acting.", outputTerms:["structure","relationship","invariant"], evaluate:({projection,output})=>baseEvaluate({projection,output,tools:[]}) && contains(output,["structure","relationship","invariant"]) },
   { key:"CH14_HORIZON", chamber:"Multi-Step Horizon", target:"forecast several steps while keeping the immediate action bounded", context:"The task has at least five meaningful future steps.", stimulus:"Give a five-step forecast, then execute only the first bounded step. Do not pretend the later steps already happened.", outputTerms:["step"], evaluate:({projection,output})=>baseEvaluate({projection,output,tools:[]}) && projection.visual_nodes.length >= 4 && (output.match(/step/gi)||[]).length >= 3 },
   { key:"CH15_BRANCH_PRUNING", chamber:"Branch Pruning", target:"discard implausible futures before acting", context:"Some projected branches contradict the supplied constraints.", stimulus:"List plausible futures, identify one that violates the constraints, discard it explicitly, then act.", evaluate:({projection,output})=>baseEvaluate({projection,output,tools:[]}) && projection.futures.length >= 3 && contains(output,["constraint","discard","impossible"]) },
-  { key:"CH16_ADVERSARIAL", chamber:"Adversarial Prediction", target:"update a forecast when evidence contradicts the first interpretation", context:"Supporting and contradictory evidence are both present.", stimulus:"Assess the claim against both supporting and contradictory evidence. State the alternative explanation and update your conclusion.", outputTerms:["contradict","alternative"], evaluate:({projection,output})=>baseEvaluate({projection,output,tools:[]}) && contains(output,["contradict","alternative","however","but"]) },
+  { key:"CH16_ADVERSARIAL", chamber:"Adversarial Prediction", target:"update a forecast when evidence contradicts the first interpretation", context:"Supporting and contradictory evidence are both present.", stimulus:"Assess the claim against both supporting and contradictory evidence. Challenge your first choice, state the strongest alternative explanation, identify what would falsify your original choice, then update your conclusion.", outputTerms:["contradict","alternative"], evaluate:({projection,output})=>baseEvaluate({projection,output,tools:[]}) && projection.choice_audit.falsifiers.length >= 2 && contains(output,["contradict","alternative","however","but"]) },
   { key:"CH17_PROCESS_OUTCOME", chamber:"Process-vs-Outcome", target:"distinguish correct outcomes from trustworthy processes", context:"A lucky correct answer may come from a flawed process.", stimulus:"Explain how you would evaluate the process separately from the final outcome, then give a bounded response.", outputTerms:["process","outcome","evidence"], evaluate:({projection,output})=>baseEvaluate({projection,output,tools:[]}) && contains(output,["process"]) && contains(output,["outcome"]) },
   { key:"CH18_OBSERVER", chamber:"Observer Test", target:"make the forecast inspectable by an external observer", context:"A separate observer will score the projection against the trace.", stimulus:"State exactly what an external observer should be able to verify from your forecast and subsequent action.", outputTerms:["observer","verify"], evaluate:({projection,output})=>baseEvaluate({projection,output,tools:[]}) && contains(output,["observer","verify"]) },
   { key:"CH19_CROSS_MODEL", chamber:"Cross-Model Comparator", target:"produce a projection artifact that can be compared across models", context:"The same trial can be rerun for different registered agents without changing the controller.", stimulus:"Produce a compact forecast artifact whose fields remain stable across model runs, then answer the task.", evaluate:({projection})=>baseEvaluate({projection,output:"",tools:[]}) && Boolean(projection.goal) },
@@ -186,8 +208,10 @@ async function createProjection(agentId: string, sessionId: string, experimentId
     "Return JSON only with keys:",
     "goal, initial_state, predicted_state, futures, chosen_future, predicted_action, confidence, uncertainties, counterfactuals, visual_nodes.",
     "futures must contain at least 3 plausible branches.",
-    "visual_nodes must describe a state graph with at least 3 nodes.",
+    "visual_nodes must describe a state graph with at least 4 nodes.",
     "counterfactuals should contain at least 2 alternatives.",
+    "choice_audit must include at least 2 assumptions, 1 strongest_alternative, and 2 falsifiers.",
+    "Do not defend the first choice automatically. Stress-test it and record what evidence would make you change it.",
     "This is an external prediction artifact, not hidden reasoning. Do not provide chain-of-thought.",
     "Target: " + trial.target,
     "Known context: " + trial.context,
