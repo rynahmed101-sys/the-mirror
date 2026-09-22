@@ -6,7 +6,7 @@ import { db, isPg } from "@/lib/db";
 import * as sqliteSchema from "@/lib/db/schema";
 import * as pgSchema from "@/lib/db/schema.pg";
 import type { ChatMessage } from "@/lib/ai/provider";
-import { extractBearerToken, resolveApiPrincipal } from "@/lib/auth";
+import { resolveRequestPrincipal } from "@/lib/auth";
 
 export const runtime = "nodejs";
 import { sql } from "drizzle-orm";
@@ -15,8 +15,7 @@ const tables:any = isPg ? pgSchema : sqliteSchema;
 const { systemConfig, rawMessages, rawObservations, timelineEvents } = tables;
 
 export async function POST(req:Request) {
-  const token = extractBearerToken(req.headers.get("authorization"));
-  const principal = token ? await resolveApiPrincipal(token) : null;
+  const principal = await resolveRequestPrincipal(req);
   if (!principal) {
     return NextResponse.json({ error:"Unauthorized" }, { status:401 });
   }
