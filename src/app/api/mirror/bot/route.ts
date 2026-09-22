@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { extractBearerToken, resolveApiPrincipal } from "@/lib/auth";
+import { resolveRequestPrincipal } from "@/lib/auth";
 import { runAutopilot } from "@/lib/agent/autopilot";
 
 /**
@@ -9,8 +9,7 @@ import { runAutopilot } from "@/lib/agent/autopilot";
  * This is intentionally not public: hosted-model usage must never be an open relay.
  */
 export async function POST(req: Request) {
-  const token = extractBearerToken(req.headers.get("authorization"));
-  const principal = token ? await resolveApiPrincipal(token) : null;
+  const principal = await resolveRequestPrincipal(req);
   if (!principal) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
