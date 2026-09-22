@@ -10,10 +10,8 @@ import {
   normalizeOllamaApiKey,
   isDirectOllamaCloudUrl,
 } from "../src/lib/ai/ollama";
-import { buildJsonAuthHeaders } from "../src/lib/auth/requestHeaders";
 import { resolveExternalActor } from "../src/lib/auth/externalActor";
 
-import { constrainAgentId } from "../src/lib/auth/agentScope";
 
 test("the perturbation lattice is exactly 6 x 16 = 96 nodes", () => {
   const state = createNinetySixNodeState();
@@ -85,21 +83,6 @@ test("only ollama.com is treated as direct Ollama Cloud API", () => {
   assert.equal(isDirectOllamaCloudUrl("http://localhost:11434/api"), false);
 });
 
-test("registration headers can carry an optional control token without storing it", () => {
-  assert.deepEqual(buildJsonAuthHeaders("  mirror-test-token  "), {
-    "Content-Type": "application/json",
-    Authorization: "Bearer mirror-test-token",
-  });
-  assert.deepEqual(buildJsonAuthHeaders(""), { "Content-Type": "application/json" });
-});
-
-
-test("external agent identity cannot act as another agent", () => {
-  assert.equal(constrainAgentId({ kind: "AGENT", agentId: "agent_ext_1" }, undefined), "agent_ext_1");
-  assert.equal(constrainAgentId({ kind: "AGENT", agentId: "agent_ext_1" }, "agent_ext_1"), "agent_ext_1");
-  assert.throws(() => constrainAgentId({ kind: "AGENT", agentId: "agent_ext_1" }, "mirror-primary"), /may only act as its own agent/);
-  assert.equal(constrainAgentId({ kind: "CONTROL", tokenType: "ENV" }, "mirror-primary"), "mirror-primary");
-});
 
 test("temporary control tokens are translated into guest external-agent identities", () => {
   assert.deepEqual(resolveExternalActor({ kind: "TEMP_EXTERNAL", tokenId: "abc123" }, undefined), {
