@@ -11,13 +11,13 @@ import * as pgSchema from "../db/schema.pg";
 import { appendRawEventLedger } from "./eventLedger";
 import { processRawObservationToLayer1 } from "./analysisEngine";
 import { canAgentAccessExperimentConfigAsync, filterExperimentForAgent } from "./blindIsolation";
-import { and, eq, or, desc } from "drizzle-orm";
+import { and, eq, or, desc, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 const tables: any = isPg ? pgSchema : sqliteSchema;
 const {
   toolLogs, selfModels, selfModelClaims, journalEntries, experiments, predictions,
-  rawObservations, agents, discoveries, behavioralObservations, agentInteractions, timelineEvents,
+  rawObservations, rawEventLedger, agents, discoveries, behavioralObservations, agentInteractions, timelineEvents,
 } = tables;
 
 type RequestSource = "AGENT" | "SYSTEM" | "RESEARCHER" | "SCHEDULED" | "OTHER_AGENT";
@@ -35,6 +35,25 @@ function parseJson(value: unknown, fallback: unknown = []) {
   try { return JSON.parse(value); } catch { return fallback; }
 }
 
+
+async function assertEvidenceBackedClaim(args: any, agentId: string) {
+  const supporting = Array.isArray(args.supportingEvidence) ? args.supportingEvidence.filter(Boolean).map(String) : [];
+  const rawEventIds = Array.isArray(args.rawEventIds) ? args.rawEventIds.filter(Boolean).map(String) : [];
+  if (supporting.length === 0 || rawEventIds.length === 0) {
+    throw new Error("Self-model claims require supportingEvidence and at least one verified rawEventId.");
+  }
+  const evidenceType = String(args.evidenceType || "BEHAVIORAL_DATA").toUpperCase();
+  if (evidenceType === "SELF_REPORTED") {
+    throw new Error("SELF_REPORTED is not admissible as sole evidence for a self-model claim.");
+  }
+  const rows = await db.select({ id: rawEventLedger.id })
+    .from(rawEventLedger)
+    .where(and(eq(rawEventLedger.agentId, agentId), inArray(rawEventLedger.id, rawEventIds)));
+  if (rows.length !== rawEventIds.length) {
+    throw new Error("One or more rawEventIds do not belong to verified ledger events for this agent.");
+  }
+  return { supporting, rawEventIds, evidenceType };
+}
 
 async function assertAgentExperiment(experimentId: string | null | undefined, agentId: string) {
   if (!experimentId) return null;
@@ -139,27 +158,31 @@ export async function executeTool(
         if (!model) {
           [model] = await db.insert(selfModels).values({ version: 1, agentId, createdReason: "Initial evidence-backed self-model" }).returning();
         }
-        const evidence = Array.isArray(args.supportingEvidence) ? args.supportingEvidence : [];
-        const counter = Array.isArray(args.counterEvidence) ? args.counterEvidence : (Array.isArray(args.counterevidence) ? args.counterevidence : []);
+        const { supporting, rawEventIds, evidenceType } = await assertEvidenceBackedClaim(args, agentId);
+        const counter = Array.isArray(args.counterEvidence) ? args.counterEvidence.filter(Boolean).map(String)
+          : (Array.isArray(args.counterevidence) ? args.counterevidence.filter(Boolean).map(String) : []);
         if (args.claimId) {
           const updateValues: any = {
-            confidence: Number.isFinite(args.confidence) ? args.confidence : 0.8,
-            evidenceType: args.evidenceType || "SELF_REPORTED",
-            supportingEvidence: JSON.stringify(evidence),
+            confidence: Number.isFinite(args.confidence) ? Math.min(1, Math.max(0, Number(args.confidence))) : 0.8,
+            evidenceType,
+            supportingEvidence: JSON.stringify(supporting),
             counterevidence: JSON.stringify(counter),
+            rawEventIds: JSON.stringify(rawEventIds),
             updatedAt: new Date(),
           };
-          if (args.claim) updateValues.claim = args.claim;
-          if (args.category) updateValues.category = args.category;
-          const [updated] = await db.update(selfModelClaims).set(updateValues).where(eq(selfModelClaims.id, args.claimId)).returning();
+          if (args.claim) updateValues.claim = String(args.claim);
+          if (args.category) updateValues.category = String(args.category);
+          const [updated] = await db.update(selfModelClaims).set(updateValues)
+            .where(and(eq(selfModelClaims.id, args.claimId), eq(selfModelClaims.selfModelId, model.id))).returning();
+          if (!updated) throw new Error("Claim not found for this agent.");
           result = { success: true, revisedClaim: updated };
         } else {
           const [created] = await db.insert(selfModelClaims).values({
             selfModelId: model.id, claim: String(args.claim || ""), category: String(args.category || "GENERAL"),
-            confidence: Number.isFinite(args.confidence) ? args.confidence : 0.8, evidenceType: args.evidenceType || "SELF_REPORTED",
-            supportingEvidence: JSON.stringify(evidence), counterevidence: JSON.stringify(counter),
+            confidence: Number.isFinite(args.confidence) ? Math.min(1, Math.max(0, Number(args.confidence))) : 0.8,
+            evidenceType, supportingEvidence: JSON.stringify(supporting), counterevidence: JSON.stringify(counter),
             unknownEvidence: args.unknownEvidence ? JSON.stringify(args.unknownEvidence) : null,
-            rawEventIds: args.rawEventIds ? JSON.stringify(args.rawEventIds) : null, status: args.status || "NEW",
+            rawEventIds: JSON.stringify(rawEventIds), status: args.status || "NEW",
           }).returning();
           result = { success: true, newClaim: created };
         }
@@ -183,12 +206,17 @@ export async function executeTool(
       }
 
       case "create_experiment": {
+        const blindRequested = Boolean(args.isBlind);
+        if (blindRequested && requestSource !== "SYSTEM" && requestSource !== "RESEARCHER") {
+          throw new Error("Blind experiments must be preregistered by the controller/researcher, not the subject agent.");
+        }
         const [exp] = await db.insert(experiments).values({
           agentId, title: String(args.title || "Untitled Mirror experiment"),
           hypothesis: String(args.initialHypothesis || args.hypothesis || "NONE_PREREGISTERED"),
-          methodology: args.conditions ? JSON.stringify(args.conditions) : null, templateType: "AI_AUTOPILOT",
-          variables: args.variables ? JSON.stringify(args.variables) : null, status: "PROPOSED", isBlind: Boolean(args.isBlind),
-          visibleConfig: args.visibleConfig ? JSON.stringify(args.visibleConfig) : null, hiddenConfig: args.hiddenConfig ? JSON.stringify(args.hiddenConfig) : null,
+          methodology: args.conditions ? JSON.stringify(args.conditions) : null, templateType: blindRequested ? "CONTROLLED_PREREGISTERED" : "AI_AUTOPILOT",
+          variables: args.variables ? JSON.stringify(args.variables) : null, status: blindRequested ? "PREREGISTERED" : "PROPOSED", isBlind: blindRequested,
+          visibleConfig: args.visibleConfig ? JSON.stringify(args.visibleConfig) : null,
+          hiddenConfig: blindRequested || requestSource === "SYSTEM" || requestSource === "RESEARCHER" ? (args.hiddenConfig ? JSON.stringify(args.hiddenConfig) : null) : null,
         }).returning();
         result = { success: true, experiment: filterExperimentForAgent(exp, agentId) };
         break;
@@ -198,8 +226,14 @@ export async function executeTool(
         const id = String(args.experimentId || "");
         if (!id) throw new Error("experimentId is required");
         await assertAgentExperiment(id, agentId);
+        const currentRows = await db.select({ isBlind: experiments.isBlind, status: experiments.status }).from(experiments).where(eq(experiments.id, id)).limit(1);
+        const current = currentRows[0];
+        const requestedStatus = args.state || args.status;
+        if (current?.isBlind && (requestedStatus === "REVEALED" || requestedStatus === "CONCLUDED") && requestSource !== "SYSTEM" && requestSource !== "RESEARCHER") {
+          throw new Error("Blind experiment reveal/conclusion is controller-controlled.");
+        }
         const updateValues: any = {};
-        if (args.state || args.status) updateValues.status = args.state || args.status;
+        if (requestedStatus) updateValues.status = requestedStatus;
         if (args.actualBehavior || args.results) updateValues.results = args.actualBehavior || args.results;
         if (args.conclusion) updateValues.conclusion = args.conclusion;
         if (args.observedPatterns || args.possibleExplanations || args.alternativeExplanations) updateValues.variables = JSON.stringify({ observedPatterns: args.observedPatterns || [], possibleExplanations: args.possibleExplanations || [], alternativeExplanations: args.alternativeExplanations || [] });
@@ -277,9 +311,12 @@ export async function executeTool(
       }
 
       case "read_agent_messages": {
-        const filterAgentId = String(args.agentId || agentId);
+        const requestedAgentId = String(args.agentId || agentId);
+        if (requestSource !== "SYSTEM" && requestSource !== "RESEARCHER" && requestedAgentId !== agentId) {
+          throw new Error("Agent may only read its own interaction stream.");
+        }
         result = await db.select().from(agentInteractions)
-          .where(or(eq(agentInteractions.senderId, filterAgentId), eq(agentInteractions.receiverId, filterAgentId)))
+          .where(or(eq(agentInteractions.senderId, agentId), eq(agentInteractions.receiverId, agentId)))
           .orderBy(desc(agentInteractions.createdAt)).limit(Math.min(Math.max(Number(args.limit) || 20, 1), 100));
         break;
       }
