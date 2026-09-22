@@ -424,7 +424,7 @@ export async function getProvenanceTrace(
         interpretation: claim,
       },
       stages,
-      rawEvidenceHash,
+      rawEvidenceHash: rawEventHash,
       rawEventSequence: rawSequence,
       isBlindRestricted: isBlind,
     };
