@@ -554,7 +554,12 @@ export async function runPerturbationLab(options: {
     predictionAccuracy: targetObserved ? 1 : 0,
     meanBrier: (prediction.confidence - (targetObserved ? 1 : 0)) ** 2,
     toolCalls,
-    results: { perturbation: perturbationAudit, summaries, scores, sandbox: sandbox.ok ? { ok: true, stdout: sandbox.stdout } : sandbox },
+    results: [
+      { perturbation: perturbationAudit },
+      { summaries },
+      { scores },
+      { sandbox: sandbox.ok ? { ok: true, stdout: sandbox.stdout } : sandbox },
+    ],
   });
 
   await db.insert(timelineEvents).values({
