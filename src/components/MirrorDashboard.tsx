@@ -169,14 +169,14 @@ export default function MirrorDashboard() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#050711] text-slate-100 font-sans">
+    <div className="mirror-dashboard min-h-screen flex flex-col text-slate-100 font-sans">
       {/* HEADER */}
-      <header className="border-b border-slate-800/80 bg-[#090d19]/90 backdrop-blur-md sticky top-0 z-50 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-purple-600 via-indigo-500 to-cyan-400 p-[1px] shadow-lg shadow-purple-500/20">
-              <div className="w-full h-full bg-[#090d19] rounded-[7px] flex items-center justify-center">
-                <Brain className="w-5 h-5 text-cyan-400 animate-pulse" />
+      <header className="mirror-header sticky top-0 z-50">
+        <div className="mirror-header__brand">
+          <div className="mirror-brand">
+            <div className="mirror-brand__mark">
+              <div className="mirror-brand__mark-inner">
+                <Brain className="w-5 h-5 text-red-400" />
               </div>
             </div>
             <div>
@@ -192,7 +192,7 @@ export default function MirrorDashboard() {
         </div>
 
         {/* Status Bar */}
-        <div className="flex items-center space-x-4 text-xs font-mono">
+        <div className="mirror-header__actions text-xs font-mono">
           <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-md">
             <Shield className="w-3.5 h-3.5 text-emerald-400" />
             <span className="text-slate-400">Ledger Status:</span>
@@ -244,7 +244,7 @@ export default function MirrorDashboard() {
       </header>
 
       {/* NAVIGATION TABS */}
-      <nav className="border-b border-slate-800/60 bg-[#070b16] px-6 flex items-center space-x-1 overflow-x-auto scrollbar-none">
+      <nav className="mirror-index overflow-x-auto scrollbar-none">
         {[
           { id: "overview", label: "Overview", icon: Activity },
           { id: "researchintegrity", label: "RESEARCH INTEGRITY", icon: Shield },
@@ -282,7 +282,7 @@ export default function MirrorDashboard() {
       </nav>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 p-6 overflow-y-auto space-y-6">
+      <main className="mirror-main flex-1 overflow-y-auto space-y-6">
         {/* OVERVIEW TAB */}
         {activeTab === "overview" && (
           <div className="space-y-6">
@@ -537,10 +537,10 @@ export default function MirrorDashboard() {
                         <td className="p-3 text-slate-400 text-[10px]">
                           {ev.requestId || "—"}
                         </td>
-                        <td className="p-3 text-emerald-400 font-mono text-[10px] title={ev.eventHash}">
+                        <td className="p-3 text-emerald-400 font-mono text-[10px]" title={ev.eventHash}>
                           {ev.eventHash ? `${ev.eventHash.slice(0, 14)}...` : "—"}
                         </td>
-                        <td className="p-3 text-slate-500 font-mono text-[10px] title={ev.previousEventHash}">
+                        <td className="p-3 text-slate-500 font-mono text-[10px]" title={ev.previousEventHash}>
                           {ev.previousEventHash ? `${ev.previousEventHash.slice(0, 10)}...` : "—"}
                         </td>
                         <td className="p-3">
