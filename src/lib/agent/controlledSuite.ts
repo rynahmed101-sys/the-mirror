@@ -14,7 +14,8 @@ import { nanoid } from "nanoid";
 import { aiRegistry } from "../ai/registry";
 import type { ChatMessage } from "../ai/provider";
 import { getSystemPrompt } from "./prompts";
-import { runToolLoop, executeTool } from "./autopilot";
+import { runToolLoop } from "./autopilot";
+import { executeTool } from "./executor";
 import { revealExperiment } from "./blindIsolation";
 import { appendRawEventLedger } from "./eventLedger";
 
