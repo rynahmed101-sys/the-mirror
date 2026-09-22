@@ -183,6 +183,44 @@ export async function mirrorExperimentRun(run: MirrorRun) {
   }
 }
 
+type MirrorProjection = {
+  projectionId: string;
+  suiteId: string;
+  trialKey: string;
+  chamber: string;
+  agentId: string;
+  sessionId: string | null;
+  experimentId: string | null;
+  projection: unknown;
+  actualTrace: unknown;
+  comparison: unknown;
+  visualSvg?: string | null;
+};
+
+export async function mirrorSimulationProjection(projection: MirrorProjection) {
+  if (!isSupabaseMirrorConfigured) return { configured: false, mirrored: false };
+  try {
+    await post("mirror_simulation_projections", {
+      projection_id: projection.projectionId,
+      suite_id: projection.suiteId,
+      trial_key: projection.trialKey,
+      chamber: projection.chamber,
+      agent_id: projection.agentId,
+      session_id: projection.sessionId,
+      experiment_id: projection.experimentId,
+      projection: projection.projection,
+      actual_trace: projection.actualTrace,
+      comparison: projection.comparison,
+      visual_svg: projection.visualSvg ?? null,
+    });
+    await patchState({ enabled: true, last_success_at: new Date().toISOString(), last_error: null });
+    return { configured: true, mirrored: true };
+  } catch (error) {
+    await recordFailure(error);
+    return { configured: true, mirrored: false };
+  }
+}
+
 export async function mirrorExperimentArtifact(run: MirrorRun) {
   if (!isSupabaseMirrorConfigured) return { configured: false, stored: false };
   const payload = JSON.stringify({
@@ -201,7 +239,7 @@ export async function mirrorExperimentArtifact(run: MirrorRun) {
   const storagePath = `${run.agentId}/${run.suiteId}.json`;
   try {
     const response = await fetch(
-      supabaseUrl! + "/storage/v1/object/mirror-experiment-artifacts/" + encodeURIComponent(storagePath),
+      supabaseUrl! + "/storage/v1/object/mirror-experiment-artifacts/" + storagePath.split("/").map(encodeURIComponent).join("/"),
       {
         method: "POST",
         headers: {
@@ -255,15 +293,17 @@ export async function getSupabaseMirrorStatus() {
   }
 
   try {
-    const [stateRows, healthRows] = await Promise.all([
+    const [stateRows, healthRows, projectionRows] = await Promise.all([
       getJson("mirror_replication_state?id=eq.1&select=*"),
       getJson("mirror_ledger_health?select=*"),
+      getJson("mirror_simulation_projections?select=id&limit=1"),
     ]);
     return {
       configured: true,
       enabled: Boolean(stateRows?.[0]?.enabled),
       state: stateRows?.[0] ?? null,
       ledgerHealth: healthRows?.[0] ?? null,
+      hasSimulationProjections: Array.isArray(projectionRows),
     };
   } catch (error) {
     return {
