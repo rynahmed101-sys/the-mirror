@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import AgentTerminal from "./AgentTerminal";
 import {
   Activity,
@@ -221,6 +222,14 @@ export default function MirrorDashboard() {
             <UserCheck className="w-3.5 h-3.5" />
             <span>Register External AI</span>
           </button>
+
+          <Link
+            href="/simulation"
+            className="flex items-center space-x-2 bg-purple-700 hover:bg-purple-600 text-white font-medium px-3 py-1.5 rounded-md text-xs transition"
+          >
+            <GitBranch className="w-3.5 h-3.5" />
+            <span>Projection Chamber</span>
+          </Link>
 
           <button
             onClick={fetchAllData}
