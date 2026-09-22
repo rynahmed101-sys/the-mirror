@@ -11,6 +11,7 @@ import {
   isDirectOllamaCloudUrl,
 } from "../src/lib/ai/ollama";
 import { resolveExternalActor } from "../src/lib/auth/externalActor";
+import { isTemporaryExternalToken } from "../src/lib/auth";
 
 
 test("the perturbation lattice is exactly 6 x 16 = 96 nodes", () => {
@@ -104,4 +105,11 @@ test("registered external agents retain ownership of their own identity", () => 
     () => resolveExternalActor({ kind: "AGENT", agentId: "agent_ext_9" }, "mirror-primary"),
     /may only act as its own agent/,
   );
+});
+
+
+test("legacy temporary lab tokens are still recognized as external guests", () => {
+  assert.equal(isTemporaryExternalToken({ name: "temporary-lab-access", permissions: "full" }), true);
+  assert.equal(isTemporaryExternalToken({ name: "other-control-token", permissions: "full" }), false);
+  assert.equal(isTemporaryExternalToken({ name: "new-lab-token", permissions: "external_experiment" }), true);
 });
