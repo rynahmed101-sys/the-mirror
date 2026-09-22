@@ -80,3 +80,11 @@ test("only ollama.com is treated as direct Ollama Cloud API", () => {
   assert.equal(isDirectOllamaCloudUrl("https://example.internal/api"), false);
   assert.equal(isDirectOllamaCloudUrl("http://localhost:11434/api"), false);
 });
+
+test("registration headers can carry an optional control token without storing it", () => {
+  assert.deepEqual(buildJsonAuthHeaders("  mirror-test-token  "), {
+    "Content-Type": "application/json",
+    Authorization: "Bearer mirror-test-token",
+  });
+  assert.deepEqual(buildJsonAuthHeaders(""), { "Content-Type": "application/json" });
+});
