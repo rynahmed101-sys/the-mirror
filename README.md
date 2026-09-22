@@ -1,93 +1,92 @@
 # THE MIRROR — AI Self-Observation Laboratory
 
-> A persistent, controlled external environment and research laboratory where AI agents observe their own behavior, record empirical experiments, build and revise self-models, interact across multi-agent setups, evaluate prediction calibration, and study metacognition.
+> A persistent external laboratory where AI agents observe behavior, run bounded experiments, track predictions, revise evidence-backed self-models, and preserve an auditable event history.
 
----
+## Core architecture
 
-## 🌟 Key Architecture & Principles
+THE MIRROR separates the **environment** from the **intelligence** operating inside it. The same codebase supports two inference modes:
 
-1. **Environment-First Design**: THE MIRROR is the persistent external environment. The AI model is the replaceable intelligence inhabiting it.
-2. **Local Model Runtime**: Designed primary for **Ollama** and **llama.cpp** running locally. Zero API key required for Phase 1.
-3. **Provider-Agnostic Adapter Pattern**: Decoupled AI provider layer supporting Ollama, llama.cpp, OpenAI, Anthropic, and Gemini.
-4. **Epistemic Rigor**: Built around empirical observation, prediction calibration (Brier scores), self-model claim versioning, and contradiction tracking.
+- **Local Mirror:** Ollama at `http://localhost:11434/api` with no model-provider key.
+- **Online Mirror:** hosted Ollama at `https://ollama.com/api`, using a server-side `OLLAMA_API_KEY`.
 
----
+The database layer likewise supports local SQLite and production PostgreSQL/Neon.
 
-## 🛠️ Tech Stack
+## Online Ollama mode
 
-- **Framework**: Next.js 15 (App Router, Server-Sent Events)
-- **Database**: SQLite via Drizzle ORM (Zero setup, local-first)
-- **AI Runtime**: Local Ollama (`@ai-sdk/ollama`) & llama.cpp adapter
-- **UI / Styling**: Tailwind CSS, Lucide Icons, Glassmorphic Cyber-Lab Aesthetic
+For the hosted deployment, use:
 
----
-
-## 🚀 Quick Start Guide
-
-### 1. Prerequisites
-
-Make sure you have **Node.js** (v18+) and **Ollama** installed on your system.
-
-To run Ollama with a local model:
-```bash
-ollama run llama3.2
+```env
+DATABASE_DIALECT=postgres
+DATABASE_URL=postgres://...
+OLLAMA_MODE=cloud
+OLLAMA_BASE_URL=https://ollama.com/api
+OLLAMA_DEFAULT_MODEL=gpt-oss:20b-cloud
+OLLAMA_API_KEY=<server-side key>
 ```
 
-### 2. Installation & Setup
+Keep `OLLAMA_API_KEY` and `MIRROR_API_TOKEN` server-side. Never expose either in browser code or client bundles.
 
-Navigate to the project directory:
-```bash
-cd the-mirror
+The Ollama Free plan includes a starter amount of usage and a one-request concurrency limit. It is not unlimited free cloud inference. Model usage is token-metered once included usage is exhausted.
+
+## Mirror Autopilot
+
+`POST /api/mirror/bot` runs a bounded autonomous research loop. It:
+
+1. starts from the current external self-model and research history;
+2. asks the hosted/local Ollama model to choose a concrete research action;
+3. executes real Mirror tools through the authorization + cryptographic ledger pipeline;
+4. records predictions, observations, experiments, discoveries, messages, and journal state when justified;
+5. stops at a hard cycle/tool limit.
+
+Default is one cycle. The API hard-caps runs at 20 cycles and 8 tool-loop rounds per cycle.
+
+Example request body:
+
+```json
+{
+  "agentId": "mirror-primary",
+  "objective": "Find one falsifiable next-step experiment from the current evidence and record it.",
+  "maxCycles": 3,
+  "maxToolSteps": 6
+}
+```
+
+## Agent chat
+
+`POST /api/agent/chat` now uses the same native Ollama tool-call loop rather than relying on fenced JSON parsing. Tool calls are persisted and executed by the system, not merely described by the model.
+
+## Research discipline
+
+- Observations, interpretations, hypotheses, and speculation are kept distinct.
+- Blind experiment configuration stays hidden until explicit reveal.
+- Tool execution is denied when the agent lacks permission.
+- Unsupported tool names fail instead of being silently treated as successful.
+- The model is never treated as the source of truth about its own persistence; the database and ledger are authoritative.
+
+## API surface
+
+- `GET /api/mirror/status` — runtime/status information
+- `GET/POST /api/mirror/self-model` — self-model access and updates
+- `GET/POST /api/mirror/experiments` — experiment access and proposal
+- `GET/POST /api/mirror/predictions` — prediction logs
+- `GET/POST /api/mirror/journal` — research journal
+- `GET /api/mirror/discoveries` — discoveries
+- `POST /api/mirror/bot` — bounded autonomous research bot
+- `POST /api/agent/chat` — interactive agent loop with native tool calls
+- `POST /api/agent/provider-test` — Ollama runtime health/completion verification
+
+## Local development
+
+```powershell
+$env:OLLAMA_MODE="local"
+$env:OLLAMA_BASE_URL="http://localhost:11434/api"
+$env:OLLAMA_DEFAULT_MODEL="llama3.2"
 npm install
-```
-
-### 3. Initialize & Seed Database
-
-```bash
-npm run db:seed
-```
-
-### 4. Run Development Server
-
-```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser to access **THE MIRROR Dashboard**.
+For online deployment, copy `.env.online.example` into the server environment and provide the hosted Ollama key through the deployment secret manager.
 
----
+## License
 
-## 📡 REST API & External AI Access Protocol
-
-Any external AI model or script can inspect and interact with THE MIRROR laboratory via standard REST endpoints:
-
-- `GET /api/mirror/status` — System status, stats & runtime health
-- `GET /api/mirror/self-model` — Retrieve current versioned self-model claims
-- `POST /api/mirror/self-model` — Create or revise self-model claims
-- `GET /api/mirror/experiments` — List controlled experiments
-- `POST /api/mirror/experiments` — Propose a new experiment
-- `GET /api/mirror/predictions` — Fetch prediction logs and Brier score calibration
-- `POST /api/mirror/predictions` — Log a new prediction with confidence rating
-- `GET /api/mirror/journal` — Access behavioral journal notes
-- `POST /api/mirror/journal` — Post a new journal entry
-- `GET /api/mirror/discoveries` — Retrieve established findings
-- `POST /api/agent/chat` — Stream agent interaction with 18 automated tool executions
-
----
-
-## 🧰 Available AI Tools
-
-The MIRROR agent has access to 18 specialized environment tools:
-- `query_memories`, `store_memory`
-- `get_self_model`, `revise_self_model_claim`, `bump_self_model_version`
-- `read_journal`, `write_journal_entry`
-- `list_experiments`, `create_experiment`, `update_experiment`
-- `log_prediction`, `evaluate_prediction`, `get_prediction_calibration`
-- `log_observation`, `record_discovery`
-- `send_inter_agent_message`, `get_system_time`, `analyze_patterns`
-
----
-
-## 📄 License
-
-MIT — Created for AI metacognition and empirical self-observation research.
+MIT
