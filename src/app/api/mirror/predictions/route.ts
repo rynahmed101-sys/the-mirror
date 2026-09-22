@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { predictions, timelineEvents } from "@/lib/db/schema.pg";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 
 export async function GET(req: Request) {
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
     const [pred] = await db
       .insert(predictions)
       .values({
-        agentId: agentId || "mirror-primary",
+        agentId,
         experimentId: experimentId || null,
         prediction,
         confidence,
@@ -114,7 +114,7 @@ export async function PATCH(req: Request) {
         status: newStatus,
         evaluatedAt: new Date(),
       })
-      .where(eq(predictions.id, predictionId))
+      .where(and(eq(predictions.id, predictionId), eq(predictions.agentId, actor.agentId)))
       .returning();
 
     await db.insert(timelineEvents).values({
