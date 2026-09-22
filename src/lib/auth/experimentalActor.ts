@@ -2,8 +2,8 @@ import { db, isPg } from "../db";
 import * as sqliteSchema from "../db/schema";
 import * as pgSchema from "../db/schema.pg";
 import { eq } from "drizzle-orm";
-import { resolveRequestPrincipal } from "./index";
-import type { ApiPrincipal } from "./index";
+import { resolveRequestPrincipal } from "../auth";
+import type { ApiPrincipal } from "../auth";
 import { resolveExternalActor } from "./externalActor";
 
 const tables: any = isPg ? pgSchema : sqliteSchema;
