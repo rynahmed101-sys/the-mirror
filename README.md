@@ -75,6 +75,11 @@ Example request body:
 - `POST /api/agent/chat` — interactive agent loop with native tool calls
 - `POST /api/agent/provider-test` — Ollama runtime health/completion verification
 
+
+## Projection & stress laboratory
+
+The authenticated admin surface includes the Projection Chamber, temporary control-token issuance/revocation, bounded 50-writer ledger stress testing, and isolated Vercel Sandbox probes. The pre-action projection suite contains 20 controller-owned chambers and records forecasts separately from observed traces.
+
 ## Local development
 
 ```powershell
