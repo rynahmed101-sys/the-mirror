@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { extractBearerToken, validateApiToken } from "@/lib/auth";
+import { extractBearerToken, resolveApiPrincipal } from "@/lib/auth";
 import { runAutopilot } from "@/lib/agent/autopilot";
 
 /**
@@ -10,14 +10,19 @@ import { runAutopilot } from "@/lib/agent/autopilot";
  */
 export async function POST(req: Request) {
   const token = extractBearerToken(req.headers.get("authorization"));
-  if (!token || !(await validateApiToken(token))) {
+  const principal = token ? await resolveApiPrincipal(token) : null;
+  if (!principal) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const body = await req.json().catch(() => ({}));
+    const requestedAgentId = typeof body.agentId === "string" ? body.agentId : "mirror-primary";
+    if (principal.kind === "AGENT" && principal.agentId !== requestedAgentId) {
+      return NextResponse.json({ error:"Forbidden: agent key may only run its own agent." }, { status:403 });
+    }
     const result = await runAutopilot({
-      agentId: typeof body.agentId === "string" ? body.agentId : "mirror-primary",
+      agentId: requestedAgentId,
       objective: typeof body.objective === "string" ? body.objective : undefined,
       maxCycles: body.maxCycles,
       maxToolSteps: body.maxToolSteps,
