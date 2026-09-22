@@ -46,6 +46,10 @@ export type ApiPrincipal =
   | { kind: "AGENT"; agentId: string }
   | { kind: "TEMP_EXTERNAL"; tokenId: string };
 
+export function isTemporaryExternalToken(row: { permissions?: string | null; name?: string | null }): boolean {
+  return row.permissions === "external_experiment" || row.name === "temporary-lab-access";
+}
+
 /** Resolve a token to its least-privileged caller identity. */
 export async function resolveApiPrincipal(token: string): Promise<ApiPrincipal | null> {
   if (!token) return null;
@@ -63,7 +67,7 @@ export async function resolveApiPrincipal(token: string): Promise<ApiPrincipal |
 
   if (dbToken.length > 0) {
     const row = dbToken[0] as any;
-    if (row.permissions === "external_experiment") return { kind: "TEMP_EXTERNAL", tokenId: String(row.id) };
+    if (isTemporaryExternalToken(row)) return { kind: "TEMP_EXTERNAL", tokenId: String(row.id) };
     return { kind: "CONTROL", tokenType: "DB" };
   }
 
