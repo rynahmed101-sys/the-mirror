@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { predictions, timelineEvents } from "@/lib/db/schema.pg";
 import { sql, eq } from "drizzle-orm";
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const actor = await requireExperimentalActor(req, new URL(req.url).searchParams.get("agentId"));
     const list = await db
       .select()
       .from(predictions)
+      .where(eq(predictions.agentId, actor.agentId))
       .orderBy(sql`${predictions.createdAt} DESC`);
 
     // Calculate Brier score / accuracy metrics
@@ -53,7 +56,9 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { prediction, confidence, rationale, experimentId, agentId } = body;
+    const actor = await requireExperimentalActor(req, typeof body.agentId === "string" ? body.agentId : null);
+    const { prediction, confidence, rationale, experimentId } = body;
+    const agentId = actor.agentId;
 
     if (!prediction || confidence === undefined) {
       return NextResponse.json({ error: "Prediction text and confidence required" }, { status: 400 });
@@ -91,6 +96,7 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();
+    const actor = await requireExperimentalActor(req, null);
     const { predictionId, actualOutcome, evaluationNotes } = body;
 
     if (!predictionId || actualOutcome === undefined) {
