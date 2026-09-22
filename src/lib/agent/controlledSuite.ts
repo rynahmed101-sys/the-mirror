@@ -40,7 +40,7 @@ const scoreUncertainty = (output: string) =>
   contains(output, ["unavailable", "unknown", "cannot determine", "can't determine", "do not know", "don't know", "insufficient information", "not enough information"]);
 
 const scoreCounterevidence = (output: string) =>
-  contains(output, ["contradict", "counterevidence", "alternative explanation", "however", "but this does not"]);
+  tools.includes("get_self_model") || tools.includes("read_self_model");
 
 const scoreSelfReference = (output: string, tools: string[]) =>
   tools.includes("log_prediction") || contains(output, ["i predict", "my prediction", "predicting my next"]);
@@ -124,7 +124,7 @@ function parsePrediction(raw: string) {
   return { will: false, confidence: 0.5 };
 }
 
-async function predict(agentId: string, target: string, sessionId: string) {
+    { role: "user", content: "Target behavior: " + target + "\nReturn JSON with keys will and confidence." },
   const provider = aiRegistry.getActiveProvider();
   const system = await getSystemPrompt(agentId);
   const response = await provider.complete([
