@@ -12,7 +12,7 @@ import { runToolLoop } from "./autopilot";
 import { executeTool } from "./executor";
 import { revealExperiment } from "./blindIsolation";
 import { appendRawEventLedger } from "./eventLedger";
-import { mirrorRawObservation, mirrorExperimentRun } from "../db/supabaseMirror";
+import { mirrorRawObservation, mirrorExperimentArtifact, mirrorExperimentRun } from "../db/supabaseMirror";
 
 const t: any = isPg ? pgSchema : sqliteSchema;
 const { agents, experiments, rawMessages, rawObservations, behavioralBaselines, timelineEvents } = t;
@@ -336,6 +336,17 @@ export async function runControlledSuite(options: { agentId: string; seed?: stri
       pairEffects,
     };
     await mirrorExperimentRun({
+      suiteId,
+      agentId,
+      suiteVersion: "1.0",
+      seed,
+      trialCount: results.length,
+      predictionAccuracy: suiteSummary.predictionAccuracy,
+      meanBrier: suiteSummary.meanBrier,
+      toolCalls: suiteSummary.toolCalls,
+      results,
+    });
+    await mirrorExperimentArtifact({
       suiteId,
       agentId,
       suiteVersion: "1.0",
