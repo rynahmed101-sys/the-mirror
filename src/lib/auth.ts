@@ -43,7 +43,8 @@ export function hashToken(token: string): string {
 
 export type ApiPrincipal =
   | { kind: "CONTROL"; tokenType: "ENV" | "DB" | "SESSION" }
-  | { kind: "AGENT"; agentId: string };
+  | { kind: "AGENT"; agentId: string }
+  | { kind: "TEMP_EXTERNAL"; tokenId: string };
 
 /** Resolve a token to its least-privileged caller identity. */
 export async function resolveApiPrincipal(token: string): Promise<ApiPrincipal | null> {
@@ -60,7 +61,11 @@ export async function resolveApiPrincipal(token: string): Promise<ApiPrincipal |
     .where(eq(tokenTable.tokenHash, hashed))
     .limit(1);
 
-  if (dbToken.length > 0) return { kind: "CONTROL", tokenType: "DB" };
+  if (dbToken.length > 0) {
+    const row = dbToken[0] as any;
+    if (row.permissions === "external_experiment") return { kind: "TEMP_EXTERNAL", tokenId: String(row.id) };
+    return { kind: "CONTROL", tokenType: "DB" };
+  }
 
   if (isPg) {
     const agentKeys = await db.select().from(agentApiKeys);
@@ -101,7 +106,7 @@ export async function createApiToken(name: string, description?: string) {
     name,
     tokenPrefix: token.slice(0, 8) + "...",
     tokenHash: hashed,
-    permissions: "full",
+    permissions: "external_experiment",
   });
 
   return { id, token };
