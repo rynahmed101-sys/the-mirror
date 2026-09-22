@@ -15,7 +15,8 @@ async function authenticate(req: Request) {
 }
 
 export async function GET(req: Request) {
-  const principal = await authenticate(req);\n  if (!principal) return NextResponse.json({ error:"Unauthorized" }, { status:401 });
+  const principal = await authenticate(req);
+  if (!principal) return NextResponse.json({ error:"Unauthorized" }, { status:401 });
   if (principal.kind !== "CONTROL") return NextResponse.json({ error:"Forbidden" }, { status:403 });
   const provider = aiRegistry.getActiveProvider();
   const health = await aiRegistry.healthCheckFull("ollama");
