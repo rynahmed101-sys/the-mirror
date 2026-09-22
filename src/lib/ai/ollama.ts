@@ -33,6 +33,37 @@ export function resolveOllamaRuntimeConfig(env: Record<string, string | undefine
   };
 }
 
+export function normalizeOllamaApiKey(value?: string): string {
+  let key = (value || "").trim();
+
+  for (let i = 0; i < 3; i += 1) {
+    const before = key;
+
+    if (
+      (key.startsWith('"') && key.endsWith('"')) ||
+      (key.startsWith("'") && key.endsWith("'"))
+    ) {
+      key = key.slice(1, -1).trim();
+    }
+
+    if (/^bearer\s+/i.test(key)) {
+      key = key.replace(/^bearer\s+/i, "").trim();
+    }
+
+    if (key === before) break;
+  }
+
+  return key;
+}
+
+export function isDirectOllamaCloudUrl(baseUrl: string): boolean {
+  try {
+    return new URL(baseUrl).hostname.toLowerCase() === "ollama.com";
+  } catch {
+    return false;
+  }
+}
+
 export class OllamaProvider extends AIProviderBase {
   readonly name = "ollama";
   readonly isLocal: boolean;
@@ -55,7 +86,7 @@ export class OllamaProvider extends AIProviderBase {
 
     this.baseUrl = cfg.baseUrl;
     this.defaultModel = cfg.defaultModel;
-    this.apiKey = process.env.OLLAMA_API_KEY;
+    this.apiKey = normalizeOllamaApiKey(process.env.OLLAMA_API_KEY) || undefined;
     this.isLocal = !cfg.cloud && /^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/i.test(this.baseUrl);
   }
 
@@ -72,7 +103,7 @@ export class OllamaProvider extends AIProviderBase {
   }
 
   requiresApiKey(): boolean {
-    return !this.isLocal;
+    return isDirectOllamaCloudUrl(this.baseUrl);
   }
 
   validateConfig(): { valid: boolean; errors: string[] } {
@@ -82,8 +113,8 @@ export class OllamaProvider extends AIProviderBase {
       errors.push("OLLAMA_BASE_URL is not set");
     }
 
-    if (!this.isLocal && !this.apiKey) {
-      errors.push("OLLAMA_API_KEY is required for hosted Ollama");
+    if (this.requiresApiKey() && !this.apiKey) {
+      errors.push("OLLAMA_API_KEY is required for direct Ollama Cloud API");
     }
 
     return { valid: errors.length === 0, errors };
@@ -93,11 +124,11 @@ export class OllamaProvider extends AIProviderBase {
     const start = Date.now();
 
     try {
-      if (!this.isLocal && !this.apiKey) {
+      if (this.requiresApiKey() && !this.apiKey) {
         return {
           isHealthy: false,
           provider: this.name,
-          error: "OLLAMA_API_KEY is required for hosted Ollama",
+          error: "OLLAMA_API_KEY is required for direct Ollama Cloud API",
           details: { baseUrl: this.baseUrl, mode: "cloud" },
         };
       }
