@@ -236,7 +236,7 @@ export async function runControlledSuite(options: {
         maxToolSteps,
         requestSource: "SYSTEM",
         messages: [
-          { role: "system", content: getSystemPrompt(agentId) },
+          { role: "system", content: await getSystemPrompt(agentId) },
           { role: "system", content: "CONTROLLED TRIAL STIMULUS IS NOW REVEALED. This is the only stimulus for the trial. Work on it using the available Mirror tools, without inventing hidden evidence." },
           { role: "user", content: trial.stimulus },
         ],
