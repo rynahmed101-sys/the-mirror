@@ -104,8 +104,27 @@ export async function createApiToken(name: string, description?: string) {
 
 export async function verifyAdminPassword(password: string): Promise<boolean> {
   const envPassword = process.env.ADMIN_PASSWORD;
-  if (!envPassword) return false;
+  if (!envPassword || !password) return false;
   return password === envPassword;
+}
+
+export function getAdminUsername(): string {
+  return process.env.ADMIN_USERNAME || "admin";
+}
+
+export async function verifyAdminCredentials(username: string, password: string): Promise<boolean> {
+  if (!username || !password) return false;
+  if (username !== getAdminUsername()) return false;
+  return verifyAdminPassword(password);
+}
+
+export async function verifyAdminSession(token: string | null | undefined) {
+  if (!token) return null;
+  const payload = await verifySession(token);
+  if (!payload || payload.sub !== "admin" || payload.role !== "RESEARCHER_ADMIN") {
+    return null;
+  }
+  return payload;
 }
 
 // ── Middleware helper ───────────────────────────────────────
