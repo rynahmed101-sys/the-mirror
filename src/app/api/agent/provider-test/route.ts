@@ -6,16 +6,17 @@
 import { NextResponse } from "next/server";
 import { aiRegistry } from "@/lib/ai/registry";
 import { resolveRequestPrincipal } from "@/lib/auth";
+import { constrainAgentId } from "@/lib/auth/agentScope";
 
 export const runtime = "nodejs";
 
-async function authenticate(req: Request): Promise<boolean> {
-  const principal = await resolveRequestPrincipal(req);
-  return principal?.kind === "CONTROL";
+async function authenticate(req: Request) {
+  return resolveRequestPrincipal(req);
 }
 
 export async function GET(req: Request) {
-  if (!(await authenticate(req))) return NextResponse.json({ error:"Unauthorized" }, { status:401 });
+  const principal = await authenticate(req);\n  if (!principal) return NextResponse.json({ error:"Unauthorized" }, { status:401 });
+  if (principal.kind !== "CONTROL") return NextResponse.json({ error:"Forbidden" }, { status:403 });
   const provider = aiRegistry.getActiveProvider();
   const health = await aiRegistry.healthCheckFull("ollama");
   return NextResponse.json({
@@ -30,10 +31,12 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!(await authenticate(req))) return NextResponse.json({ error:"Unauthorized" }, { status:401 });
+  const principal = await authenticate(req);\n  if (!principal) return NextResponse.json({ error:"Unauthorized" }, { status:401 });
   const body = await req.json().catch(() => ({}));
   const prompt = typeof body.prompt === "string" && body.prompt.trim() ? body.prompt.trim() : "Reply in one sentence confirming that the Mirror online runtime is reachable.";
-  const agentId = typeof body.agentId === "string" ? body.agentId : "mirror-primary";
+  let agentId: string;
+  try { agentId = constrainAgentId(principal, typeof body.agentId === "string" ? body.agentId : null) || "mirror-primary"; }
+  catch (error:any) { return NextResponse.json({ error: "Forbidden: " + error.message }, { status:403 }); }
   const provider = aiRegistry.getActiveProvider();
   const start = Date.now();
 
