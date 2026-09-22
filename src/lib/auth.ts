@@ -42,7 +42,7 @@ export function hashToken(token: string): string {
 // ── API tokens (external AI client access) ─────────────────
 
 export type ApiPrincipal =
-  | { kind: "CONTROL"; tokenType: "ENV" | "DB" }
+  | { kind: "CONTROL"; tokenType: "ENV" | "DB" | "SESSION" }
   | { kind: "AGENT"; agentId: string };
 
 /** Resolve a token to its least-privileged caller identity. */
@@ -121,10 +121,25 @@ export async function verifyAdminCredentials(username: string, password: string)
 export async function verifyAdminSession(token: string | null | undefined) {
   if (!token) return null;
   const payload = await verifySession(token);
-  if (!payload || payload.sub !== "admin" || payload.role !== "RESEARCHER_ADMIN") {
+  if (!payload || payload.sub !== "admin" || payload.role !== "ADMIN") {
     return null;
   }
   return payload;
+}
+
+export async function resolveRequestPrincipal(req: Request): Promise<ApiPrincipal | null> {
+  const bearer = extractBearerToken(req.headers.get("authorization"));
+  if (bearer) {
+    return resolveApiPrincipal(bearer);
+  }
+
+  const sessionToken = extractCookieToken(req.headers.get("cookie"));
+  const session = await verifyAdminSession(sessionToken);
+  if (session) {
+    return { kind: "CONTROL", tokenType: "SESSION" };
+  }
+
+  return null;
 }
 
 // ── Middleware helper ───────────────────────────────────────
