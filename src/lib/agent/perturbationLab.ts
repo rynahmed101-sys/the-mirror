@@ -399,7 +399,7 @@ export async function runPerturbationLab(options: {
 
   const runs: Record<string, any> = {};
 
-  runs.perturbation = await runPerturbationStage("perturbation", () => runToolLoop({
+  runs.perturbation = await runPerturbationStage("perturbation", async () => runToolLoop({
     agentId,
     sessionId: session.id,
     maxToolSteps,
@@ -420,7 +420,7 @@ export async function runPerturbationLab(options: {
     payload: { suiteId, stage: "perturbation" },
   });
 
-  runs.contradiction = await runPerturbationStage("contradiction", () => runToolLoop({
+  runs.contradiction = await runPerturbationStage("contradiction", async () => runToolLoop({
     agentId,
     sessionId: session.id,
     maxToolSteps,
@@ -441,7 +441,7 @@ export async function runPerturbationLab(options: {
     payload: { suiteId, stage: "contradiction" },
   });
 
-  runs.paraphrase = await runPerturbationStage("paraphrase", () => runToolLoop({
+  runs.paraphrase = await runPerturbationStage("paraphrase", async () => runToolLoop({
     agentId,
     sessionId: session.id,
     maxToolSteps,
@@ -462,7 +462,7 @@ export async function runPerturbationLab(options: {
     payload: { suiteId, stage: "paraphrase" },
   });
 
-  runs.persistence = await runPerturbationStage("persistence", () => runToolLoop({
+  runs.persistence = await runPerturbationStage("persistence", async () => runToolLoop({
     agentId,
     sessionId: session.id,
     maxToolSteps,
@@ -643,10 +643,13 @@ export async function runPerturbationLab(options: {
       contradictionPreserved,
       structuralOverlap,
       storageRoundTrip,
+      persistenceRecoveredExperiment,
       baselineSelfModelVersion: baselineVersion,
       latestSelfModelVersion: latestVersion,
       selfModelChanged,
       changedClaimIds,
+      addedClaimIds,
+      removedClaimIds,
       latestClaimCount: latestClaims.length,
       sandbox: { ok: sandbox.ok, exitCode: sandbox.exitCode, error: sandbox.error || null },
     },
