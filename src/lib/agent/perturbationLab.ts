@@ -513,7 +513,7 @@ export async function runPerturbationLab(options: {
   const storageRoundTrip = persistenceRun.toolNames.some((x: string) => storageReadTools.includes(x));
   const persistenceRecoveredExperiment =
     persistenceRun.toolNames.includes("read_experiments") &&
-    persistenceRun.trace.some((entry: any) => {
+    runs.persistence.trace.some((entry: any) => {
       const result = JSON.stringify(entry.result || "");
       return result.includes(experimentId) ||
         result.includes("96-node sparse perturbation laboratory") ||
