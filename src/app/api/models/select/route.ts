@@ -3,8 +3,13 @@ import { aiRegistry } from "@/lib/ai/registry";
 import { db } from "@/lib/db";
 import { systemConfig, timelineEvents } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { resolveRequestPrincipal } from "@/lib/auth";
 
 export async function POST(req: Request) {
+  const principal = await resolveRequestPrincipal(req);
+  if (!principal || principal.kind !== "CONTROL") {
+    return NextResponse.json({ error: "Admin session or control token required." }, { status: 401 });
+  }
   try {
     const body = await req.json();
     const { provider, model } = body;
