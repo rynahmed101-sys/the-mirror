@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyInternalLabRequest } from "@/lib/auth/internalLab";
+import { resolveRequestPrincipal } from "@/lib/auth";
 import { runProjectionSuite } from "@/lib/agent/simulationProjection";
 import { runLedgerConcurrencyStress, runSandboxStress } from "@/lib/agent/stress";
 import { appendRawEventLedger } from "@/lib/agent/eventLedger";
@@ -7,8 +8,11 @@ import { appendRawEventLedger } from "@/lib/agent/eventLedger";
 export const maxDuration = 300;
 
 export async function POST(req: Request) {
-  if (!(await verifyInternalLabRequest(req))) {
-    return NextResponse.json({ error: "Internal lab authorization required." }, { status: 403 });
+  const principal = await resolveRequestPrincipal(req);
+  const adminAuthorized = principal?.kind === "CONTROL";
+  const internalAuthorized = await verifyInternalLabRequest(req);
+  if (!adminAuthorized && !internalAuthorized) {
+    return NextResponse.json({ error: "Admin session or internal lab authorization required." }, { status: 403 });
   }
 
   const body = await req.json().catch(() => ({}));

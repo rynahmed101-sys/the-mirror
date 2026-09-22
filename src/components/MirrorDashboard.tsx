@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import AdminLabControls from "./AdminLabControls";
 import AgentTerminal from "./AgentTerminal";
 import {
   Activity,
@@ -230,6 +231,8 @@ export default function MirrorDashboard() {
             <GitBranch className="w-3.5 h-3.5" />
             <span>Projection Chamber</span>
           </Link>
+
+          <AdminLabControls />
 
           <button
             onClick={fetchAllData}
