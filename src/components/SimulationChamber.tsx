@@ -94,8 +94,8 @@ export default function SimulationChamber() {
   const meanGap = useMemo(() => comparison.length ? comparison.reduce((n:any,x:any)=>n+Number(x.meanRealityGap||0),0)/comparison.length : null,[comparison]);
 
   return (
-    <div className="min-h-screen bg-[#050711] text-slate-100 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="mirror-lab-page">
+      <div className="mirror-lab-shell space-y-6">
         <div className="flex items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
