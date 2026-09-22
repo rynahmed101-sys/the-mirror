@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { resolveRequestPrincipal } from "@/lib/auth";
-import { runPerturbationLab } from "@/lib/agent/perturbationLab";
+import { PerturbationLabError, runPerturbationLab } from "@/lib/agent/perturbationLab";
 
 export const maxDuration = 300;
 
@@ -20,10 +20,12 @@ export async function POST(req: Request) {
       maxToolSteps: body.maxToolSteps,
     }));
   } catch (error: any) {
+    const isLabError = error instanceof PerturbationLabError;
     return NextResponse.json({
       success: false,
-      error: "Perturbation laboratory failed.",
+      error: isLabError ? error.code : "PERTURBATION_LAB_FAILED",
       details: error?.message || String(error),
-    }, { status: 500 });
+      stage: isLabError ? error.stage || null : null,
+    }, { status: isLabError ? error.statusCode : 500 });
   }
 }
