@@ -5,8 +5,8 @@
  */
 
 import { db, isPg } from "./db";
-import { apiTokens as sqliteApiTokens } from "./db/schema";
-import { apiTokens as pgApiTokens, agentApiKeys, agents as pgAgents } from "./db/schema.pg";
+import { apiTokens as sqliteApiTokens, agentApiKeys as sqliteAgentApiKeys, agents as sqliteAgents } from "./db/schema";
+import { apiTokens as pgApiTokens, agentApiKeys as pgAgentApiKeys, agents as pgAgents } from "./db/schema.pg";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import bcrypt from "bcryptjs";
@@ -71,14 +71,14 @@ export async function resolveApiPrincipal(token: string): Promise<ApiPrincipal |
     return { kind: "CONTROL", tokenType: "DB" };
   }
 
-  if (isPg) {
-    const agentKeys = await db.select().from(agentApiKeys);
-    for (const key of agentKeys) {
-      if (await bcrypt.compare(token, key.apiKeyHash)) {
-        const agentRows = await db.select({ isActive: pgAgents.isActive }).from(pgAgents).where(eq(pgAgents.id, key.agentId)).limit(1);
-        if (!agentRows.length || agentRows[0].isActive === false) return null;
-        return { kind: "AGENT", agentId: key.agentId };
-      }
+  const agentKeyTable = isPg ? pgAgentApiKeys : sqliteAgentApiKeys;
+  const agentTable = isPg ? pgAgents : sqliteAgents;
+  const agentKeys = await db.select().from(agentKeyTable);
+  for (const key of agentKeys) {
+    if (await bcrypt.compare(token, key.apiKeyHash)) {
+      const agentRows = await db.select({ isActive: agentTable.isActive }).from(agentTable).where(eq(agentTable.id, key.agentId)).limit(1);
+      if (!agentRows.length || agentRows[0].isActive === false) return null;
+      return { kind: "AGENT", agentId: key.agentId };
     }
   }
 
