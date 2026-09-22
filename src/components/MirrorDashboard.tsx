@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import AgentTerminal from "./AgentTerminal";
 import {
   Activity,
   Cpu,
@@ -95,7 +96,7 @@ export default function MirrorDashboard() {
         fetch("/api/v1/agents").then((r) => r.json()).catch(() => []),
         fetch("/api/v1/sessions").then((r) => r.json()).catch(() => []),
         fetch("/api/v1/events?limit=50").then((r) => r.json()).catch(() => []),
-        fetch("/api/v1/self-model").then((r) => r.json()).catch(() => null),
+        fetch("/api/mirror/self-model", { cache: "no-store" }).then((r) => r.json()).catch(() => null),
         fetch("/api/v1/events/ledger?limit=50&order=desc").then((r) => r.json()).catch(() => null),
       ]);
 
@@ -702,6 +703,15 @@ export default function MirrorDashboard() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* AGENT TERMINAL TAB */}
+        {activeTab === "agent" && (
+          <AgentTerminal
+            agentId={selectedAgent}
+            model={statusData?.aiRuntime?.model}
+            onComplete={fetchAllData}
+          />
         )}
 
         {/* REST API PROTOCOL DOCS TAB */}
