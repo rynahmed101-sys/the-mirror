@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { resolveRequestPrincipal } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { agents, agentApiKeys } from "@/lib/db/schema.pg";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
 import { appendRawEventLedger } from "@/lib/agent/eventLedger";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
+
+const tables:any = isPg ? pgSchema : sqliteSchema;
+const { agents, agentApiKeys } = tables;
 
 export async function POST(req: Request) {
   const principal = await resolveRequestPrincipal(req);
