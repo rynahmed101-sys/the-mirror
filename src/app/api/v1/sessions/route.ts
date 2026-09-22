@@ -14,13 +14,13 @@ export async function GET(req: Request) {
     const agentId = searchParams.get("agentId");
     const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit")) || 50));
 
-    let query = db.select().from(agentSessions).orderBy(desc(agentSessions.createdAt)).limit(limit);
+    let query = db.select().from(agentSessions).orderBy(desc(agentSessions.startedAt)).limit(limit);
     if (agentId) {
       query = db
         .select()
         .from(agentSessions)
         .where(eq(agentSessions.agentId, agentId))
-        .orderBy(desc(agentSessions.createdAt))
+        .orderBy(desc(agentSessions.startedAt))
         .limit(limit) as any;
     }
 
