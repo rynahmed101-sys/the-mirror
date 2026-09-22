@@ -6,7 +6,7 @@
 
 import { db, isPg } from "./db";
 import { apiTokens as sqliteApiTokens } from "./db/schema";
-import { apiTokens as pgApiTokens, agentApiKeys } from "./db/schema.pg";
+import { apiTokens as pgApiTokens, agentApiKeys, agents as pgAgents } from "./db/schema.pg";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import bcrypt from "bcryptjs";
@@ -71,6 +71,8 @@ export async function resolveApiPrincipal(token: string): Promise<ApiPrincipal |
     const agentKeys = await db.select().from(agentApiKeys);
     for (const key of agentKeys) {
       if (await bcrypt.compare(token, key.apiKeyHash)) {
+        const agentRows = await db.select({ isActive: pgAgents.isActive }).from(pgAgents).where(eq(pgAgents.id, key.agentId)).limit(1);
+        if (!agentRows.length || agentRows[0].isActive === false) return null;
         return { kind: "AGENT", agentId: key.agentId };
       }
     }
