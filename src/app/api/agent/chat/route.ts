@@ -48,7 +48,7 @@ export async function POST(req:Request) {
             await db.insert(timelineEvents).values({eventType:"FRONT_DOOR_INTERACTION",title:"Front-door interaction: " + agentId,description:result.output.slice(0,150) + "...",agentId,metadata:JSON.stringify({inputLength:String(userMessage.content).length,outputLength:result.output.length,toolCalls:result.trace.length,rawObservationId:rawObs?.id || null})});
           }
           const configs = await db.select().from(systemConfig).limit(1);
-          if (configs.length) await db.update(systemConfig).set({totalAgentCycles:sql(totalAgentCyclesSafe())});
+          if (configs.length) await db.update(systemConfig).set({totalAgentCycles:sql`${systemConfig.totalAgentCycles} + 1`});
           send("delta",{content:result.output});
           send("done",{message:"Execution finished",steps:result.steps,toolCalls:result.trace.length,model:result.activeModel});
           controller.close();
