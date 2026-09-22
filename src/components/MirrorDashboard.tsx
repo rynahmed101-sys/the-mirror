@@ -87,6 +87,7 @@ export default function MirrorDashboard() {
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [newAgentData, setNewAgentData] = useState({ name: "", type: "LOCAL", provider: "ollama", model: "gpt-oss:20b-cloud" });
   const [registeredKey, setRegisteredKey] = useState<string | null>(null);
+  const [controlToken, setControlToken] = useState("");
 
   const fetchAllData = async () => {
     try {
@@ -138,13 +139,18 @@ export default function MirrorDashboard() {
     try {
       const res = await fetch("/api/v1/agents/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${controlToken}`,
+        },
         body: JSON.stringify(newAgentData),
       });
       const data = await res.json();
       if (data.apiKey) {
         setRegisteredKey(data.apiKey);
         fetchAllData();
+      } else {
+        alert(data.error || "Registration failed");
       }
     } catch (err: any) {
       alert("Registration failed: " + err.message);
@@ -767,6 +773,7 @@ export default function MirrorDashboard() {
                   onClick={() => {
                     setShowRegisterModal(false);
                     setRegisteredKey(null);
+                    setControlToken("");
                   }}
                   className="w-full py-2 bg-slate-800 text-slate-200 rounded font-bold"
                 >
@@ -775,6 +782,21 @@ export default function MirrorDashboard() {
               </div>
             ) : (
               <form onSubmit={handleRegisterAgent} className="space-y-4 text-xs font-mono">
+                <div>
+                  <label className="text-slate-400">Mirror Control Token:</label>
+                  <input
+                    type="password"
+                    required
+                    autoComplete="off"
+                    value={controlToken}
+                    onChange={(e) => setControlToken(e.target.value)}
+                    placeholder="Bearer token held in browser memory only"
+                    className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
+                  />
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    Required only for agent registration. Never stored by the page.
+                  </div>
+                </div>
                 <div>
                   <label className="text-slate-400">Agent Display Name:</label>
                   <input
@@ -811,7 +833,10 @@ export default function MirrorDashboard() {
                 <div className="flex justify-end space-x-2 pt-2">
                   <button
                     type="button"
-                    onClick={() => setShowRegisterModal(false)}
+                    onClick={() => {
+                      setShowRegisterModal(false);
+                      setControlToken("");
+                    }}
                     className="px-4 py-2 bg-slate-800 text-slate-300 rounded"
                   >
                     Cancel
