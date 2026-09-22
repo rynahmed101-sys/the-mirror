@@ -4,11 +4,13 @@ import { experiments, predictions, timelineEvents } from "@/lib/db/schema.pg";
 import { filterExperimentForAgent } from "@/lib/agent/blindIsolation";
 import { sql, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const agentId = searchParams.get("agentId") || req.headers.get("x-agent-id") || "mirror-primary";
+    const actor = await requireExperimentalActor(req, searchParams.get("agentId") || req.headers.get("x-agent-id"));
+    const agentId = actor.agentId;
 
     const list = await db
       .select()
@@ -44,7 +46,9 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { title, hypothesis, methodology, variables, isBlind, agentId, visibleConfig, hiddenConfig } = body;
+    const actor = await requireExperimentalActor(req, typeof body.agentId === "string" ? body.agentId : null);
+    const { title, hypothesis, methodology, variables, isBlind, visibleConfig, hiddenConfig } = body;
+    const agentId = actor.agentId;
 
     if (!title || !hypothesis) {
       return NextResponse.json({ error: "Title and hypothesis required" }, { status: 400 });
