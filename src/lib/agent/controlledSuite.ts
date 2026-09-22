@@ -12,7 +12,7 @@ import { runToolLoop } from "./autopilot";
 import { executeTool } from "./executor";
 import { revealExperiment } from "./blindIsolation";
 import { appendRawEventLedger } from "./eventLedger";
-import { mirrorRawObservation, mirrorExperimentRun } from "./supabaseMirror";
+import { mirrorRawObservation, mirrorExperimentRun } from "../db/supabaseMirror";
 
 const t: any = isPg ? pgSchema : sqliteSchema;
 const { agents, experiments, rawMessages, rawObservations, behavioralBaselines, timelineEvents } = t;

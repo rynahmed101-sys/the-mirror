@@ -14,7 +14,7 @@ import { rawEventLedger as rawEventLedgerPg, ledgerStateLock as ledgerStateLockP
 import { desc, asc, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { nanoid } from "nanoid";
-import { mirrorRawEvent } from "./supabaseMirror";
+import { mirrorRawEvent } from "../db/supabaseMirror";
 
 export const GENESIS_HASH = "0000000000000000000000000000000000000000000000000000000000000000";
 
