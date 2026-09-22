@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { extractBearerToken, resolveApiPrincipal } from "@/lib/auth";
 import { runAutopilot } from "@/lib/agent/autopilot";
+import { constrainAgentId } from "@/lib/auth/agentScope";
 
 /** One bounded autonomous cycle. Use /api/mirror/bot for multi-cycle runs. */
 export async function POST(req: Request) {
@@ -10,12 +11,12 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const requestedAgentId = typeof body.agentId === "string" ? body.agentId : "mirror-primary";
-    if (principal.kind === "AGENT" && principal.agentId !== requestedAgentId) {
-      return NextResponse.json({ error:"Forbidden: agent key may only run its own agent." }, { status:403 });
-    }
+    const requestedAgentId = typeof body.agentId === "string" ? body.agentId : null;
+    let agentId: string | undefined;
+    try { agentId = constrainAgentId(principal, requestedAgentId) || "mirror-primary"; }
+    catch (error:any) { return NextResponse.json({ error: "Forbidden: " + error.message }, { status:403 }); }
     const result = await runAutopilot({
-      agentId: requestedAgentId,
+      agentId,
       objective: typeof body.objective === "string" ? body.objective : undefined,
       maxCycles: 1,
       maxToolSteps: body.maxToolSteps,
