@@ -5,13 +5,13 @@
  */
 import { NextResponse } from "next/server";
 import { aiRegistry } from "@/lib/ai/registry";
-import { extractBearerToken, validateApiToken } from "@/lib/auth";
+import { resolveRequestPrincipal } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
 async function authenticate(req: Request): Promise<boolean> {
-  const token = extractBearerToken(req.headers.get("Authorization"));
-  return !!token && await validateApiToken(token);
+  const principal = await resolveRequestPrincipal(req);
+  return principal?.kind === "CONTROL";
 }
 
 export async function GET(req: Request) {
