@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { rawEventLedger } from "@/lib/db/schema";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 
 export async function GET(req: Request) {
@@ -16,9 +16,11 @@ export async function GET(req: Request) {
     let query = db.select().from(rawEventLedger);
 
     const agentId = actor.mode === "CONTROL" ? requestedAgentId : actor.agentId;
-    if (agentId) query = query.where(eq(rawEventLedger.agentId, agentId)) as any;
-    if (sessionId) query = query.where(eq(rawEventLedger.sessionId, sessionId)) as any;
-    if (eventType) query = query.where(eq(rawEventLedger.eventType, eventType)) as any;
+    const filters = [];
+    if (agentId) filters.push(eq(rawEventLedger.agentId, agentId));
+    if (sessionId) filters.push(eq(rawEventLedger.sessionId, sessionId));
+    if (eventType) filters.push(eq(rawEventLedger.eventType, eventType));
+    if (filters.length) query = query.where(and(...filters)) as any;
 
     const events = await query.orderBy(sql`${rawEventLedger.timestamp} DESC`).limit(limit);
 
