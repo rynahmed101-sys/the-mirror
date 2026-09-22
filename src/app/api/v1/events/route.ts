@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { rawEventLedger } from "@/lib/db/schema";
 import { sql, eq, and } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 
 export async function GET(req: Request) {
@@ -16,7 +17,7 @@ export async function GET(req: Request) {
     let query = db.select().from(rawEventLedger);
 
     const agentId = actor.mode === "CONTROL" ? requestedAgentId : actor.agentId;
-    const filters = [];
+    const filters: SQL<unknown>[] = [];
     if (agentId) filters.push(eq(rawEventLedger.agentId, agentId));
     if (sessionId) filters.push(eq(rawEventLedger.sessionId, sessionId));
     if (eventType) filters.push(eq(rawEventLedger.eventType, eventType));
