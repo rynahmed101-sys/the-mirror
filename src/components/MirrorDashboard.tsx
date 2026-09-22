@@ -129,20 +129,9 @@ export default function MirrorDashboard() {
   };
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
-
-    const scheduleRefresh = () => {
-      if (document.visibilityState === "visible") fetchAllData();
-    };
-
-    scheduleRefresh();
-    interval = setInterval(scheduleRefresh, 15000);
-    document.addEventListener("visibilitychange", scheduleRefresh);
-
-    return () => {
-      if (interval) clearInterval(interval);
-      document.removeEventListener("visibilitychange", scheduleRefresh);
-    };
+    fetchAllData();
+    const interval = setInterval(fetchAllData, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   // Register New External Agent

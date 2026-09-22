@@ -1,16 +1,9 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "THE MIRROR — AI Self-Observation Laboratory",
   description: "An external persistent environment and research laboratory for AI self-modeling, hypothesis testing, metacognition, and self-observation.",
-};
-
-export const viewport: Viewport = {
-  themeColor: "#050505",
-  colorScheme: "dark",
-  width: "device-width",
-  initialScale: 1,
 };
 
 export default function RootLayout({
