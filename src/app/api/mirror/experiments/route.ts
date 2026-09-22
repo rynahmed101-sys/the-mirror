@@ -12,10 +12,14 @@ export async function GET(req: Request) {
     const actor = await requireExperimentalActor(req, searchParams.get("agentId") || req.headers.get("x-agent-id"));
     const agentId = actor.agentId;
 
-    const list = await db
-      .select()
-      .from(experiments)
-      .orderBy(sql`${experiments.createdAt} DESC`);
+    let query = db.select().from(experiments);
+    const requestedAgentId = searchParams.get("agentId") || req.headers.get("x-agent-id");
+    if (actor.mode !== "CONTROL") {
+      query = query.where(eq(experiments.agentId, agentId)) as any;
+    } else if (requestedAgentId) {
+      query = query.where(eq(experiments.agentId, agentId)) as any;
+    }
+    const list = await query.orderBy(sql`${experiments.createdAt} DESC`);
 
     const result: any[] = [];
     for (const exp of list) {
@@ -52,6 +56,9 @@ export async function POST(req: Request) {
 
     if (!title || !hypothesis) {
       return NextResponse.json({ error: "Title and hypothesis required" }, { status: 400 });
+    }
+    if (isBlind && actor.mode !== "CONTROL") {
+      return NextResponse.json({ error: "Blind experiments must be created through the controller/researcher path." }, { status: 403 });
     }
 
     const expId = nanoid();
