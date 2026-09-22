@@ -6,9 +6,10 @@
 
 import { db, isPg } from "./db";
 import { apiTokens as sqliteApiTokens } from "./db/schema";
-import { apiTokens as pgApiTokens } from "./db/schema.pg";
+import { apiTokens as pgApiTokens, agentApiKeys } from "./db/schema.pg";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import bcrypt from "bcryptjs";
 import { createHash } from "crypto";
 import { SignJWT, jwtVerify } from "jose";
 
@@ -58,6 +59,16 @@ export async function validateApiToken(token: string): Promise<boolean> {
 
   if (dbToken.length > 0) {
     return true;
+  }
+
+  // External agent keys use bcrypt hashes in production PostgreSQL.
+  if (isPg) {
+    const agentKeys = await db.select().from(agentApiKeys);
+    for (const key of agentKeys) {
+      if (await bcrypt.compare(token, key.apiKeyHash)) {
+        return true;
+      }
+    }
   }
 
   return false;
