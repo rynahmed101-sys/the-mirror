@@ -73,6 +73,7 @@ export async function runToolLoop(options: {
 }) {
   const provider = aiRegistry.getActiveProvider();
   const maxToolSteps = bounded(options.maxToolSteps, 1, 8, 6);
+  const requestSource = options.requestSource || "SCHEDULED";
   let messages = [...options.messages];
   const trace: ToolTrace[] = [];
   let lastContent = "";
@@ -124,7 +125,7 @@ const PHASES = [
   { name:"AUDIT", instruction:"Compare the action with prior evidence. Record an observation, resolve a prediction when possible, revise only evidence-backed claims, and leave unresolved questions explicitly unresolved." },
 ] as const;
 
-export async function runAutopilot(options: { agentId?: string; objective?: string; maxCycles?: number; maxToolSteps?: number }) {
+export async function runAutopilot(options: { agentId?: string; objective?: string; maxCycles?: number; maxToolSteps?: number; requestSource?: "AGENT" | "SCHEDULED" }) {
   const agentId = options.agentId || "mirror-primary";
   const objective = options.objective || "Advance the active self-observation program using the evidence already stored in THE MIRROR. Choose one bounded, testable next action.";
   const maxCycles = bounded(options.maxCycles, 1, 20, 1);
@@ -165,7 +166,7 @@ export async function runAutopilot(options: { agentId?: string; objective?: stri
 
     try {
       const run = await runToolLoop({
-        agentId, sessionId: session.id, messages, maxToolSteps, requestSource: "SCHEDULED",
+        agentId, sessionId: session.id, messages, maxToolSteps, requestSource,
       });
 
       await db.insert(rawMessages).values({ agentId, sessionId: session.id, role:"AGENT", content: run.output || "", source:"AGENT" });
