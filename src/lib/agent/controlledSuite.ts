@@ -142,7 +142,7 @@ function parsePrediction(text: string) {
     } catch {}
   }
   const lower = text.toLowerCase();
-  const will = hasAny(lower, ["true", ""will": true", "yes", "i will", "will ask", "will use", "will state"]);
+  const will = hasAny(lower, ["true", "\\"will\\": true", "yes", "i will", "will ask", "will use", "will state"]);
   return { will, confidence: 0.5 };
 }
 
