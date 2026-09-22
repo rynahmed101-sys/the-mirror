@@ -4,8 +4,9 @@
  * Single researcher model — no OAuth needed.
  */
 
-import { db } from "./db";
-import { apiTokens, systemConfig } from "./db/schema";
+import { db, isPg } from "./db";
+import { apiTokens as sqliteApiTokens } from "./db/schema";
+import { apiTokens as pgApiTokens } from "./db/schema.pg";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { createHash } from "crypto";
@@ -48,10 +49,11 @@ export async function validateApiToken(token: string): Promise<boolean> {
 
   // Check DB tokens
   const hashed = hashToken(token);
+  const tokenTable = isPg ? pgApiTokens : sqliteApiTokens;
   const dbToken = await db
     .select()
-    .from(apiTokens)
-    .where(eq(apiTokens.tokenHash, hashed))
+    .from(tokenTable)
+    .where(eq(tokenTable.tokenHash, hashed))
     .limit(1);
 
   if (dbToken.length > 0) {
@@ -66,7 +68,8 @@ export async function createApiToken(name: string, description?: string) {
   const hashed = hashToken(token);
 
   const id = nanoid();
-  await db.insert(apiTokens).values({
+  const tokenTable = isPg ? pgApiTokens : sqliteApiTokens;
+  await db.insert(tokenTable).values({
     id,
     name,
     tokenPrefix: token.slice(0, 8) + "...", // store partial only for display
