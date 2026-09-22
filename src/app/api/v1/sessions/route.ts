@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { extractBearerToken, resolveApiPrincipal, validateControlToken } from "@/lib/auth";
 import { db, isPg } from "@/lib/db";
 import * as sqliteSchema from "@/lib/db/schema";
 import * as pgSchema from "@/lib/db/schema.pg";
@@ -32,11 +33,18 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const token = extractBearerToken(req.headers.get("authorization"));
+  const principal = token ? await resolveApiPrincipal(token) : null;
+  if (!principal) return NextResponse.json({ error:"Unauthorized" }, { status:401 });
+
   try {
     const body = await req.json();
     const { action, agentId, displayName, provider, model } = body;
 
     if (action === "REGISTER_AGENT") {
+      if (!(await validateControlToken(token!))) {
+        return NextResponse.json({ error:"Control token required to register an agent." }, { status:403 });
+      }
       const id = agentId || `agent-${nanoid(6)}`;
       const [newAgent] = await db
         .insert(agents)
@@ -67,6 +75,10 @@ export async function POST(req: Request) {
     if (action === "START_SESSION") {
       if (!agentId) {
         return NextResponse.json({ error: "agentId required to start session" }, { status: 400 });
+      }
+
+      if (principal.kind === "AGENT" && principal.agentId !== agentId) {
+        return NextResponse.json({ error:"Forbidden: agent key may only start its own session." }, { status:403 });
       }
 
       const [sess] = await db
