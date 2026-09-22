@@ -3,15 +3,18 @@ import { db } from "@/lib/db";
 import { rawObservations, derivedAnalysis } from "@/lib/db/schema.pg";
 import { processRawObservationToLayer1 } from "@/lib/agent/analysisEngine";
 import { sql, eq } from "drizzle-orm";
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 
 export async function GET(req: Request) {
   try {
+    const actor = await requireExperimentalActor(req, new URL(req.url).searchParams.get("agentId"));
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get("limit") || "50");
 
     const list = await db
       .select()
       .from(rawObservations)
+      .where(eq(rawObservations.agentId, actor.agentId))
       .orderBy(sql`${rawObservations.timestamp} DESC`)
       .limit(limit);
 
@@ -38,9 +41,11 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { agentId, eventType, input, output, toolCall, toolResult, prediction, actualResult } = body;
+    const actor = await requireExperimentalActor(req, typeof body.agentId === "string" ? body.agentId : null);
+    const { eventType, input, output, toolCall, toolResult, prediction, actualResult } = body;
+    const agentId = actor.agentId;
 
-    if (!agentId || !eventType) {
+    if (!eventType) {
       return NextResponse.json({ error: "agentId and eventType required" }, { status: 400 });
     }
 
