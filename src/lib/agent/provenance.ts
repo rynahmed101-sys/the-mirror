@@ -333,6 +333,11 @@ export async function getProvenanceTrace(
       }
     }
 
+    // Normalize DB naming differences so provenance never crashes while rendering a trace.
+    const rawEventHash = rawEventRecord?.eventHash ?? rawEventRecord?.event_hash ?? null;
+    const rawSequence = rawEventRecord?.sequenceNumber ?? rawEventRecord?.sequence_number ?? null;
+    const rawEventType = rawEventRecord?.eventType ?? rawEventRecord?.event_type ?? null;
+
     // Construct 7-stage lineage
     const stages = [
       {
@@ -369,7 +374,7 @@ export async function getProvenanceTrace(
         id: rawEventRecord?.id || "ledg-none",
         authoritative: true, // Authoritative raw evidence!
         summary: rawEventRecord
-          ? `Raw Event #${rawEventRecord.sequence_number} [${rawEventRecord.event_type}] Hash: ${rawEventRecord.event_hash.slice(0, 16)}...`
+          ? `Raw Event #${rawSequence ?? "?"} [${rawEventType ?? "UNKNOWN"}] Hash: ${rawEventHash ? rawEventHash.slice(0, 16) + "..." : "unavailable"}`
           : "No raw event",
         details: rawEventRecord,
       },
@@ -419,8 +424,8 @@ export async function getProvenanceTrace(
         interpretation: claim,
       },
       stages,
-      rawEvidenceHash: rawEventRecord?.event_hash || null,
-      rawEventSequence: rawEventRecord?.sequence_number || null,
+      rawEvidenceHash,
+      rawEventSequence: rawSequence,
       isBlindRestricted: isBlind,
     };
   } catch (err: any) {
