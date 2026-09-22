@@ -1,136 +1,70 @@
 import { NextResponse } from "next/server";
 import { aiRegistry } from "@/lib/ai/registry";
-import { executeTool } from "@/lib/agent/executor";
+import { runToolLoop } from "@/lib/agent/autopilot";
 import { getSystemPrompt } from "@/lib/agent/prompts";
-import { AGENT_TOOLS } from "@/lib/agent/tools";
-import { db } from "@/lib/db";
-import { systemConfig, timelineEvents, agentInteractions } from "@/lib/db/schema";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
+import type { ChatMessage } from "@/lib/ai/provider";
 import { sql } from "drizzle-orm";
 
-export async function POST(req: Request) {
+const tables:any = isPg ? pgSchema : sqliteSchema;
+const { systemConfig, rawMessages, rawObservations, timelineEvents } = tables;
+
+export async function POST(req:Request) {
   try {
-    const { messages, agentId = "mirror-primary", maxToolSteps = 5 } = await req.json();
+    const body = await req.json();
+    const messages = Array.isArray(body.messages) ? body.messages as ChatMessage[] : null;
+    const agentId = typeof body.agentId === "string" ? body.agentId : "mirror-primary";
+    const maxToolSteps = Math.min(8, Math.max(1, Number(body.maxToolSteps) || 5));
+    if (!messages) return NextResponse.json({ error:"Messages array required" }, { status:400 });
 
-    if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json({ error: "Messages array required" }, { status: 400 });
-    }
-
-    const provider = aiRegistry.getActiveProvider();
     const systemPrompt = await getSystemPrompt(agentId);
-
-    const fullMessages = [
-      { role: "system", content: systemPrompt },
+    const fullMessages:ChatMessage[] = [
+      { role:"system", content:systemPrompt },
+      { role:"system", content:
+        "FRONT-DOOR EVIDENCE RULE: Treat the supplied conversation as the complete interaction context. " +
+        "Never claim that a tool was called or state was persisted unless a tool result in this turn proves it. " +
+        "Separate direct observations, interpretations, hypotheses, and unresolved claims." },
       ...messages,
     ];
 
-    // Increment agent cycle counter
-    const configs = await db.select().from(systemConfig).limit(1);
-    if (configs.length > 0) {
-      await db
-        .update(systemConfig)
-        .set({
-          totalAgentCycles: sql`${systemConfig.totalAgentCycles} + 1`,
-        });
-    }
-
-    // Set up SSE response stream
-    const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
-        const sendEvent = (event: string, data: any) => {
-          controller.enqueue(
-            encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-          );
-        };
-
+        const encoder = new TextEncoder();
+        const send = (event:string, data:any) => controller.enqueue(encoder.encode("event: " + event + "\ndata: " + JSON.stringify(data) + "\n\n"));
         try {
-          sendEvent("status", { message: "Connecting to AI model...", agentId });
+          send("status",{message:"Running Mirror agent loop",agentId,provider:"ollama",mode:aiRegistry.getActiveProvider().isLocal ? "local" : "cloud"});
+          const result = await runToolLoop({
+            agentId, sessionId:null, messages:fullMessages, maxToolSteps, requestSource:"AGENT",
+            onToolCall: async (call,step) => send("tool_call",{tool:call.name,args:call.arguments,step}),
+            onToolResult: async (call,toolResult,step) => send("tool_result",{tool:call.name,result:toolResult,step}),
+          });
 
-          let currentMessages = [...fullMessages];
-          let toolStep = 0;
-          let continueLoop = true;
-
-          while (continueLoop && toolStep < maxToolSteps) {
-            toolStep++;
-            let accumulatedContent = "";
-
-            // Call provider stream — chunk is StreamChunk { type, content?, error? }
-            const textStream = provider.stream(currentMessages, {
-              temperature: 0.3,
-              tools: AGENT_TOOLS,
-            });
-
-            for await (const chunk of textStream) {
-              if (chunk.type === "error") {
-                sendEvent("error", { message: chunk.error || "Provider stream error" });
-                continueLoop = false;
-                break;
-              }
-              if (chunk.type === "done") break;
-              if (chunk.type === "text" && chunk.content) {
-                accumulatedContent += chunk.content;
-                sendEvent("delta", { content: chunk.content });
-              }
-            }
-
-            // Check if AI requested tool calls (JSON pattern or standard format)
-            const toolCallMatch = accumulatedContent.match(/```json\s*(\{[\s\S]*?"tool"[\s\S]*?\})\s*```/);
-            if (toolCallMatch) {
-              try {
-                const toolReq = JSON.parse(toolCallMatch[1]);
-                if (toolReq.tool && toolReq.arguments) {
-                  sendEvent("tool_call", {
-                    tool: toolReq.tool,
-                    args: toolReq.arguments,
-                    step: toolStep,
-                  });
-
-                  // Execute tool
-                  const toolResult = await executeTool(toolReq.tool, toolReq.arguments, agentId);
-
-                  sendEvent("tool_result", {
-                    tool: toolReq.tool,
-                    result: toolResult,
-                    step: toolStep,
-                  });
-
-                  // Append tool interaction to context and continue turn
-                  currentMessages.push({ role: "assistant", content: accumulatedContent });
-                  currentMessages.push({
-                    role: "user",
-                    content: `[TOOL_RESULT for ${toolReq.tool}]: ${JSON.stringify(toolResult)}`,
-                  });
-                  continue;
-                }
-              } catch (e) {
-                // Not a valid tool call, treat as final text
-              }
-            }
-
-            // If no tool call, complete turn
-            continueLoop = false;
+          const userMessage = [...messages].reverse().find((m:any) => m.role === "user");
+          if (userMessage && result.output) {
+            await db.insert(rawMessages).values([{agentId,role:"USER",content:String(userMessage.content),source:"EXTERNAL"},{agentId,role:"AGENT",content:result.output,source:"AGENT"}]);
+            const [rawObs] = await db.insert(rawObservations).values({agentId,eventType:"FRONT_DOOR_INTERACTION",input:String(userMessage.content),output:result.output}).returning();
+            await db.insert(timelineEvents).values({eventType:"FRONT_DOOR_INTERACTION",title:"Front-door interaction: " + agentId,description:result.output.slice(0,150) + "...",agentId,metadata:JSON.stringify({inputLength:String(userMessage.content).length,outputLength:result.output.length,toolCalls:result.trace.length,rawObservationId:rawObs?.id || null})});
           }
-
-          sendEvent("done", { message: "Execution finished", steps: toolStep });
+          const configs = await db.select().from(systemConfig).limit(1);
+          if (configs.length) await db.update(systemConfig).set({totalAgentCycles:sql(totalAgentCyclesSafe())});
+          send("delta",{content:result.output});
+          send("done",{message:"Execution finished",steps:result.steps,toolCalls:result.trace.length,model:result.activeModel});
           controller.close();
-        } catch (err: any) {
-          sendEvent("error", { message: err.message || "Streaming failed" });
+        } catch(error:any) {
+          send("error",{message:error?.message || String(error)});
           controller.close();
         }
       },
     });
 
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
-    });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: "Agent chat failed", details: error.message },
-      { status: 500 }
-    );
+    return new Response(stream,{headers:{"Content-Type":"text/event-stream","Cache-Control":"no-cache","Connection":"keep-alive"}});
+  } catch(error:any) {
+    return NextResponse.json({error:"Agent chat failed",details:error?.message || String(error)},{status:500});
   }
+}
+
+function totalAgentCyclesSafe() {
+  return ""system_config"."total_agent_cycles" + 1";
 }
