@@ -28,17 +28,14 @@ export class OllamaProvider extends AIProviderBase {
 
   private baseUrl: string;
   private defaultModel: string;
-  private apiKey?: string;
 
   constructor(
     baseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434",
-    defaultModel = process.env.OLLAMA_DEFAULT_MODEL || "llama3.2",
-    apiKey = process.env.OLLAMA_API_KEY
+    defaultModel = process.env.OLLAMA_DEFAULT_MODEL || "llama3.2"
   ) {
     super();
     this.baseUrl = baseUrl;
     this.defaultModel = defaultModel;
-    this.apiKey = apiKey;
     this.isLocal = this.baseUrl.includes("localhost") || this.baseUrl.includes("127.0.0.1");
   }
 
@@ -46,14 +43,11 @@ export class OllamaProvider extends AIProviderBase {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
-    if (this.apiKey) {
-      headers["Authorization"] = `Bearer ${this.apiKey}`;
-    }
     return headers;
   }
 
   requiresApiKey(): boolean {
-    return Boolean(this.apiKey);
+    return false;
   }
 
   validateConfig(): { valid: boolean; errors: string[] } {
