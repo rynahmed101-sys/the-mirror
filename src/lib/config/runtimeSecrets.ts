@@ -5,7 +5,9 @@ type RuntimeSecretName = "ollama_api_key";
 const TABLE = "mirror_runtime_secrets";
 
 function encryptionKey() {
-  return createHash("sha256").update(process.env.MIRROR_SECRET_KEY || process.env.JWT_SECRET || "change-me-in-production").digest();
+  const value = process.env.MIRROR_SECRET_KEY || process.env.JWT_SECRET;
+  if (!value || value === "change-me-in-production") throw new Error("Mirror runtime secret encryption key is not configured securely.");
+  return createHash("sha256").update(value).digest();
 }
 
 function encrypt(value: string) {
