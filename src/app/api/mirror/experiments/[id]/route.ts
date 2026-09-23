@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { experiments, predictions, timelineEvents } from "@/lib/db/schema";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
 import { canAgentAccessExperimentConfig, canAgentAccessExperimentConfigAsync, filterExperimentForAgent } from "@/lib/agent/blindIsolation";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
+const tables:any=isPg?pgSchema:sqliteSchema;
+const {experiments,predictions,timelineEvents}=tables;
 
 export async function GET(
   req: Request,
@@ -11,10 +15,11 @@ export async function GET(
   try {
     const { id } = await params;
     const { searchParams } = new URL(req.url);
-    const agentId = searchParams.get("agentId") || req.headers.get("x-agent-id") || "mirror-primary";
+    const actor = await requireExperimentalActor(req, searchParams.get("agentId") || req.headers.get("x-agent-id"));
+    const agentId = actor.mode === "CONTROL" && searchParams.get("agentId") ? searchParams.get("agentId")! : actor.agentId;
     const requestHidden = searchParams.get("includeHidden") === "true" || searchParams.get("field") === "hidden_config";
 
-    const list = await db.select().from(experiments).where(eq(experiments.id, id)).limit(1);
+    const list = await db.select().from(experiments).where(and(eq(experiments.id, id), eq(experiments.agentId, agentId))).limit(1);
 
     if (list.length === 0) {
       return NextResponse.json({ error: "Experiment not found" }, { status: 404 });
@@ -34,7 +39,7 @@ export async function GET(
       );
     }
 
-    const preds = await db.select().from(predictions).where(eq(predictions.experimentId, id));
+    const preds = await db.select().from(predictions).where(and(eq(predictions.experimentId, id), eq(predictions.agentId, exp.agentId)));
     const sanitized = filterExperimentForAgent(exp, agentId);
 
     return NextResponse.json({

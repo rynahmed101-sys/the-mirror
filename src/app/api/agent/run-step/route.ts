@@ -4,6 +4,9 @@ import { runAutopilot } from "@/lib/agent/autopilot";
 import { resolveExternalActor } from "@/lib/auth/externalActor";
 import { ensureGuestAgent } from "@/lib/auth/experimentalActor";
 
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
 /** One bounded autonomous cycle. Use /api/mirror/bot for multi-cycle runs. */
 export async function POST(req: Request) {
   const token = extractBearerToken(req.headers.get("authorization"));

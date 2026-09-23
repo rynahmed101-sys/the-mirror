@@ -1,3 +1,6 @@
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
 import { NextResponse } from "next/server";
 import { resolveRequestPrincipal } from "@/lib/auth";
 import { runAutopilot } from "@/lib/agent/autopilot";
@@ -23,14 +26,14 @@ export async function POST(req: Request) {
     const result = await runAutopilot({
       agentId: requestedAgentId,
       objective: typeof body.objective === "string" ? body.objective : undefined,
-      maxCycles: body.maxCycles,
-      maxToolSteps: body.maxToolSteps,
+      maxCycles: Math.min(4, Math.max(1, Number(body.maxCycles) || 1)),
+      maxToolSteps: Math.min(6, Math.max(1, Number(body.maxToolSteps) || 4)),
     });
 
     return NextResponse.json({
       success: true,
       ...result,
-      safety: { maxCycles: 20, defaultCycles: 1, maxToolSteps: 8 },
+      safety: { maxCycles: 4, defaultCycles: 1, maxToolSteps: 6, note: "Longer runs should be split across bounded requests." },
     });
   } catch (error: any) {
     return NextResponse.json({

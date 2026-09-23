@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Box, FileText, GitBranch, Search, AlertTriangle, Star, Sparkles, ExternalLink } from "lucide-react";
 
@@ -42,7 +42,7 @@ export default function ConstellationSurface() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const runSearch = async (event?: React.FormEvent) => {
+  const runSearch = useCallback(async (event?: React.FormEvent) => {
     event?.preventDefault();
     const q = query.trim();
     if (!q) return;
@@ -60,7 +60,7 @@ export default function ConstellationSurface() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [query]);
 
   const inspect = async (hit: Hit) => {
     setSelected(hit);
@@ -76,7 +76,7 @@ export default function ConstellationSurface() {
     }
   };
 
-  useEffect(() => { runSearch(); }, []);
+  useEffect(() => { void runSearch(); }, [runSearch]);
 
   const counts = useMemo(() => ({
     semantic: hits.filter((h) => h.match_layer === "semantic").length,

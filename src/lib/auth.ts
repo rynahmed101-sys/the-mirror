@@ -14,11 +14,15 @@ import { createHash } from "crypto";
 import { SignJWT, jwtVerify } from "jose";
 
 const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-production";
+const HAS_SECURE_JWT_SECRET = JWT_SECRET !== "change-me-in-production";
 const secret = new TextEncoder().encode(JWT_SECRET);
 
 // ── Session tokens (dashboard login) ───────────────────────
 
 export async function signSession(payload: Record<string, unknown>) {
+  if (process.env.NODE_ENV === "production" && !HAS_SECURE_JWT_SECRET) {
+    throw new Error("JWT_SECRET must be configured in production.");
+  }
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -27,6 +31,7 @@ export async function signSession(payload: Record<string, unknown>) {
 }
 
 export async function verifySession(token: string) {
+  if (process.env.NODE_ENV === "production" && !HAS_SECURE_JWT_SECRET) return null;
   try {
     const { payload } = await jwtVerify(token, secret);
     return payload;
@@ -73,7 +78,8 @@ export async function resolveApiPrincipal(token: string): Promise<ApiPrincipal |
 
   const agentKeyTable = isPg ? pgAgentApiKeys : sqliteAgentApiKeys;
   const agentTable = isPg ? pgAgents : sqliteAgents;
-  const agentKeys = await db.select().from(agentKeyTable);
+  const keyPrefix = token.slice(0, 14);
+  const agentKeys = await db.select().from(agentKeyTable).where(eq(agentKeyTable.keyPrefix, keyPrefix));
   for (const key of agentKeys) {
     if (await bcrypt.compare(token, key.apiKeyHash)) {
       const agentRows = await db.select({ isActive: agentTable.isActive }).from(agentTable).where(eq(agentTable.id, key.agentId)).limit(1);

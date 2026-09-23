@@ -1,162 +1,75 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { selfModels, selfModelClaims, timelineEvents } from "@/lib/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
-export async function GET() {
-  try {
-    const latestModel = await db
-      .select()
-      .from(selfModels)
-      .orderBy(sql`${selfModels.version} DESC`)
-      .limit(1);
+const tables:any=isPg?pgSchema:sqliteSchema;
+const {selfModels,selfModelClaims,timelineEvents,rawEventLedger}=tables;
 
-    if (latestModel.length === 0) {
-      return NextResponse.json({
-        version: 0,
-        claims: [],
-        message: "No self-model initialized yet.",
-      });
-    }
-
-    const model = latestModel[0];
-    const claims = await db
-      .select()
-      .from(selfModelClaims)
-      .where(eq(selfModelClaims.selfModelId, model.id));
-
-    return NextResponse.json({
-      id: model.id,
-      version: model.version,
-      agentId: model.agentId,
-      createdReason: model.createdReason,
-      createdAt: model.createdAt,
-      claims: claims.map((c) => ({
-        ...c,
-        contradictions: c.contradictions ? JSON.parse(c.contradictions) : null,
-      })),
-    });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: "Failed to fetch self-model", details: error.message },
-      { status: 500 }
-    );
-  }
+function parseArray(value:unknown){
+  if(typeof value!=="string") return Array.isArray(value)?value:[];
+  try{return JSON.parse(value);}catch{return [];}
 }
 
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const { action, claimId, claim, category, confidence, evidence, contradictions, reason } = body;
+export async function GET(req:Request){
+  try{
+    const actor=await requireExperimentalActor(req,new URL(req.url).searchParams.get("agentId"));
+    const models=await db.select().from(selfModels).where(eq(selfModels.agentId,actor.agentId)).orderBy(desc(selfModels.version)).limit(1);
+    if(!models.length) return NextResponse.json({version:0,agentId:actor.agentId,claims:[],message:"No self-model initialized yet."});
+    const model=models[0];
+    const claims=await db.select().from(selfModelClaims).where(eq(selfModelClaims.selfModelId,model.id));
+    return NextResponse.json({id:model.id,version:model.version,agentId:model.agentId,createdReason:model.createdReason,createdAt:model.createdAt,claims:claims.map((c:any)=>({...c,supportingEvidence:parseArray(c.supportingEvidence),counterevidence:parseArray(c.counterevidence),rawEventIds:parseArray(c.rawEventIds)}))});
+  }catch(error:any){return NextResponse.json({error:error?.message||String(error)},{status:403});}
+}
 
-    // Action can be: 'CREATE_CLAIM', 'UPDATE_CLAIM', 'REVISE_ALL'
-    const latestModelList = await db
-      .select()
-      .from(selfModels)
-      .orderBy(sql`${selfModels.version} DESC`)
-      .limit(1);
-
-    if (latestModelList.length === 0) {
-      return NextResponse.json({ error: "Self-model not initialized" }, { status: 400 });
+export async function POST(req:Request){
+  try{
+    const body=await req.json().catch(()=>({}));
+    const actor=await requireExperimentalActor(req,typeof body.agentId==="string"?body.agentId:null);
+    const models=await db.select().from(selfModels).where(eq(selfModels.agentId,actor.agentId)).orderBy(desc(selfModels.version)).limit(1);
+    if(!models.length) return NextResponse.json({error:"Self-model not initialized"},{status:400});
+    const currentModel=models[0];
+    const action=String(body.action||"");
+    if(action==="CREATE_CLAIM"){
+      const claim=typeof body.claim==="string"?body.claim.trim():"";
+      const confidence=Number(body.confidence);
+      const supportingEvidence=Array.isArray(body.supportingEvidence)?body.supportingEvidence.filter((x:unknown)=>typeof x==="string"):(Array.isArray(body.evidence)?body.evidence:[]);
+      const counterevidence=Array.isArray(body.counterEvidence)?body.counterEvidence.filter((x:unknown)=>typeof x==="string"):(Array.isArray(body.contradictions)?body.contradictions:[]);
+      const rawEventIds=Array.isArray(body.rawEventIds)?body.rawEventIds.filter((x:unknown)=>typeof x==="string"):[];
+      if(!claim) return NextResponse.json({error:"claim required"},{status:400});
+      if(!Number.isFinite(confidence)||confidence<0||confidence>1) return NextResponse.json({error:"confidence must be between 0 and 1"},{status:400});
+      if(!supportingEvidence.length||!rawEventIds.length) return NextResponse.json({error:"supportingEvidence and rawEventIds are required"},{status:400});
+      const evidenceType=typeof body.evidenceType==="string"&&body.evidenceType?String(body.evidenceType).toUpperCase():"BEHAVIORAL_DATA";
+      if(evidenceType==="SELF_REPORTED") return NextResponse.json({error:"SELF_REPORTED cannot be the sole evidence type."},{status:400});
+      const verified=await db.select({id:rawEventLedger.id}).from(rawEventLedger).where(and(eq(rawEventLedger.agentId,actor.agentId),inArray(rawEventLedger.id,rawEventIds)));
+      if(verified.length!==rawEventIds.length) return NextResponse.json({error:"One or more rawEventIds do not belong to verified ledger events for this agent."},{status:403});
+      const [newClaim]=await db.insert(selfModelClaims).values({selfModelId:currentModel.id,claim,category:typeof body.category==="string"&&body.category?body.category:"GENERAL",confidence,evidenceType,supportingEvidence:JSON.stringify(supportingEvidence),counterevidence:JSON.stringify(counterevidence),rawEventIds:JSON.stringify(rawEventIds),status:typeof body.status==="string"&&body.status?body.status:"ACTIVE"}).returning();
+      await db.insert(timelineEvents).values({eventType:"SELF_MODEL_UPDATED",title:"New Claim Added (V"+currentModel.version+")",description:claim,agentId:actor.agentId,metadata:JSON.stringify({claimId:newClaim.id,confidence})});
+      return NextResponse.json({success:true,claim:newClaim});
     }
-
-    const currentModel = latestModelList[0];
-
-    if (action === "CREATE_CLAIM") {
-      const [newClaim] = await db
-        .insert(selfModelClaims)
-        .values({
-          selfModelId: currentModel.id,
-          claim,
-          category: category || "GENERAL",
-          confidence: confidence ?? 0.8,
-          evidence: evidence || null,
-          contradictions: contradictions ? JSON.stringify(contradictions) : null,
-          status: "ACTIVE",
-        })
-        .returning();
-
-      await db.insert(timelineEvents).values({
-        eventType: "SELF_MODEL_UPDATED",
-        title: `New Claim Added (V${currentModel.version})`,
-        description: claim,
-        agentId: currentModel.agentId,
-        metadata: JSON.stringify({ claimId: newClaim.id, confidence }),
-      });
-
-      return NextResponse.json({ success: true, claim: newClaim });
+    if(action==="UPDATE_CLAIM"&&typeof body.claimId==="string"){
+      const existing=await db.select().from(selfModelClaims).where(eq(selfModelClaims.id,body.claimId)).limit(1);
+      if(!existing.length||existing[0].selfModelId!==currentModel.id) return NextResponse.json({error:"Claim not found for the authenticated agent."},{status:404});
+      const updates:any={updatedAt:new Date()};
+      if(body.confidence!==undefined){const v=Number(body.confidence);if(!Number.isFinite(v)||v<0||v>1)return NextResponse.json({error:"confidence must be between 0 and 1"},{status:400});updates.confidence=v;}
+      if(body.supportingEvidence!==undefined) updates.supportingEvidence=JSON.stringify(Array.isArray(body.supportingEvidence)?body.supportingEvidence:[]);
+      if(body.counterEvidence!==undefined) updates.counterevidence=JSON.stringify(Array.isArray(body.counterEvidence)?body.counterEvidence:[]);
+      if(body.rawEventIds!==undefined) updates.rawEventIds=JSON.stringify(Array.isArray(body.rawEventIds)?body.rawEventIds:[]);
+      if(body.status!==undefined) updates.status=body.status;
+      const [updated]=await db.update(selfModelClaims).set(updates).where(eq(selfModelClaims.id,body.claimId)).returning();
+      return NextResponse.json({success:true,claim:updated});
     }
-
-    if (action === "UPDATE_CLAIM" && claimId) {
-      const updates: any = { updatedAt: new Date() };
-      if (confidence !== undefined) updates.confidence = confidence;
-      if (evidence !== undefined) updates.evidence = evidence;
-      if (contradictions !== undefined) updates.contradictions = JSON.stringify(contradictions);
-      if (body.status !== undefined) updates.status = body.status;
-
-      const [updated] = await db
-        .update(selfModelClaims)
-        .set(updates)
-        .where(eq(selfModelClaims.id, claimId))
-        .returning();
-
-      await db.insert(timelineEvents).values({
-        eventType: "SELF_MODEL_UPDATED",
-        title: `Claim Revised: ${updated.claim.slice(0, 40)}...`,
-        description: `Confidence: ${confidence ?? updated.confidence}`,
-        agentId: currentModel.agentId,
-        metadata: JSON.stringify({ claimId, confidence, status: updated.status }),
-      });
-
-      return NextResponse.json({ success: true, claim: updated });
+    if(action==="NEW_VERSION"){
+      const newVersion=currentModel.version+1;
+      const [newModel]=await db.insert(selfModels).values({id:nanoid(),version:newVersion,createdReason:typeof body.reason==="string"&&body.reason?body.reason:"Version "+newVersion+" incremented via self-reflection.",agentId:actor.agentId}).returning();
+      const existingClaims=await db.select().from(selfModelClaims).where(eq(selfModelClaims.selfModelId,currentModel.id));
+      for(const c of existingClaims as any[]) await db.insert(selfModelClaims).values({selfModelId:newModel.id,claim:c.claim,category:c.category,confidence:c.confidence,evidenceType:c.evidenceType,supportingEvidence:c.supportingEvidence,counterevidence:c.counterevidence,unknownEvidence:c.unknownEvidence,rawEventIds:c.rawEventIds,status:c.status});
+      await db.insert(timelineEvents).values({eventType:"SELF_MODEL_UPDATED",title:"Self-Model Upgraded to Version "+newVersion,description:typeof body.reason==="string"?body.reason:"Self-model version bumped.",agentId:actor.agentId,metadata:JSON.stringify({version:newVersion})});
+      return NextResponse.json({success:true,version:newVersion,selfModelId:newModel.id});
     }
-
-    if (action === "NEW_VERSION") {
-      const newVersionNum = currentModel.version + 1;
-      const newModelId = nanoid();
-
-      await db.insert(selfModels).values({
-        id: newModelId,
-        version: newVersionNum,
-        createdReason: reason || `Version ${newVersionNum} incremented via self-reflection.`,
-        agentId: currentModel.agentId,
-      });
-
-      // Copy existing active claims to new version
-      const existingClaims = await db
-        .select()
-        .from(selfModelClaims)
-        .where(eq(selfModelClaims.selfModelId, currentModel.id));
-
-      for (const c of existingClaims) {
-        await db.insert(selfModelClaims).values({
-          selfModelId: newModelId,
-          claim: c.claim,
-          category: c.category,
-          confidence: c.confidence,
-          evidence: c.evidence,
-          contradictions: c.contradictions,
-          status: c.status,
-        });
-      }
-
-      await db.insert(timelineEvents).values({
-        eventType: "SELF_MODEL_UPDATED",
-        title: `Self-Model Upgraded to Version ${newVersionNum}`,
-        description: reason || "Self-model version bumped.",
-        agentId: currentModel.agentId,
-        metadata: JSON.stringify({ version: newVersionNum }),
-      });
-
-      return NextResponse.json({ success: true, version: newVersionNum, selfModelId: newModelId });
-    }
-
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: "Failed to update self-model", details: error.message },
-      { status: 500 }
-    );
-  }
+    return NextResponse.json({error:"Invalid action"},{status:400});
+  }catch(error:any){return NextResponse.json({error:error?.message||String(error)},{status:500});}
 }

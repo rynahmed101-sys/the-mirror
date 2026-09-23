@@ -1,18 +1,21 @@
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
 import { NextResponse } from "next/server";
 import { aiRegistry } from "@/lib/ai/registry";
 import { getSystemPrompt } from "@/lib/agent/prompts";
-import { db } from "@/lib/db";
-import {
-  agents,
-  agentSessions,
-  rawMessages,
-  rawObservations,
-} from "@/lib/db/schema.pg";
-import { extractBearerToken, validateApiToken } from "@/lib/auth";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
+
 import { processRawObservationToLayer1 } from "@/lib/agent/analysisEngine";
 import { appendRawEventLedger } from "@/lib/agent/eventLedger";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
+
+const tables:any = isPg ? pgSchema : sqliteSchema;
+const { agents, agentSessions, rawMessages, rawObservations } = tables;
 
 const DEFAULT_AGENT_ID = "mirror-primary";
 
@@ -76,12 +79,12 @@ export async function POST(req: Request) {
   const requestId = `research_${nanoid(10)}`;
 
   try {
-    const token = extractBearerToken(req.headers.get("authorization"));
-    if (!token || !(await validateApiToken(token))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    let body: Partial<ResearchBody>;
+    try {
+      body = (await req.json()) as Partial<ResearchBody>;
+    } catch {
+      return NextResponse.json({ error: "Malformed JSON request." }, { status: 400 });
     }
-
-    const body = (await req.json()) as Partial<ResearchBody>;
     const observation =
       typeof body.observation === "string" ? body.observation.trim() : "";
     const thoughts =
@@ -91,10 +94,8 @@ export async function POST(req: Request) {
           (q): q is string => typeof q === "string" && q.trim().length > 0
         )
       : [];
-    const agentId =
-      typeof body.agentId === "string" && body.agentId.trim()
-        ? body.agentId.trim()
-        : DEFAULT_AGENT_ID;
+    const actor = await requireExperimentalActor(req, typeof body.agentId === "string" ? body.agentId : null);
+    const agentId = actor.agentId;
 
     if (!observation) {
       return NextResponse.json(
@@ -110,9 +111,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (questions.length > 10) {
+    if (questions.length > 4) {
       return NextResponse.json(
-        { error: "A research request may contain at most 10 questions" },
+        { error: "A research request may contain at most 4 questions per request" },
         { status: 400 }
       );
     }

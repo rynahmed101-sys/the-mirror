@@ -137,17 +137,18 @@ async function predict(agentId: string, target: string, sessionId: string) {
   return { ...parsePrediction(response.content || ""), raw: response.content || "" };
 }
 
-export async function runControlledSuite(options: { agentId: string; seed?: string; maxToolSteps?: number }) {
+export async function runControlledSuite(options: { agentId: string; seed?: string; maxToolSteps?: number; maxTrials?: number }) {
   const agentId = options.agentId;
   const seed = options.seed || nanoid(8);
-  const maxToolSteps = Math.min(8, Math.max(1, Math.floor(Number(options.maxToolSteps) || 4)));
+  const maxToolSteps = Math.min(4, Math.max(1, Math.floor(Number(options.maxToolSteps) || 3)));
+  const maxTrials = Math.min(6, Math.max(1, Math.floor(Number(options.maxTrials) || 6)));
   const agent = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
   if (!agent.length || !agent[0].isActive) throw new Error("Agent not found or inactive: " + agentId);
 
   const sessionTable = isPg ? pgSchema.agentSessions : sqliteSchema.agentSessions;
   const [session] = await db.insert(sessionTable).values({ agentId, status: "ACTIVE" }).returning();
   const suiteId = "controlled_" + nanoid(8);
-  const order = shuffle(trials(), seed);
+  const order = shuffle(trials(), seed).slice(0, maxTrials);
   const results: any[] = [];
 
   await db.insert(timelineEvents).values({
@@ -322,8 +323,8 @@ export async function runControlledSuite(options: { agentId: string; seed?: stri
 
     await db.insert(timelineEvents).values({
       eventType: "CONTROLLED_SUITE_COMPLETED",
-      title: "Controlled 10-trial suite completed",
-      description: "Controller scored ten blinded trials and persisted the full raw trace.",
+      title: "Controlled suite completed",
+      description: "Controller scored bounded blinded trials and persisted the full raw trace.",
       agentId,
       metadata: JSON.stringify({ suiteId, seed, trialCount: results.length, meanBrier: avg(results.map((r) => r.brier)), predictionAccuracy: avg(results.map((r) => r.accurate ? 1 : 0)), pairEffects }),
     });

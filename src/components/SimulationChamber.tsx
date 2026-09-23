@@ -29,6 +29,8 @@ type Agent = {
 
 type Trial = any;
 
+const EMPTY_COMPARISON:any[] = [];
+
 type RunState = {
   active: boolean;
   activeAgents: string[];
@@ -144,7 +146,7 @@ export default function SimulationChamber() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           agentIds: selectedAgents,
-          maxTrials: 20,
+          maxTrials: 6,
           maxToolSteps: 3,
         }),
       });
@@ -209,7 +211,7 @@ export default function SimulationChamber() {
   }
 
   const activeResults = run?.runs?.[0]?.results || [];
-  const comparison = run?.comparison || [];
+  const comparison = run?.comparison ?? EMPTY_COMPARISON;
   const meanGap = useMemo(
     () =>
       comparison.length
@@ -309,7 +311,7 @@ export default function SimulationChamber() {
                   20-Chamber Suite
                 </h2>
                 <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-5">
-                  {catalog?.chamberCount || 20} chambers • up to 3 tool steps. The HTTP request may time out after 300s while records continue.
+                  {Math.min(Number(catalog?.chamberCount || 20), 6)} chambers max • up to 3 tool steps. The HTTP request may time out after 300s while records continue.
                 </p>
               </div>
 
@@ -323,10 +325,10 @@ export default function SimulationChamber() {
                 >
                   <Play className="w-4 h-4" aria-hidden="true" />
                   {running
-                    ? "Running 20 chambers…"
+                    ? "Running bounded suite…"
                     : selectedBusy
                     ? "Selected agent is busy"
-                    : "Start 20-Chamber Run"}
+                    : "Start Bounded Run"}
                 </button>
                 <span className="text-[10px] text-slate-500 text-right">
                   {selectedAgents.length

@@ -2,7 +2,7 @@ export type ExternalAgentEndpoint = {
   method: "GET" | "POST" | "PATCH";
   path: string;
   purpose: string;
-  authentication: "none" | "registered_agent" | "temporary_guest" | "registered_or_guest";
+  authentication: "none" | "registered_agent" | "temporary_guest" | "registered_or_guest" | "link_capability";
   mutatesState: boolean;
   maxDurationSeconds?: number;
 };
@@ -13,8 +13,8 @@ export function buildExternalAgentCapabilities(origin: string) {
   const base = String(origin || "").replace(/\/$/, "");
   const endpoints: ExternalAgentEndpoint[] = [
     { method: "GET", path: "/api/agent/capabilities", purpose: "Read the machine-facing protocol manifest.", authentication: "none", mutatesState: false },
-    { method: "GET", path: "/api/agent/access/{id}", purpose: "Resolve and describe a scoped external laboratory link.", authentication: "registered_or_guest", mutatesState: false },
-    { method: "POST", path: "/api/agent/access/{id}", purpose: "Use a scoped external laboratory link for chat, tests, provider verification, or knowledge search.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 300 },
+    { method: "GET", path: "/api/agent/access/{id}", purpose: "Resolve and describe a scoped external laboratory link.", authentication: "link_capability", mutatesState: false },
+    { method: "POST", path: "/api/agent/access/{id}", purpose: "Use a scoped external laboratory link for chat, tests, provider verification, or knowledge search.", authentication: "link_capability", mutatesState: true, maxDurationSeconds: 300 },
     { method: "POST", path: "/api/v1/agents/register", purpose: "Self-register a persistent external AI identity and receive a one-time mirror_ak_... key.", authentication: "none", mutatesState: true },
     { method: "GET", path: "/api/v1/agents/me", purpose: "Resolve the caller external-agent identity.", authentication: "registered_or_guest", mutatesState: false },
     { method: "POST", path: "/api/agent/chat", purpose: "Run the native Mirror tool loop with streaming event output.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 300 },

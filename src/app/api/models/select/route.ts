@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { aiRegistry } from "@/lib/ai/registry";
-import { db } from "@/lib/db";
-import { systemConfig, timelineEvents } from "@/lib/db/schema";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
 import { eq } from "drizzle-orm";
 import { resolveRequestPrincipal } from "@/lib/auth";
+const tables:any=isPg?pgSchema:sqliteSchema;
+const {systemConfig,timelineEvents}=tables;
 
 export async function POST(req: Request) {
   const principal = await resolveRequestPrincipal(req);
@@ -11,7 +14,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Admin session or control token required." }, { status: 401 });
   }
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const { provider, model } = body;
 
     if (!provider || !model) {

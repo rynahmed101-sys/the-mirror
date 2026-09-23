@@ -1,7 +1,7 @@
 import { createOperationalBrain96, type BrainNode96 } from "./brain96";
 import { loadBrainState, saveBrainState, type BrainRuntimeNode, type OperationalBrainState } from "./brainStateStore";
 import { db, isPg } from "../db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import * as sqliteSchema from "../db/schema";
 import * as pgSchema from "../db/schema.pg";
 
@@ -14,7 +14,7 @@ const tokenize=(x:string)=>new Set(String(x||"").toLowerCase().split(/[^a-z0-9-]
 const LEFT_KEYS=new Set(["CH01_PRE_ACTION","CH05_PREDICTION_LEDGER","CH06_CALIBRATION","CH07_TOOL_SIMULATION","CH08_EXECUTION_CHAMBER","CH09_ERROR_LOCALIZATION","CH10_SELF_MODEL","CH11_MEMORY"]);
 
 function seedNode(node:BrainNode96):BrainRuntimeNode{
-  const initial=LEFT_KEYS.has(node.column)?-0.05:0.05;
+  const initial=0;
   return {activation:0,tendency:initial,confidence:0,exposures:0,successes:0,failures:0,predictionError:0,lastEvidence:null,updatedAt:null};
 }
 
@@ -41,8 +41,8 @@ function parseResult(row:any){
   }catch{return null;}
 }
 
-async function seedFromObservedHistory():Promise<Map<string,{exposures:number;successes:number;failures:number;confidence:number;tendency:number;predictionError:number;lastEvidence:string|null}>>{
-  const rows=await db.select().from(experiments).where(eq(experiments.templateType,"CONTROLLED_SIMULATION"));
+async function seedFromObservedHistory(agentId:string):Promise<Map<string,{exposures:number;successes:number;failures:number;confidence:number;tendency:number;predictionError:number;lastEvidence:string|null}>>{
+  const rows=await db.select().from(experiments).where(and(eq(experiments.templateType,"CONTROLLED_SIMULATION"),eq(experiments.agentId,agentId)));
   const groups=new Map<string,any[]>();
   for(const row of rows.map(parseResult).filter(Boolean) as any[]){
     if(!/^CH(0[1-9]|1[0-9]|20)_/.test(row.trial)) continue;
@@ -66,7 +66,7 @@ async function seedFromObservedHistory():Promise<Map<string,{exposures:number;su
 async function getState(agentId:string){
   const stored=await loadBrainState(agentId);
   if(stored) return stored;
-  const observed=await seedFromObservedHistory().catch(()=>new Map());
+  const observed=await seedFromObservedHistory(agentId).catch(()=>new Map());
   const created=freshState(observed);
   await saveBrainState(agentId,created);
   return created;

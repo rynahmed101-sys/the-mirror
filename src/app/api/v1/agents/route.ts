@@ -1,14 +1,23 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { agents } from "@/lib/db/schema";
-import { sql } from "drizzle-orm";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
+import { sql, eq } from "drizzle-orm";
 
-export async function GET() {
+const tables:any = isPg ? pgSchema : sqliteSchema;
+const { agents } = tables;
+
+export async function GET(req: Request) {
   try {
-    const list = await db
-      .select()
-      .from(agents)
-      .orderBy(sql`${agents.createdAt} DESC`);
+    const actor = await requireExperimentalActor(req);
+    const requestedAgentId = new URL(req.url).searchParams.get("agentId");
+    const targetAgentId = actor.mode === "CONTROL" && requestedAgentId ? requestedAgentId : actor.agentId;
+    let query = db.select().from(agents);
+    if (targetAgentId) {
+      query = query.where(eq(agents.id, targetAgentId || actor.agentId)) as any;
+    }
+    const list = await query.orderBy(sql`${agents.createdAt} DESC`);
 
     return NextResponse.json(
       list.map((a) => ({

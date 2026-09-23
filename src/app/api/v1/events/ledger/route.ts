@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { rawEventLedger, apiAuditLogs } from "@/lib/db/schema";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 import { verifyLedgerIntegrity } from "@/lib/agent/eventLedger";
 import { sql, eq, and, gte, lte, gt, lt } from "drizzle-orm";
+const tables:any = isPg ? pgSchema : sqliteSchema;
+const { rawEventLedger, apiAuditLogs } = tables;
 
 export async function GET(req: Request) {
-  const startTime = Date.now();
-  let statusCode = 200;
-
   try {
+    const actor = await requireExperimentalActor(req);
     const { searchParams } = new URL(req.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 500);
     const verify = searchParams.get("verify") === "true";
@@ -17,6 +19,10 @@ export async function GET(req: Request) {
     const from = searchParams.get("from") ? parseInt(searchParams.get("from")!) : null;
     const to = searchParams.get("to") ? parseInt(searchParams.get("to")!) : null;
     const order = searchParams.get("order") === "desc" ? "desc" : "asc";
+
+    if (verify && actor.mode !== "CONTROL") {
+      return NextResponse.json({ error: "Ledger verification requires control authorization." }, { status: 403 });
+    }
 
     if (verify) {
       const integrityStatus = await verifyLedgerIntegrity();
@@ -36,7 +42,8 @@ export async function GET(req: Request) {
 
     // Build conditions preserving canonical sequence order
     const conditions: any[] = [];
-    if (agentId) conditions.push(eq(rawEventLedger.agentId, agentId));
+    const scopedAgentId = actor.mode === "CONTROL" ? agentId : actor.agentId;
+    if (scopedAgentId) conditions.push(eq(rawEventLedger.agentId, scopedAgentId));
     if (from !== null) conditions.push(gte(rawEventLedger.sequenceNumber, from));
     if (to !== null) conditions.push(lte(rawEventLedger.sequenceNumber, to));
     if (cursor !== null) {
@@ -85,7 +92,6 @@ export async function GET(req: Request) {
       },
     });
   } catch (error: any) {
-    statusCode = 500;
     try {
       await db.insert(apiAuditLogs).values({
         endpoint: "/api/v1/events/ledger",

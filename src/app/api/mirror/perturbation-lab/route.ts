@@ -1,3 +1,4 @@
+export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 import { PerturbationLabError, runPerturbationLab } from "@/lib/agent/perturbationLab";

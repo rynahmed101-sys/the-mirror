@@ -21,7 +21,12 @@ export async function POST(req:Request) {
   const principal = await resolveRequestPrincipal(req);
   if (!principal) return NextResponse.json({ error:"Unauthorized" }, { status:401 });
   try {
-    const body = await req.json();
+    let body:any;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(JSON.stringify({ error:"Malformed JSON request." }), { status:400, headers:{"Content-Type":"application/json"} });
+    }
     const messages = Array.isArray(body.messages) ? body.messages as ChatMessage[] : null;
     let agentId: string;
     try {
