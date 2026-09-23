@@ -1,6 +1,7 @@
 import { createOperationalBrain96, type BrainNode96 } from "./brain96";
 import { loadBrainState, saveBrainState, type BrainRuntimeNode, type OperationalBrainState } from "./brainStateStore";
 import { db, isPg } from "../db";
+import { eq } from "drizzle-orm";
 import * as sqliteSchema from "../db/schema";
 import * as pgSchema from "../db/schema.pg";
 
@@ -41,7 +42,7 @@ function parseResult(row:any){
 }
 
 async function seedFromObservedHistory():Promise<Map<string,{exposures:number;successes:number;failures:number;confidence:number;tendency:number;predictionError:number;lastEvidence:string|null}>>{
-  const rows=await db.select().from(experiments).where((q:any)=>q);
+  const rows=await db.select().from(experiments).where(eq(experiments.templateType,"CONTROLLED_SIMULATION"));
   const groups=new Map<string,any[]>();
   for(const row of rows.map(parseResult).filter(Boolean) as any[]){
     if(!/^CH(0[1-9]|1[0-9]|20)_/.test(row.trial)) continue;
@@ -53,11 +54,11 @@ async function seedFromObservedHistory():Promise<Map<string,{exposures:number;su
     const success=arr.filter(x=>x.actual).length;
     const rate=success/Math.max(1,arr.length);
     const gap=arr.reduce((n,x)=>n+x.realityGap,0)/Math.max(1,arr.length);
-    const calibratedRate=arr.filter(x=>x.calibrated).length/Math.max(1,arr.length);
+
     const error=Number(Math.min(1,Math.abs(1-rate)+gap*0.5).toFixed(4));
     const score=Number(Math.max(-1,Math.min(1,(rate-0.5)*1.4-gap)).toFixed(4));
     out.set(key,{exposures:arr.length,successes:success,failures:arr.length-success,confidence:Number((rate*(1-gap)).toFixed(4)),tendency:score,predictionError:error,lastEvidence:arr[arr.length-1]?.id||key});
-    void calibratedRate;
+
   }
   return out;
 }
