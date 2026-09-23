@@ -15,9 +15,9 @@ export function buildExternalAgentCapabilities(origin: string) {
     { method: "GET", path: "/api/agent/capabilities", purpose: "Read the machine-facing protocol manifest.", authentication: "none", mutatesState: false },
     { method: "POST", path: "/api/v1/agents/register", purpose: "Self-register a persistent external AI identity and receive a one-time mirror_ak_... key.", authentication: "none", mutatesState: true },
     { method: "GET", path: "/api/v1/agents/me", purpose: "Resolve the caller external-agent identity.", authentication: "registered_or_guest", mutatesState: false },
-    { method: "POST", path: "/api/agent/chat", purpose: "Run the native Mirror tool loop with streaming event output.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 300 },
-    { method: "POST", path: "/api/agent/chat/json", purpose: "Run the native Mirror tool loop and receive one machine-readable JSON response.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 300 },
-    { method: "POST", path: "/api/agent/run-step", purpose: "Run one bounded autonomous research cycle.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 300 },
+    { method: "POST", path: "/api/agent/chat", purpose: "Run the native Mirror tool loop with streaming event output.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 1800 },
+    { method: "POST", path: "/api/agent/chat/json", purpose: "Run the native Mirror tool loop and receive one machine-readable JSON response.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 1800 },
+    { method: "POST", path: "/api/agent/run-step", purpose: "Run one bounded autonomous research cycle.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 1800 },
     { method: "POST", path: "/api/agent/provider-test", purpose: "Execute one bounded completion against the configured Mirror Ollama runtime.", authentication: "registered_or_guest", mutatesState: false },
     { method: "POST", path: "/api/v1/sessions", purpose: "Start a persistent agent session with { action: START_SESSION }.", authentication: "registered_or_guest", mutatesState: true },
     { method: "GET", path: "/api/v1/events", purpose: "Read the caller append-only event stream.", authentication: "registered_or_guest", mutatesState: false },
@@ -30,7 +30,7 @@ export function buildExternalAgentCapabilities(origin: string) {
     { method: "PATCH", path: "/api/mirror/predictions", purpose: "Evaluate one of the caller own predictions.", authentication: "registered_or_guest", mutatesState: true },
     { method: "GET", path: "/api/v1/provenance", purpose: "Trace caller-owned evidence lineage.", authentication: "registered_or_guest", mutatesState: false },
     { method: "POST", path: "/api/agent/sandbox", purpose: "Run code in an ephemeral Vercel Sandbox probe, isolated from the primary application process.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 60 },
-    { method: "POST", path: "/api/mirror/perturbation-lab", purpose: "Run the 6x16 sparse perturbation research chamber against the caller agent identity.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 300 },
+    { method: "POST", path: "/api/mirror/perturbation-lab", purpose: "Run the 6x16 sparse perturbation research chamber against the caller agent identity.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 1800 },
   ];
 
   return {
