@@ -166,13 +166,18 @@ export function filterExperimentForAgent(experiment: any, agentId: string = "mir
   return sanitized;
 }
 
+export function resolveExperimentRevealSource(revealedBy: string): "SYSTEM" | "RESEARCHER" {
+  return revealedBy === "SYSTEM" ? "SYSTEM" : "RESEARCHER";
+}
+
 /**
  * Explicitly reveals a blind experiment.
  * Records the reveal event in the cryptographic raw event ledger.
  */
 export async function revealExperiment(
   experimentId: string,
-  revealedBy: string = "RESEARCHER"
+  revealedBy: string = "RESEARCHER",
+  sessionId?: string,
 ): Promise<{ success: boolean; experiment?: any; error?: string }> {
   try {
     let exp: any;
@@ -218,9 +223,10 @@ export async function revealExperiment(
     // Emit cryptographic ledger event for the reveal
     await appendRawEventLedger({
       agentId: exp.agent_id || exp.agentId,
+      sessionId,
       experimentId,
       eventType: "EXPERIMENT_REVEALED",
-      source: "RESEARCHER",
+      source: resolveExperimentRevealSource(revealedBy),
       payload: {
         experimentId,
         revealedBy,
