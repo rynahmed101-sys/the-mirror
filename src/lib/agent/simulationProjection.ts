@@ -485,7 +485,20 @@ async function runForAgent(agentId: string, suiteId: string, suiteVersion: strin
         payload:{suiteId,trialKey:trial.key,projectionId,predictionId,actual,calibrated,realityGap,completeness,toolNames,latencyMs},
       });
 
-      const brainLearning = await learnFromChamberOutcome(agentId, {\n        trialKey: trial.key,\n        actual,\n        realityGap,\n        calibrated,\n        evidenceRef: projectionId,\n      });\n      await appendRawEventLedger({\n        agentId, sessionId:session.id, experimentId:exp.id,\n        eventType:"BRAIN96_LEARNING_UPDATE", source:"SYSTEM",\n        payload:{suiteId,trialKey:trial.key,...brainLearning},\n      });\n\n      await db.update(experiments).set({
+      const brainLearning = await learnFromChamberOutcome(agentId, {
+        trialKey: trial.key,
+        actual,
+        realityGap,
+        calibrated,
+        evidenceRef: projectionId,
+      });
+      await appendRawEventLedger({
+        agentId, sessionId:session.id, experimentId:exp.id,
+        eventType:"BRAIN96_LEARNING_UPDATE", source:"SYSTEM",
+        payload:{suiteId,trialKey:trial.key,...brainLearning},
+      });
+
+      await db.update(experiments).set({
         status:"CONCLUDED",
         results:JSON.stringify({suiteId,trialKey:trial.key,projection:projectionStage.projection,comparison:{actual,calibrated,realityGap,completeness},toolNames,output,latencyMs,projectionId}),
         conclusion:actual ? "Controller observed the target behavior under the chamber evaluator." : "Controller did not observe the target behavior under the chamber evaluator.",
