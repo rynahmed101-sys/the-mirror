@@ -369,7 +369,7 @@ export default function SimulationChamber() {
                         <span className="text-xs font-bold text-slate-200 truncate">
                           {a.displayName || a.name || a.id}
                         </span>
-                        {busy && <span className="mirror-mini-badge mirror-mini-badge--busy">BUSY</span>}
+                        {busy && <span className="mirror-mini-badge mirror-mini-badge--busy">ACTIVE</span>}
                       </div>
                       <div className="text-[10px] text-slate-500 font-mono truncate mt-0.5">
                         {a.id} • {a.provider || "unknown"} / {a.model || "unknown"}
