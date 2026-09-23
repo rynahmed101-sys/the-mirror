@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { resolveRequestPrincipal, createApiToken, revokeApiToken } from "@/lib/auth";
+import { resolveRequestPrincipal, revokeApiToken } from "@/lib/auth";
 
 async function requireControl(req: Request) {
   const principal = await resolveRequestPrincipal(req);
@@ -8,24 +8,10 @@ async function requireControl(req: Request) {
 
 export async function POST(req: Request) {
   if (!(await requireControl(req))) {
-    return NextResponse.json({ error: "Admin session or control credential required." }, { status: 403 });
+    return NextResponse.json({ error: "Legacy token issuance is disabled. Create a link capability at /api/mirror/access-link." }, { status: 410 });
   }
-  try {
-    const body = await req.json().catch(() => ({}));
-    const name = typeof body.name === "string" && body.name.trim()
-      ? body.name.trim().slice(0, 80)
-      : "temporary-lab-access";
-    const result = await createApiToken(name);
-    return NextResponse.json({
-      success: true,
-      ...result,
-      warning: "Store this token securely and rotate/revoke it after the experiment.",
-    });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message || String(error) }, { status: 500 });
-  }
+  return NextResponse.json({ error: "Legacy token issuance is disabled. Create a link capability at /api/mirror/access-link." }, { status: 410 });
 }
-
 
 export async function DELETE(req: Request) {
   if (!(await requireControl(req))) {
