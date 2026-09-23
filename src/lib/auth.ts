@@ -14,6 +14,9 @@ import { createHash } from "crypto";
 import { SignJWT, jwtVerify } from "jose";
 
 const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-production";
+if (process.env.NODE_ENV === "production" && JWT_SECRET === "change-me-in-production") {
+  throw new Error("JWT_SECRET must be configured in production.");
+}
 const secret = new TextEncoder().encode(JWT_SECRET);
 
 // ── Session tokens (dashboard login) ───────────────────────
