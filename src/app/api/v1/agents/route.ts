@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { agents } from "@/lib/db/schema";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 import { sql } from "drizzle-orm";
 
-export async function GET() {
+const tables:any = isPg ? pgSchema : sqliteSchema;
+const { agents } = tables;
+
+export async function GET(req: Request) {
+  await requireExperimentalActor(req);
   try {
     const list = await db
       .select()
