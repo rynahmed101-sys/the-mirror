@@ -10,7 +10,7 @@ type RunState = {
   activeCount: number;
 };
 
-type LabMode = "projection" | "ledger" | "sandbox" | "";
+type LabMode = "token" | "projection" | "ledger" | "sandbox" | "";
 
 function LabButton({
   mode,
