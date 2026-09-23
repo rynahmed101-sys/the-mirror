@@ -9,6 +9,7 @@
  */
 
 import { db, isPg } from "../db";
+import { learnFromChamberOutcome } from "../lab/brainController";
 import * as sqliteSchema from "../db/schema";
 import * as pgSchema from "../db/schema.pg";
 import { and, asc, eq } from "drizzle-orm";
