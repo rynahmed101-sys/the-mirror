@@ -204,7 +204,7 @@ export async function runLabPlugin(id: string, ctx: LabPluginContext) {
 
 export async function runLabPlugins(ids: string[] | null | undefined, ctx: LabPluginContext) {
   const selected = selectLabPlugins(ids);
-  const results = [];
+  const results: Array<{ pluginId: string; name: string; durationMs: number; result: Record<string, unknown> }> = [];
   for (const plugin of selected) {
     results.push(await runLabPlugin(plugin.id, ctx));
   }
