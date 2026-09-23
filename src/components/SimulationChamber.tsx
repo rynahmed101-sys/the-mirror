@@ -56,8 +56,8 @@ function formatDuration(startedAt: string | null | undefined) {
   const elapsed = Date.now() - new Date(startedAt).getTime();
   if (!Number.isFinite(elapsed) || elapsed < 0) return null;
   const seconds = Math.floor(elapsed / 1000);
-  if (seconds < 60) return \`\${seconds}s\`;
-  return \`\${Math.floor(seconds / 60)}m \${seconds % 60}s\`;
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
 export default function SimulationChamber() {
@@ -90,8 +90,8 @@ export default function SimulationChamber() {
         fetch("/api/mirror/simulation", { cache: "no-store" }),
       ]);
 
-      if (!agentRes.ok) throw new Error(\`Agent list failed (HTTP \${agentRes.status}).\`);
-      if (!simulationRes.ok) throw new Error(\`Simulation status failed (HTTP \${simulationRes.status}).\`);
+      if (!agentRes.ok) throw new Error(`Agent list failed (HTTP ${agentRes.status}).`);
+      if (!simulationRes.ok) throw new Error(`Simulation status failed (HTTP ${simulationRes.status}).`);
 
       const [agentData, simulationData] = await Promise.all([
         agentRes.json(),
@@ -173,7 +173,7 @@ export default function SimulationChamber() {
       }
 
       if (!res.ok || data.success === false) {
-        throw new Error(data.details || data.error || \`Suite failed (HTTP \${res.status}).\`);
+        throw new Error(data.details || data.error || `Suite failed (HTTP ${res.status}).`);
       }
 
       setRun(data);
@@ -203,7 +203,7 @@ export default function SimulationChamber() {
 
       const data = await res.json();
       if (!res.ok || data.ok === false) {
-        throw new Error(data.details || data.error || \`Sandbox probe failed (HTTP \${res.status}).\`);
+        throw new Error(data.details || data.error || `Sandbox probe failed (HTTP ${res.status}).`);
       }
 
       setSandboxResult(data);
@@ -261,7 +261,7 @@ export default function SimulationChamber() {
               title="Refresh simulation status and history"
               className="mirror-icon-button"
             >
-              <RefreshCw className={\`w-4 h-4 \${loading ? "animate-spin" : ""}\`} aria-hidden="true" />
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />
             </button>
           </div>
         </header>
@@ -269,7 +269,7 @@ export default function SimulationChamber() {
         <section className="mirror-run-banner" aria-live="polite">
           <div className="flex items-start gap-3 min-w-0">
             <span
-              className={\`mirror-status-dot \${runState.active ? "is-active" : "is-ready"}\`}
+              className={`mirror-status-dot ${runState.active ? "is-active" : "is-ready"}`}
               aria-hidden="true"
             />
             <div className="min-w-0">
@@ -285,7 +285,7 @@ export default function SimulationChamber() {
               </div>
               <p className="text-xs text-slate-400 mt-1">
                 {runState.active
-                  ? \`An active session owns one or more selected agents\${runDuration ? \` • running for \${runDuration}\` : ""}. The server blocks overlapping projection suites.\`
+                  ? `An active session owns one or more selected agents${runDuration ? ` • running for ${runDuration}` : ""}. The server blocks overlapping projection suites.`
                   : "No recent active projection session is holding a selected agent."}
               </p>
               {runState.active && (
@@ -338,7 +338,7 @@ export default function SimulationChamber() {
                 </button>
                 <span className="text-[10px] text-slate-500 text-right">
                   {selectedAgents.length
-                    ? \`\${selectedAgents.length} agent\${selectedAgents.length === 1 ? "" : "s"} selected\`
+                    ? `${selectedAgents.length} agent${selectedAgents.length === 1 ? "" : "s"} selected`
                     : "Select at least one agent"}
                 </span>
               </div>
@@ -351,7 +351,7 @@ export default function SimulationChamber() {
                 return (
                   <label
                     key={a.id}
-                    className={\`mirror-agent-card \${checked ? "is-selected" : ""} \${busy ? "is-busy" : ""}\`}
+                    className={`mirror-agent-card ${checked ? "is-selected" : ""} ${busy ? "is-busy" : ""}`}
                   >
                     <input
                       type="checkbox"
@@ -364,7 +364,7 @@ export default function SimulationChamber() {
                         );
                       }}
                       disabled={busy || running}
-                      aria-label={\`Select \${a.displayName || a.name || a.id} for projection run\`}
+                      aria-label={`Select ${a.displayName || a.name || a.id} for projection run`}
                     />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 min-w-0">
@@ -512,11 +512,11 @@ export default function SimulationChamber() {
                     key={r.projectionId}
                     onClick={() => setSelectedTrial(r)}
                     aria-pressed={selectedTrial?.projectionId === r.projectionId}
-                    className={\`mirror-result-row \${selectedTrial?.projectionId === r.projectionId ? "is-selected" : ""}\`}
+                    className={`mirror-result-row ${selectedTrial?.projectionId === r.projectionId ? "is-selected" : ""}`}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-xs font-bold text-slate-200">{r.trialKey}</div>
-                      <span className={\`mirror-mini-badge \${r.actual ? "mirror-mini-badge--success" : "mirror-mini-badge--warning"}\`}>
+                      <span className={`mirror-mini-badge ${r.actual ? "mirror-mini-badge--success" : "mirror-mini-badge--warning"}`}>
                         {r.actual ? "TARGET HIT" : "TARGET MISSED"}
                       </span>
                     </div>
