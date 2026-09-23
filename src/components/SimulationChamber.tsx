@@ -29,6 +29,8 @@ type Agent = {
 
 type Trial = any;
 
+const EMPTY_COMPARISON:any[] = [];
+
 type RunState = {
   active: boolean;
   activeAgents: string[];
@@ -67,8 +69,6 @@ export default function SimulationChamber() {
   const [error, setError] = useState("");
   const [confirmRun, setConfirmRun] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  const EMPTY_COMPARISON:any[]=[];
 
   const runState: RunState = catalog?.runState || {
     active: false,
