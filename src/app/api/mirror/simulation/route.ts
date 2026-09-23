@@ -30,8 +30,8 @@ export async function POST(req: Request) {
     const agentIds = Array.isArray(body.agentIds)
       ? body.agentIds.filter((x: unknown) => typeof x === "string" && x).slice(0, 4)
       : ["mirror-primary"];
-    const maxTrials = Math.min(20, Math.max(1, Number(body.maxTrials) || 20));
-    const maxToolSteps = Math.min(4, Math.max(1, Number(body.maxToolSteps) || 3));
+    const maxTrials = Math.min(6, Math.max(1, Number(body.maxTrials) || 4));
+    const maxToolSteps = Math.min(3, Math.max(1, Number(body.maxToolSteps) || 2));
     const seed = typeof body.seed === "string" && body.seed ? body.seed : undefined;
     return NextResponse.json(await runProjectionSuite({ agentIds, maxTrials, maxToolSteps, seed }));
   } catch (error: any) {
