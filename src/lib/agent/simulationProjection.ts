@@ -532,6 +532,8 @@ export async function runProjectionSuite(options: { agentIds?: string[]; seed?: 
   const comparison = runs.map((r:any)=>({
     agentId:r.agentId,
     model:r.agentModel,
+    provider:aiRegistry.getActiveProviderName(),
+    recordModel:r.results[0]?.agentRecordModel || null,
     trials:r.results.length,
     targetRate:Number((r.results.filter((x:any)=>x.actual).length / Math.max(1,r.results.length)).toFixed(4)),
     meanRealityGap:Number((r.results.reduce((n:number,x:any)=>n+x.realityGap,0)/Math.max(1,r.results.length)).toFixed(4)),
