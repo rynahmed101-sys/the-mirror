@@ -3,7 +3,7 @@ import { db, isPg } from "@/lib/db";
 import * as sqliteSchema from "@/lib/db/schema";
 import * as pgSchema from "@/lib/db/schema.pg";
 import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
 
 const tables:any = isPg ? pgSchema : sqliteSchema;
 const { agents } = tables;
@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     const list = await db
       .select()
       .from(agents)
-      .where(targetAgentId ? (await import("drizzle-orm")).eq(agents.id, targetAgentId) : undefined)
+      
       .orderBy(sql`${agents.createdAt} DESC`);
 
     return NextResponse.json(
