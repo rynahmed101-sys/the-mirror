@@ -23,6 +23,10 @@ export async function GET(req: Request) {
     const to = searchParams.get("to") ? parseInt(searchParams.get("to")!) : null;
     const order = searchParams.get("order") === "desc" ? "desc" : "asc";
 
+    if (verify && actor.mode !== "CONTROL") {
+      return NextResponse.json({ error: "Ledger verification requires control authorization." }, { status: 403 });
+    }
+
     if (verify) {
       const integrityStatus = await verifyLedgerIntegrity();
 
