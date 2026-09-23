@@ -112,7 +112,7 @@ export async function pulseBlackHole(agentId="mirror-primary"){
 }
 
 export async function startBlackHoleThinking(agentId="mirror-primary"){
-  await ensureTable();
+  await getBlackHoleState(agentId);
   const now=Date.now();
   if(isPg){
     const rows=await neonSql\`UPDATE mirror_black_hole_state
@@ -135,7 +135,7 @@ export async function finishBlackHoleThinking(agentId:string,args:{
   error?:string|null;
 }){
   await ensureTable();
-  const nextState:MirrorLifeState=args.error ? "ERROR" : "INTEGRATING";
+  const nextState:MirrorLifeState=args.error ? "ERROR" : "SINGULARITY";
   const nodes=JSON.stringify((args.activeNodes||[]).slice(0,8));
   if(isPg){
     await neonSql\`UPDATE mirror_black_hole_state
