@@ -23,17 +23,17 @@ export default function MirrorWorkspace(){
   const [keyPreview,setKeyPreview]=useState<string|null>(null);
   const [newKey,setNewKey]=useState("");
   const [link,setLink]=useState<any>(null);
-  const [attachment,setAttachment]=useState<any>(null);
+  const [attachment,setAttachment]=useState<any>(null);\n  const [brain,setBrain]=useState<any>(null);
 
   useEffect(()=>{
     Promise.all([
       fetch("/api/lab/plugins",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
       fetch("/api/knowledge/connectors",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
-      fetch("/api/mirror/runtime-config",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
+      fetch("/api/mirror/runtime-config",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),\n      fetch("/api/brain",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
     ]).then(([lab,knowledge,config])=>{
       if(Array.isArray(lab?.plugins)) setPlugins(lab.plugins);
       if(Array.isArray(knowledge?.connectors)) setKnowledgeConnectors(knowledge.connectors);
-      setKeyPreview(config?.keyPreview||null);
+      setKeyPreview(config?.keyPreview||null);\n      if(brainData?.definition) setBrain(brainData);
     });
   },[]);
 
@@ -98,7 +98,7 @@ export default function MirrorWorkspace(){
     setAttachment(res.ok?data.attachment:{error:data.error||"Upload failed"});
   }
 
-  const nodes=useMemo(()=>Array.from({length:96},(_,i)=>i),[]);
+  const nodes=useMemo(()=>brain?.definition?.nodes||[],[brain]);
 
   return <main className="min-h-dvh bg-[#050505] text-zinc-100">
     <div className="grid min-h-dvh lg:grid-cols-[220px_minmax(0,1fr)_300px]">
@@ -131,7 +131,7 @@ export default function MirrorWorkspace(){
 
         {tab==="lab"&&<div className="p-4 lg:p-8"><div className="mx-auto max-w-4xl"><div className="mb-5 rounded-2xl border border-white/[0.06] bg-[#0b0b0d] p-5"><div className="flex items-center justify-between"><div><div className="text-lg font-semibold">Laboratory plugins</div><div className="mt-1 text-xs text-zinc-600">Run one, several, or the complete bounded suite through the same ledger.</div></div><button onClick={runLab} disabled={labBusy} className="inline-flex items-center gap-2 rounded-xl bg-red-700 px-4 py-2.5 text-xs font-semibold disabled:opacity-40"><Play className="h-4 w-4"/>{labBusy?"Running":"Run selected"}</button></div></div><div className="grid gap-3 md:grid-cols-2">{plugins.map(p=><button key={p.id} onClick={()=>setSelectedPlugins(s=>s.includes(p.id)?s.filter(x=>x!==p.id):[...s,p.id])} className={`rounded-2xl border p-4 text-left ${selectedPlugins.includes(p.id)?"border-red-500/30 bg-red-950/10":"border-white/[0.06] bg-[#0b0b0d]"}`}><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-semibold">{p.name}</div><div className="mt-1 text-xs leading-5 text-zinc-500">{p.description}</div></div><CircleDot className={`h-4 w-4 ${selectedPlugins.includes(p.id)?"text-red-400":"text-zinc-700"}`}/></div><div className="mt-3 flex gap-2 text-[9px] font-mono uppercase tracking-wider text-zinc-600"><span>{p.category}</span><span>·</span><span>{p.cost}</span></div></button>)}</div>{labResult&&<pre className="mt-4 overflow-auto rounded-2xl border border-white/[0.06] bg-black p-4 text-[10px] leading-5 text-zinc-400">{JSON.stringify(labResult,null,2)}</pre>}</div></div>}
 
-        {tab==="brain"&&<div className="p-4 lg:p-8"><div className="mx-auto max-w-5xl"><div className="mb-5 rounded-2xl border border-white/[0.06] bg-[#0b0b0d] p-5"><div className="flex items-center gap-3"><Brain className="h-5 w-5 text-red-300"/><div><div className="text-lg font-semibold">96-node brain architecture shell</div><div className="text-xs text-zinc-600">Left/right tendencies are supported by the schema, but node semantics remain unassigned until the authoritative topology is supplied.</div></div></div></div><div className="grid grid-cols-8 gap-2 md:grid-cols-12">{nodes.map(i=><div key={i} className="aspect-square rounded-lg border border-white/[0.05] bg-[#0b0b0d] p-2 text-center"><div className="text-[9px] font-mono text-zinc-700">{String(i+1).padStart(2,"0")}</div><div className="mt-1 text-[8px] text-zinc-600">unknown</div></div>)}</div></div></div>}
+        {tab==="brain"&&<div className="p-4 lg:p-8"><div className="mx-auto max-w-5xl"><div className="mb-5 rounded-2xl border border-white/[0.06] bg-[#0b0b0d] p-5"><div className="flex items-center gap-3"><Brain className="h-5 w-5 text-red-300"/><div><div className="text-lg font-semibold">96-node operative brain</div><div className="text-xs text-zinc-600">Six controller layers × sixteen behavioral columns. Ollama remains the language engine; Brain96 selects and adapts operational modules.</div></div></div><div className="mt-4 flex flex-wrap gap-2 text-[9px] font-mono text-zinc-500"><span>{brain?.summary?.active||0} active</span><span>·</span><span>{brain?.summary?.trained||0} trained</span><span>·</span><span>{brain?.summary?.left||48} left</span><span>·</span><span>{brain?.summary?.right||48} right</span></div></div><div className="grid grid-cols-8 gap-2 md:grid-cols-12">{nodes.map((n:any)=><div key={n.id} className="aspect-square rounded-lg border border-white/[0.05] bg-[#0b0b0d] p-1 text-center"><div className="text-[8px] font-mono text-zinc-700">{String(n.index+1).padStart(2,"0")}</div><div className="mt-1 truncate text-[7px] text-zinc-500">{n.label}</div><div className="mt-1 text-[7px] font-mono text-red-300">{n.hemisphere[0].toUpperCase()} {n.tendency.toFixed(2)}</div></div>)}</div></div></div>}
 
         {tab==="knowledge"&&<div className="p-4 lg:p-8"><div className="mx-auto max-w-4xl"><div className="rounded-2xl border border-white/[0.06] bg-[#0b0b0d] p-5"><div className="text-lg font-semibold">Knowledge fabric</div><div className="mt-1 text-xs text-zinc-600">Live connectors are kept outside the core inference engine so evidence can be attributed independently.</div><div className="mt-4 flex gap-2"><select value={knowledgeConnector} onChange={e=>setKnowledgeConnector(e.target.value)} className="rounded-xl border border-white/[0.08] bg-black px-3 py-2 text-xs">{knowledgeConnectors.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><input value={knowledgeQuery} onChange={e=>setKnowledgeQuery(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")searchKnowledge()}} placeholder="Search models, datasets, papers, GitHub…" className="min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-black px-3 py-2 text-xs outline-none"/><button onClick={searchKnowledge} className="rounded-xl bg-red-700 px-4 py-2 text-xs">Search</button></div><div className="mt-5 space-y-2">{knowledgeResults.map((r,i)=><div key={i} className="rounded-xl border border-white/[0.06] p-3 text-xs text-zinc-400"><pre className="whitespace-pre-wrap">{JSON.stringify(r,null,2)}</pre></div>)}</div></div></div></div>}
 
@@ -142,7 +142,7 @@ export default function MirrorWorkspace(){
         <div className="mb-4 text-[10px] font-mono uppercase tracking-[0.16em] text-zinc-600">Live inspector</div>
         {tab==="chat"&&<><div className="rounded-2xl border border-white/[0.06] bg-black/20 p-4"><div className="mb-3 text-xs font-semibold">Tool trace</div>{trace.length?trace.map((x,i)=><div key={i} className="flex items-center gap-2 py-1.5 text-[10px] font-mono text-red-300"><ChevronRight className="h-3 w-3"/>{x}</div>):<div className="text-[10px] text-zinc-700">Waiting for the next tool action.</div>}</div><div className="mt-3 rounded-2xl border border-white/[0.06] bg-black/20 p-4"><div className="text-xs font-semibold">Attachments</div><div className="mt-2 text-[10px] text-zinc-700">Files can be attached with the paperclip in chat.</div></div></>}
         {tab==="lab"&&<div className="rounded-2xl border border-white/[0.06] bg-black/20 p-4"><div className="text-xs font-semibold">Selected</div><div className="mt-2 text-[10px] text-zinc-500">{selectedPlugins.length?selectedPlugins.join(", "):"All bounded plugins"}</div></div>}
-        {tab==="brain"&&<div className="rounded-2xl border border-white/[0.06] bg-black/20 p-4 text-[10px] text-zinc-600"><div className="mb-2 text-xs font-semibold text-zinc-400">Topology contract</div> Exactly 96 nodes, unique IDs, edges only reference existing nodes, tendency ∈ [-1,1]. No meanings are fabricated.</div>}
+        {tab==="brain"&&<div className="rounded-2xl border border-white/[0.06] bg-black/20 p-4 text-[10px] text-zinc-600"><div className="mb-2 text-xs font-semibold text-zinc-400">Brain status</div>Operational. {brain?.summary?.active||0} active nodes, {brain?.summary?.trained||0} with behavioral exposure. Per-node causal status remains untested until controlled node-level comparisons exist.</div>}
         {tab==="knowledge"&&<div className="rounded-2xl border border-white/[0.06] bg-black/20 p-4 text-[10px] text-zinc-600"><div className="mb-2 text-xs font-semibold text-zinc-400">Connectors</div>{knowledgeConnectors.map(c=><div key={c.id} className="py-1">{c.name}</div>)}</div>}
         {tab==="admin"&&<div className="rounded-2xl border border-white/[0.06] bg-black/20 p-4 text-[10px] text-zinc-600"><div className="mb-2 text-xs font-semibold text-zinc-400">Control plane</div>Provider key, external access links, attachments, and laboratory execution remain server-authorized.</div>}
       </aside>
