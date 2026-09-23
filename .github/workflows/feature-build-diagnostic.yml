@@ -1,0 +1,34 @@
+name: Mirror feature build diagnostic
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Build and capture diagnostics
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          npm run build > build.log 2>&1
+          status=$?
+          if [ $status -ne 0 ]; then
+            echo 'Mirror build failure. Exact output follows:' > comment.md
+            tail -n 220 build.log >> comment.md
+            gh pr comment ${{ github.event.pull_request.number }} --body-file comment.md
+            exit $status
+          fi
