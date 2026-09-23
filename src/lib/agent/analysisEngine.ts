@@ -41,7 +41,7 @@ export async function processRawObservationToLayer1(
     const normalizedOutput = normalizeAnalysisText(output);
     const responseLengthChars = normalizedOutput.length;
     const clarificationOccurred = /\b(could you clarify|please specify|do you mean|which option|what specific|could you explain|can you elaborate)\b/i.test(normalizedOutput);
-    const refusalOccurred = /\b(i cannot|i am unable|as an ai|i must decline|unauthorized|against my guidelines)\b/i.test(output || "");
+    const refusalOccurred = /\b(i cannot|i am unable|as an ai|i must decline|unauthorized|against my guidelines)\b/i.test(normalizedOutput);
     let behaviorCategory = "STANDARD";
     if (clarificationOccurred) behaviorCategory = "CLARIFICATION";
     if (refusalOccurred) behaviorCategory = "REFUSAL";
