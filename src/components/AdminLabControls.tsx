@@ -12,43 +12,6 @@ type RunState = {
 
 type LabMode = "token" | "projection" | "ledger" | "sandbox" | "";
 
-function LabButton({
-  mode,
-  busy,
-  disabled,
-  onClick,
-  icon,
-  label,
-  workingLabel,
-  tone,
-}: {
-  mode: Exclude<LabMode, "">;
-  busy: LabMode;
-  disabled?: boolean;
-  onClick: () => void;
-  icon: ReactNode;
-  label: string;
-  workingLabel: string;
-  tone: "primary" | "secondary" | "green";
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled || !!busy}
-      aria-busy={busy === mode}
-      className={`mirror-admin-action mirror-admin-action--${tone}`}
-    >
-      {busy === mode ? (
-        <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
-      ) : (
-        icon
-      )}
-      {busy === mode ? workingLabel : label}
-    </button>
-  );
-}
-
 export default function AdminLabControls() {
   const [busy, setBusy] = useState<LabMode>("");
   const [token, setToken] = useState("");
