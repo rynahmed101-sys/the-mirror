@@ -28,7 +28,9 @@ export async function GET(req:Request){
         active:brain.summary.active,
         trained:brain.summary.trained,
         total:brain.summary.total,
-        activeNodes:brain.activeNodeIds
+        activeNodes:Object.entries(brain.state.nodes)
+          .filter(([,node]:any)=>Number(node.activation||0)>0.05)
+          .map(([id])=>id)
       }
     },{headers:{"Cache-Control":"no-store"}});
   }catch(error:any){
@@ -79,11 +81,14 @@ export async function POST(req:Request){
         const last=run.results?.[run.results.length-1];
         const brain=await getOperationalBrain(AGENT_ID);
         await ingestMirrorMemory(AGENT_ID);
+        const activeNodeIds=Object.entries(brain.state.nodes)
+          .filter(([,node]:any)=>Number(node.activation||0)>0.05)
+          .map(([id])=>id);
         const state=await finishBlackHoleThinking(AGENT_ID,{
           cycleDelta:Number(run.cyclesCompleted||0),
           thought:String(last?.output||run.results?.[0]?.error||"No new thought was produced.").slice(0,1800),
           action:run.results?.[0]?.phase||"OBSERVE",
-          activeNodes:brain.activeNodeIds
+          activeNodes:activeNodeIds
         });
         return NextResponse.json({success:true,state,run:{
           sessionId:run.sessionId,
