@@ -7,6 +7,7 @@ import {
   startBlackHoleThinking,
   finishBlackHoleThinking,
   settleBlackHole,
+  ingestMirrorMemory,
 } from "@/lib/mirror/blackHoleState";
 import { getOperationalBrain } from "@/lib/lab/brainController";
 
@@ -53,6 +54,11 @@ export async function POST(req:Request){
       return NextResponse.json({success:true,state:await settleBlackHole(AGENT_ID)});
     }
 
+    if(action==="ingest"){
+      const memory=await ingestMirrorMemory(AGENT_ID);
+      return NextResponse.json({success:true,memory,state:await getBlackHoleState(AGENT_ID)});
+    }
+
     if(action==="wake"){
       const acquired=await startBlackHoleThinking(AGENT_ID);
       if(!acquired){
@@ -72,6 +78,7 @@ export async function POST(req:Request){
         });
         const last=run.results?.[run.results.length-1];
         const brain=await getOperationalBrain(AGENT_ID);
+        await ingestMirrorMemory(AGENT_ID);
         const state=await finishBlackHoleThinking(AGENT_ID,{
           cycleDelta:Number(run.cyclesCompleted||0),
           thought:String(last?.output||run.results?.[0]?.error||"No new thought was produced.").slice(0,1800),
