@@ -1,3 +1,4 @@
+export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { resolveRequestPrincipal } from "@/lib/auth";
 import { runSandboxProbe } from "@/lib/agent/sandboxChamber";
