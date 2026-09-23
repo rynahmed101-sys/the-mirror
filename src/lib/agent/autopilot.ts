@@ -15,6 +15,7 @@ import * as sqliteSchema from "../db/schema";
 import * as pgSchema from "../db/schema.pg";
 import { eq, desc, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { activateOperationalBrain } from "../lab/brainController";
 
 const tables: any = isPg ? pgSchema : sqliteSchema;
 const { agents, agentSessions, rawMessages, systemConfig, timelineEvents } = tables;
@@ -75,6 +76,9 @@ export async function runToolLoop(options: {
   const maxToolSteps = bounded(options.maxToolSteps, 1, 8, 6);
   const requestSource = options.requestSource || "SCHEDULED";
   let messages = [...options.messages];
+  const brainInput = options.messages.filter((m) => m.role === "user").map((m) => m.content).join("\n");
+  const brainPlan = await activateOperationalBrain(options.agentId, brainInput || "general research task");
+  messages.unshift({ role:"system", content:brainPlan.systemInstruction });
   const trace: ToolTrace[] = [];
   let lastContent = "";
   let totalInputTokens = 0;
