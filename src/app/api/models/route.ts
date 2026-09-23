@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import { aiRegistry } from "@/lib/ai/registry";
-import { db } from "@/lib/db";
-import { systemConfig } from "@/lib/db/schema";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
+import { resolveRequestPrincipal } from "@/lib/auth";
+const tables:any=isPg?pgSchema:sqliteSchema;
+const {systemConfig}=tables;
 
-export async function GET() {
+export async function GET(req:Request) {
+  const principal=await resolveRequestPrincipal(req);
+  if(!principal||principal.kind!=="CONTROL") return NextResponse.json({error:"Admin access required."},{status:403});
   try {
     const config = await db.select().from(systemConfig).limit(1);
     const activeConfig = config[0] || {
