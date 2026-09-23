@@ -3,11 +3,11 @@ import { db, isPg } from "@/lib/db";
 import * as sqliteSchema from "@/lib/db/schema";
 import * as pgSchema from "@/lib/db/schema.pg";
 import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
 const tables:any=isPg?pgSchema:sqliteSchema;
-const {selfModels,selfModelClaims,timelineEvents}=tables;
+const {selfModels,selfModelClaims,timelineEvents,rawEventLedger}=tables;
 
 function parseArray(value:unknown){
   if(typeof value!=="string") return Array.isArray(value)?value:[];
@@ -42,7 +42,11 @@ export async function POST(req:Request){
       if(!claim) return NextResponse.json({error:"claim required"},{status:400});
       if(!Number.isFinite(confidence)||confidence<0||confidence>1) return NextResponse.json({error:"confidence must be between 0 and 1"},{status:400});
       if(!supportingEvidence.length||!rawEventIds.length) return NextResponse.json({error:"supportingEvidence and rawEventIds are required"},{status:400});
-      const [newClaim]=await db.insert(selfModelClaims).values({selfModelId:currentModel.id,claim,category:typeof body.category==="string"&&body.category?body.category:"GENERAL",confidence,evidenceType:typeof body.evidenceType==="string"&&body.evidenceType?body.evidenceType:"BEHAVIORAL_DATA",supportingEvidence:JSON.stringify(supportingEvidence),counterevidence:JSON.stringify(counterevidence),rawEventIds:JSON.stringify(rawEventIds),status:typeof body.status==="string"&&body.status?body.status:"ACTIVE"}).returning();
+      const evidenceType=typeof body.evidenceType==="string"&&body.evidenceType?String(body.evidenceType).toUpperCase():"BEHAVIORAL_DATA";
+      if(evidenceType==="SELF_REPORTED") return NextResponse.json({error:"SELF_REPORTED cannot be the sole evidence type."},{status:400});
+      const verified=await db.select({id:rawEventLedger.id}).from(rawEventLedger).where(and(eq(rawEventLedger.agentId,actor.agentId),inArray(rawEventLedger.id,rawEventIds)));
+      if(verified.length!==rawEventIds.length) return NextResponse.json({error:"One or more rawEventIds do not belong to verified ledger events for this agent."},{status:403});
+      const [newClaim]=await db.insert(selfModelClaims).values({selfModelId:currentModel.id,claim,category:typeof body.category==="string"&&body.category?body.category:"GENERAL",confidence,evidenceType,supportingEvidence:JSON.stringify(supportingEvidence),counterevidence:JSON.stringify(counterevidence),rawEventIds:JSON.stringify(rawEventIds),status:typeof body.status==="string"&&body.status?body.status:"ACTIVE"}).returning();
       await db.insert(timelineEvents).values({eventType:"SELF_MODEL_UPDATED",title:"New Claim Added (V"+currentModel.version+")",description:claim,agentId:actor.agentId,metadata:JSON.stringify({claimId:newClaim.id,confidence})});
       return NextResponse.json({success:true,claim:newClaim});
     }
