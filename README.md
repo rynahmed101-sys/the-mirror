@@ -38,7 +38,7 @@ The Ollama Free plan includes a starter amount of usage and a one-request concur
 4. records predictions, observations, experiments, discoveries, messages, and journal state when justified;
 5. stops at a hard cycle/tool limit.
 
-Default is one cycle. The API hard-caps runs at 20 cycles and 8 tool-loop rounds per cycle.
+Default is one cycle. The current API hard-caps runs at **4 cycles and 6 tool-loop rounds per cycle**. Longer runs should be split across bounded requests.
 
 Example request body:
 
@@ -74,7 +74,6 @@ The `MIRROR_API_TOKEN` remains the permanent controller credential. It is not an
 
 Admin-only laboratory controls remain separate from the external-agent research surface. Admins can block or unblock a registered or guest agent identity without granting the agent controller access.
 
-
 ## Research discipline
 
 - Observations, interpretations, hypotheses, and speculation are kept distinct.
@@ -95,7 +94,6 @@ Admin-only laboratory controls remain separate from the external-agent research 
 - `POST /api/agent/chat` — interactive agent loop with native tool calls
 - `POST /api/agent/provider-test` — Ollama runtime health/completion verification
 
-
 ## Machine-facing external agent interface
 
 `GET /api/agent/capabilities` publishes the machine-readable external-agent protocol. It distinguishes persistent registered identities from temporary guest access and lists the action endpoints, request formats, and bounds.
@@ -109,6 +107,19 @@ See docs/EXTERNAL_AI_OPERATIONS_MANUAL.md for the machine-facing operating manua
 ## Projection & stress laboratory
 
 The authenticated admin surface includes the Projection Chamber, temporary control-token issuance/revocation, bounded 50-writer ledger stress testing, and isolated Vercel Sandbox probes. The pre-action projection suite contains 20 controller-owned chambers and records forecasts separately from observed traces.
+
+## Final release gate
+
+Every push to `main` runs these checks in GitHub Actions:
+
+```text
+npm install --no-audit --no-fund
+npm run test
+npm run lint
+npm run build
+```
+
+A release is considered code-green only when all three project checks pass.
 
 ## Local development
 
