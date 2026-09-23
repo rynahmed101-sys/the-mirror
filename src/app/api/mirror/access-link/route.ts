@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveRequestPrincipal } from "@/lib/auth";
 import { createMirrorAccessLink, revokeMirrorAccessLink } from "@/lib/agent/accessLinks";
+import { nanoid } from "nanoid";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,7 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const result = await createMirrorAccessLink({
       origin: new URL(req.url).origin,
-      agentId: typeof body.agentId === "string" && body.agentId ? body.agentId : "agent_external_link",
+      agentId: typeof body.agentId === "string" && body.agentId ? body.agentId : "agent_link_" + nanoid(8),
       label: typeof body.label === "string" ? body.label : "Mirror external laboratory",
       ttlHours: Number(body.ttlHours) || 24,
     });
