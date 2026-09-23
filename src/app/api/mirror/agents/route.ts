@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { NextResponse } from "next/server";
 import { db, isPg } from "@/lib/db";
 import * as sqliteSchema from "@/lib/db/schema";
 import * as pgSchema from "@/lib/db/schema.pg";
@@ -74,7 +73,6 @@ export async function POST(req: Request) {
           id,
           name,
           role,
-          description: description || null,
           systemPromptOverride: systemPromptOverride || null,
           isActive: true,
         })
