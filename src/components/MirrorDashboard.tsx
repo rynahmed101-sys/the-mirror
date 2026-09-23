@@ -210,7 +210,7 @@ export default function MirrorDashboard() {
               <h1 className="text-lg font-bold tracking-wider bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent flex items-center gap-2">
                 THE MIRROR
                 <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-purple-950/80 text-purple-300 border border-purple-800/50">
-                  RESEARCH PROTOTYPE • INTEGRITY VERIFIED
+                  RESEARCH PROTOTYPE
                 </span>
               </h1>
               <p className="text-xs text-slate-400 font-mono">Behavioral Research Laboratory • SHA-256 Event Ledger • Zero Forks</p>
@@ -223,19 +223,21 @@ export default function MirrorDashboard() {
           <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-md">
             <Shield className="w-3.5 h-3.5 text-emerald-400" />
             <span className="text-slate-400">Ledger Status:</span>
-            <span className="text-emerald-400 font-bold">{statusData?.researchIntegrity?.status || "VALID"}</span>
+            <span className={`font-bold ${statusData?.researchIntegrity?.status === "VALID" ? "text-emerald-400" : "text-amber-300"}`}>
+              {statusData?.researchIntegrity?.status || (loadingStatus ? "CHECKING" : "UNKNOWN")}
+            </span>
           </div>
 
           <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-md">
             <Radio className="w-3.5 h-3.5 text-cyan-400" />
             <span className="text-slate-400">Raw Stream:</span>
-            <span className="text-cyan-400 font-bold">{rawEventsList.length} Events</span>
+            <span className="text-cyan-400 font-bold">{rawEventsList.length} Visible</span>
           </div>
           <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-md max-w-[360px]">
             <Cpu className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
             <span className="text-slate-400">AI Runtime:</span>
             <span className={`font-bold ${statusData?.aiRuntime?.health === "HEALTHY" ? "text-emerald-400" : "text-amber-400"}`}>
-              {statusData?.aiRuntime?.provider || "ollama"} / {statusData?.aiRuntime?.model || "loading"}
+              {statusData?.aiRuntime?.provider || (loadingStatus ? "checking" : "unknown")} / {statusData?.aiRuntime?.model || (loadingStatus ? "checking" : "unknown")}
             </span>
             <span className="text-[10px] uppercase text-slate-500">
               {statusData?.aiRuntime?.mode || "unknown"}
@@ -339,7 +341,7 @@ export default function MirrorDashboard() {
 
               <div className="glass-panel p-4 rounded-xl border border-slate-800">
                 <div className="flex justify-between items-start text-slate-400 text-xs font-mono">
-                  <span>RAW EVENT STREAM</span>
+                  <span>VISIBLE RAW EVENTS</span>
                   <Radio className="w-4 h-4 text-purple-400" />
                 </div>
                 <div className="text-2xl font-bold mt-2 text-slate-100">{rawEventsList.length}</div>
@@ -360,9 +362,9 @@ export default function MirrorDashboard() {
             <div className="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
                 <h3 className="text-sm font-semibold flex items-center gap-2 text-emerald-300">
-                  <Radio className="w-4 h-4 text-emerald-400 animate-pulse" /> Live Append-Only Raw Event Stream
+                  <Radio className="w-4 h-4 text-emerald-400" /> Recent Raw Events
                 </h3>
-                <span className="text-xs font-mono text-slate-400">Immutable Fact Stream</span>
+                <span className="text-xs font-mono text-slate-400">Append-only records</span>
               </div>
               <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-2 font-mono text-xs">
                 {rawEventsList.map((ev) => (
@@ -444,7 +446,7 @@ export default function MirrorDashboard() {
                   <Lock className="w-3.5 h-3.5 text-cyan-400" />
                 </div>
                 <div className="text-lg font-bold text-cyan-400 font-mono">
-                  {statusData?.researchIntegrity?.hashCoverage || "VALID"}
+                  {statusData?.researchIntegrity?.hashCoverage || (loadingStatus ? "CHECKING" : "NOT REPORTED")}
                 </div>
                 <div className="text-[9px] text-slate-500 font-mono">10 Canonical Fields</div>
               </div>
@@ -455,9 +457,9 @@ export default function MirrorDashboard() {
                   <Shield className="w-3.5 h-3.5 text-emerald-400" />
                 </div>
                 <div className="text-lg font-bold text-emerald-400 font-mono">
-                  {statusData?.researchIntegrity?.rawEventImmutability || "ENFORCED"}
+                  {statusData?.researchIntegrity?.rawEventImmutability || (loadingStatus ? "CHECKING" : "NOT REPORTED")}
                 </div>
-                <div className="text-[9px] text-slate-500 font-mono">Triggers Active (0 Mut)</div>
+                <div className="text-[9px] text-slate-500 font-mono">Database trigger status</div>
               </div>
 
               <div className="glass-panel p-3.5 rounded-xl border border-slate-800 space-y-1">
@@ -466,7 +468,7 @@ export default function MirrorDashboard() {
                   <Layers className="w-3.5 h-3.5 text-purple-400" />
                 </div>
                 <div className="text-lg font-bold text-purple-400 font-mono">
-                  {statusData?.researchIntegrity?.ledgerOrder || "VALID"}
+                  {statusData?.researchIntegrity?.ledgerOrder || (loadingStatus ? "CHECKING" : "NOT REPORTED")}
                 </div>
                 <div className="text-[9px] text-slate-500 font-mono">Strict Monotonic (1..N)</div>
               </div>
@@ -488,7 +490,7 @@ export default function MirrorDashboard() {
                   <Eye className="w-3.5 h-3.5 text-indigo-400" />
                 </div>
                 <div className="text-lg font-bold text-indigo-400 font-mono">
-                  {statusData?.researchIntegrity?.blindRuntimeIsolation || "ENFORCED"}
+                  {statusData?.researchIntegrity?.blindRuntimeIsolation || (loadingStatus ? "CHECKING" : "NOT REPORTED")}
                 </div>
                 <div className="text-[9px] text-slate-500 font-mono">Runtime Redaction</div>
               </div>
@@ -499,7 +501,7 @@ export default function MirrorDashboard() {
                   <Activity className="w-3.5 h-3.5 text-amber-400" />
                 </div>
                 <div className="text-xs font-bold text-amber-400 font-mono uppercase tracking-tight">
-                  {statusData?.researchIntegrity?.concurrency || "VERIFIED UNDER TESTED WORKLOAD"}
+                  {statusData?.researchIntegrity?.concurrency || (loadingStatus ? "CHECKING" : "NOT REPORTED")}
                 </div>
                 <div className="text-[9px] text-slate-500 font-mono">50 Writers / 1000+ Ev</div>
               </div>
@@ -510,7 +512,7 @@ export default function MirrorDashboard() {
                   <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
                 </div>
                 <div className="text-xs font-bold text-teal-400 font-mono uppercase tracking-tight">
-                  {statusData?.researchIntegrity?.backupRestore || "QUIESCENT DATABASE VERIFIED"}
+                  {statusData?.researchIntegrity?.backupRestore || (loadingStatus ? "CHECKING" : "NOT REPORTED")}
                 </div>
                 <div className="text-[9px] text-slate-500 font-mono">Full Hash Preservation</div>
               </div>
