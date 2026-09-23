@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const result = await createMirrorAccessLink({
       origin: new URL(req.url).origin,
-      agentId: typeof body.agentId === "string" && body.agentId ? body.agentId : "agent_link_" + nanoid(8),
+      agentId: "agent_link_" + nanoid(12),
       label: typeof body.label === "string" ? body.label : "Mirror external laboratory",
       ttlHours: Number(body.ttlHours) || 24,
     });
