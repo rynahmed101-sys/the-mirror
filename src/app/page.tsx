@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import MirrorDashboard from "@/components/MirrorDashboard";
 import { extractCookieToken, verifyAdminSession } from "@/lib/auth";
+import { ensureLunaExternalAgent } from "@/lib/auth/ensureLunaExternalAgent";
 
 export default async function Home() {
   const cookieStore = await cookies();
@@ -11,6 +12,7 @@ export default async function Home() {
   );
 
   if (!session) redirect("/admin");
+  await ensureLunaExternalAgent();
   return (
     <div className="mirror-app relative">
       <Link
