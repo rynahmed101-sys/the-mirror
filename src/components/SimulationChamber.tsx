@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Shield,
   Terminal,
+  AlertTriangle,
   X,
   XCircle,
 } from "lucide-react";
@@ -65,9 +66,6 @@ export default function SimulationChamber() {
   const [sandboxRunning, setSandboxRunning] = useState(false);
   const [sandboxResult, setSandboxResult] = useState<any>(null);
   const [error, setError] = useState("");
-  const [runState, setRunState] = useState<any>({});
-  const [confirmRun, setConfirmRun] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [confirmRun, setConfirmRun] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -140,7 +138,6 @@ export default function SimulationChamber() {
     setError("");
     setRun(null);
     setSelectedTrial(null);
-    setConfirmRun(false);
 
     try {
       const res = await fetch("/api/mirror/simulation", {
