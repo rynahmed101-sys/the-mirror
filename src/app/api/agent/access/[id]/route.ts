@@ -40,6 +40,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       { method: "POST", path: "/api/agent/access/" + id, action: "chat", body: { action: "chat", messages: "ChatMessage[]" } },
       { method: "POST", path: "/api/agent/access/" + id, action: "lab", body: { action: "lab", pluginIds: "string[] | omitted for all" } },
       { method: "POST", path: "/api/agent/access/" + id, action: "provider_test", body: { action: "provider_test" } },
+      { method: "POST", path: "/api/agent/access/" + id, action: "knowledge", body: { action: "knowledge", connector: "huggingface-models", query: "..." } },
     ],
     notes: [
       "The URL is an opaque, expirable, revocable capability link, not the controller credential.",
@@ -70,6 +71,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const pluginIds = Array.isArray(body.pluginIds) ? body.pluginIds.map(String) : undefined;
     const resultSet = await runLabPlugins(pluginIds, { agentId, sessionId: session.id, input: body.input || {} });
     return NextResponse.json({ success: true, ...resultSet });
+  }
+
+  if (action === "knowledge") {
+    const { searchKnowledge, KNOWLEDGE_CONNECTORS } = await import("@/lib/knowledge/connectors");
+    const connector = String(body.connector || "huggingface-models") as any;
+    if (!KNOWLEDGE_CONNECTORS.some((item) => item.id === connector)) return NextResponse.json({ error: "Unknown knowledge connector." }, { status: 400 });
+    const results = await searchKnowledge(connector, String(body.query || ""));
+    return NextResponse.json({ success: true, connector, query: String(body.query || ""), results });
   }
 
   if (action !== "chat") return NextResponse.json({ error: "Unknown action." }, { status: 400 });
