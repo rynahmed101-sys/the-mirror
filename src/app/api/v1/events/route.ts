@@ -1,21 +1,32 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { rawEventLedger } from "@/lib/db/schema";
-import { sql, eq } from "drizzle-orm";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
+import { sql, eq, and } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
+
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
+
+const tables: any = isPg ? pgSchema : sqliteSchema;
+const { rawEventLedger } = tables;
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get("limit") || "50");
-    const agentId = searchParams.get("agentId");
+    const requestedAgentId = searchParams.get("agentId");
     const sessionId = searchParams.get("sessionId");
+    const actor = await requireExperimentalActor(req, requestedAgentId);
     const eventType = searchParams.get("eventType");
 
     let query = db.select().from(rawEventLedger);
 
-    if (agentId) query = query.where(eq(rawEventLedger.agentId, agentId)) as any;
-    if (sessionId) query = query.where(eq(rawEventLedger.sessionId, sessionId)) as any;
-    if (eventType) query = query.where(eq(rawEventLedger.eventType, eventType)) as any;
+    const agentId = actor.mode === "CONTROL" ? requestedAgentId : actor.agentId;
+    const filters: SQL<unknown>[] = [];
+    if (agentId) filters.push(eq(rawEventLedger.agentId, agentId));
+    if (sessionId) filters.push(eq(rawEventLedger.sessionId, sessionId));
+    if (eventType) filters.push(eq(rawEventLedger.eventType, eventType));
+    if (filters.length) query = query.where(and(...filters)) as any;
 
     const events = await query.orderBy(sql`${rawEventLedger.timestamp} DESC`).limit(limit);
 

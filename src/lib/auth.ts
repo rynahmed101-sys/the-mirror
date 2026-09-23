@@ -5,8 +5,8 @@
  */
 
 import { db, isPg } from "./db";
-import { apiTokens as sqliteApiTokens } from "./db/schema";
-import { apiTokens as pgApiTokens, agentApiKeys } from "./db/schema.pg";
+import { apiTokens as sqliteApiTokens, agentApiKeys as sqliteAgentApiKeys, agents as sqliteAgents } from "./db/schema";
+import { apiTokens as pgApiTokens, agentApiKeys as pgAgentApiKeys, agents as pgAgents } from "./db/schema.pg";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import bcrypt from "bcryptjs";
@@ -43,7 +43,12 @@ export function hashToken(token: string): string {
 
 export type ApiPrincipal =
   | { kind: "CONTROL"; tokenType: "ENV" | "DB" | "SESSION" }
-  | { kind: "AGENT"; agentId: string };
+  | { kind: "AGENT"; agentId: string }
+  | { kind: "TEMP_EXTERNAL"; tokenId: string };
+
+export function isTemporaryExternalToken(row: { permissions?: string | null; name?: string | null }): boolean {
+  return row.permissions === "external_experiment" || row.name === "temporary-lab-access";
+}
 
 /** Resolve a token to its least-privileged caller identity. */
 export async function resolveApiPrincipal(token: string): Promise<ApiPrincipal | null> {
@@ -60,14 +65,20 @@ export async function resolveApiPrincipal(token: string): Promise<ApiPrincipal |
     .where(eq(tokenTable.tokenHash, hashed))
     .limit(1);
 
-  if (dbToken.length > 0) return { kind: "CONTROL", tokenType: "DB" };
+  if (dbToken.length > 0) {
+    const row = dbToken[0] as any;
+    if (isTemporaryExternalToken(row)) return { kind: "TEMP_EXTERNAL", tokenId: String(row.id) };
+    return { kind: "CONTROL", tokenType: "DB" };
+  }
 
-  if (isPg) {
-    const agentKeys = await db.select().from(agentApiKeys);
-    for (const key of agentKeys) {
-      if (await bcrypt.compare(token, key.apiKeyHash)) {
-        return { kind: "AGENT", agentId: key.agentId };
-      }
+  const agentKeyTable = isPg ? pgAgentApiKeys : sqliteAgentApiKeys;
+  const agentTable = isPg ? pgAgents : sqliteAgents;
+  const agentKeys = await db.select().from(agentKeyTable);
+  for (const key of agentKeys) {
+    if (await bcrypt.compare(token, key.apiKeyHash)) {
+      const agentRows = await db.select({ isActive: agentTable.isActive }).from(agentTable).where(eq(agentTable.id, key.agentId)).limit(1);
+      if (!agentRows.length || agentRows[0].isActive === false) return null;
+      return { kind: "AGENT", agentId: key.agentId };
     }
   }
 
@@ -101,7 +112,7 @@ export async function createApiToken(name: string, description?: string) {
     name,
     tokenPrefix: token.slice(0, 8) + "...",
     tokenHash: hashed,
-    permissions: "full",
+    permissions: "external_experiment",
   });
 
   return { id, token };

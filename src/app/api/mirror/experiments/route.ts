@@ -1,26 +1,36 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { experiments, predictions, timelineEvents } from "@/lib/db/schema.pg";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
 import { filterExperimentForAgent } from "@/lib/agent/blindIsolation";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
+
+const tables: any = isPg ? pgSchema : sqliteSchema;
+const { experiments, predictions, timelineEvents } = tables;
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const agentId = searchParams.get("agentId") || req.headers.get("x-agent-id") || "mirror-primary";
+    const actor = await requireExperimentalActor(req, searchParams.get("agentId") || req.headers.get("x-agent-id"));
+    const agentId = actor.agentId;
 
-    const list = await db
-      .select()
-      .from(experiments)
-      .orderBy(sql`${experiments.createdAt} DESC`);
+    let query = db.select().from(experiments);
+    const requestedAgentId = searchParams.get("agentId") || req.headers.get("x-agent-id");
+    if (actor.mode !== "CONTROL") {
+      query = query.where(eq(experiments.agentId, agentId)) as any;
+    } else if (requestedAgentId) {
+      query = query.where(eq(experiments.agentId, agentId)) as any;
+    }
+    const list = await query.orderBy(sql`${experiments.createdAt} DESC`);
 
     const result: any[] = [];
     for (const exp of list) {
       const preds = await db
         .select()
         .from(predictions)
-        .where(eq(predictions.experimentId, exp.id));
+        .where(and(eq(predictions.experimentId, exp.id), eq(predictions.agentId, exp.agentId)));
 
       const sanitized = filterExperimentForAgent(exp, agentId);
 
@@ -44,10 +54,15 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { title, hypothesis, methodology, variables, isBlind, agentId, visibleConfig, hiddenConfig } = body;
+    const actor = await requireExperimentalActor(req, typeof body.agentId === "string" ? body.agentId : null);
+    const { title, hypothesis, methodology, variables, isBlind, visibleConfig, hiddenConfig } = body;
+    const agentId = actor.agentId;
 
     if (!title || !hypothesis) {
       return NextResponse.json({ error: "Title and hypothesis required" }, { status: 400 });
+    }
+    if (isBlind && actor.mode !== "CONTROL") {
+      return NextResponse.json({ error: "Blind experiments must be created through the controller/researcher path." }, { status: 403 });
     }
 
     const expId = nanoid();

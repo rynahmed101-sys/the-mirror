@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getProvenanceTrace } from "@/lib/agent/provenance";
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const targetId = searchParams.get("targetId") || searchParams.get("claimId") || searchParams.get("experimentId");
-    const agentId = searchParams.get("agentId") || req.headers.get("x-agent-id") || "mirror-primary";
+    const actor = await requireExperimentalActor(req, searchParams.get("agentId") || req.headers.get("x-agent-id"));
+    const agentId = actor.agentId;
 
     if (!targetId) {
       return NextResponse.json({ error: "targetId, claimId, or experimentId query param required" }, { status: 400 });

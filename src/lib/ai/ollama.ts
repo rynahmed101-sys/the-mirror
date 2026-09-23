@@ -20,6 +20,50 @@ import type {
 } from "./provider";
 import { AIProvider as AIProviderBase } from "./provider";
 
+export function resolveOllamaRuntimeConfig(env: Record<string, string | undefined> = process.env) {
+  const requestedMode = (env.OLLAMA_MODE || "").toLowerCase();
+  const cloudByDeployment = Boolean(env.VERCEL || env.VERCEL_ENV);
+  const cloud = requestedMode === "cloud" || requestedMode === "online" || requestedMode === "remote" ||
+    (!requestedMode && cloudByDeployment);
+
+  return {
+    cloud,
+    baseUrl: (env.OLLAMA_BASE_URL || (cloud ? "https://ollama.com/api" : "http://localhost:11434/api")).replace(/\/$/, ""),
+    defaultModel: env.OLLAMA_DEFAULT_MODEL || (cloud ? "gpt-oss:20b-cloud" : "llama3.2"),
+  };
+}
+
+export function normalizeOllamaApiKey(value?: string): string {
+  let key = (value || "").trim();
+
+  for (let i = 0; i < 3; i += 1) {
+    const before = key;
+
+    if (
+      (key.startsWith('"') && key.endsWith('"')) ||
+      (key.startsWith("'") && key.endsWith("'"))
+    ) {
+      key = key.slice(1, -1).trim();
+    }
+
+    if (/^bearer\s+/i.test(key)) {
+      key = key.replace(/^bearer\s+/i, "").trim();
+    }
+
+    if (key === before) break;
+  }
+
+  return key;
+}
+
+export function isDirectOllamaCloudUrl(baseUrl: string): boolean {
+  try {
+    return new URL(baseUrl).hostname.toLowerCase() === "ollama.com";
+  } catch {
+    return false;
+  }
+}
+
 export class OllamaProvider extends AIProviderBase {
   readonly name = "ollama";
   readonly isLocal: boolean;
@@ -34,15 +78,16 @@ export class OllamaProvider extends AIProviderBase {
   ) {
     super();
 
-    const mode = (process.env.OLLAMA_MODE || "local").toLowerCase();
-    const cloud = mode === "cloud" || mode === "online" || mode === "remote";
+    const cfg = resolveOllamaRuntimeConfig({
+      ...process.env,
+      OLLAMA_BASE_URL: baseUrl,
+      OLLAMA_DEFAULT_MODEL: defaultModel,
+    });
 
-    this.baseUrl =
-      (baseUrl || (cloud ? "https://ollama.com/api" : "http://localhost:11434/api")).replace(/\/$/, "");
-    this.defaultModel =
-      defaultModel || (cloud ? "gpt-oss:20b-cloud" : "llama3.2");
-    this.apiKey = process.env.OLLAMA_API_KEY;
-    this.isLocal = /^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/i.test(this.baseUrl);
+    this.baseUrl = cfg.baseUrl;
+    this.defaultModel = cfg.defaultModel;
+    this.apiKey = normalizeOllamaApiKey(process.env.OLLAMA_API_KEY) || undefined;
+    this.isLocal = !cfg.cloud && /^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/i.test(this.baseUrl);
   }
 
   private getHeaders(): Record<string, string> {
@@ -58,7 +103,7 @@ export class OllamaProvider extends AIProviderBase {
   }
 
   requiresApiKey(): boolean {
-    return !this.isLocal;
+    return isDirectOllamaCloudUrl(this.baseUrl);
   }
 
   validateConfig(): { valid: boolean; errors: string[] } {
@@ -68,8 +113,8 @@ export class OllamaProvider extends AIProviderBase {
       errors.push("OLLAMA_BASE_URL is not set");
     }
 
-    if (!this.isLocal && !this.apiKey) {
-      errors.push("OLLAMA_API_KEY is required for hosted Ollama");
+    if (this.requiresApiKey() && !this.apiKey) {
+      errors.push("OLLAMA_API_KEY is required for direct Ollama Cloud API");
     }
 
     return { valid: errors.length === 0, errors };
@@ -79,11 +124,11 @@ export class OllamaProvider extends AIProviderBase {
     const start = Date.now();
 
     try {
-      if (!this.isLocal && !this.apiKey) {
+      if (this.requiresApiKey() && !this.apiKey) {
         return {
           isHealthy: false,
           provider: this.name,
-          error: "OLLAMA_API_KEY is required for hosted Ollama",
+          error: "OLLAMA_API_KEY is required for direct Ollama Cloud API",
           details: { baseUrl: this.baseUrl, mode: "cloud" },
         };
       }

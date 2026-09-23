@@ -1,0 +1,78 @@
+import { NextResponse } from "next/server";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
+import { eq } from "drizzle-orm";
+import { resolveRequestPrincipal } from "@/lib/auth";
+import { resolveExternalActor } from "@/lib/auth/externalActor";
+import { ensureGuestAgent } from "@/lib/auth/experimentalActor";
+
+const tables: any = isPg ? pgSchema : sqliteSchema;
+const { agents } = tables;
+
+export async function GET(req: Request) {
+  const principal = await resolveRequestPrincipal(req);
+  if (!principal) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (principal.kind === "CONTROL") {
+    return NextResponse.json({
+      principal: { kind: principal.kind, tokenType: principal.tokenType },
+      agent: null,
+      message: "Control credential authenticated. Use an agent key to resolve an external agent identity.",
+    });
+  }
+
+  let actor;
+  try {
+    actor = resolveExternalActor(principal);
+    if (actor.mode === "TEMP_EXTERNAL") await ensureGuestAgent(actor.agentId);
+  } catch (error:any) {
+    return NextResponse.json({ error: "Forbidden: " + error.message }, { status:403 });
+  }
+  const agentId = actor.agentId;
+  const rows = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
+  const agent = rows[0];
+  if (!agent || !agent.isActive) {
+    return NextResponse.json({ error: "Agent identity not found or inactive." }, { status: 404 });
+  }
+
+  return NextResponse.json({
+    principal: { kind: principal.kind, agentId },
+    agent: {
+      id: agent.id,
+      name: agent.name,
+      displayName: agent.displayName,
+      type: agent.type,
+      role: agent.role,
+      provider: agent.provider,
+      model: agent.model,
+      permissions: agent.permissions ? JSON.parse(agent.permissions) : [],
+      status: agent.status,
+      isActive: agent.isActive,
+      lastSeenAt: agent.lastSeenAt,
+    },
+    capabilities: {
+      role: "external-agent-actor",
+      environment: "THE MIRROR",
+      builtInInference: "Ollama (local or Ollama Cloud)",
+      executionModes: [
+        "external-agent-owns-its-own-Mirror-identity",
+        "external-agent-controls-Ollama-backed-Mirror-agent",
+        "external-agent-observes-its-own-Mirror-events",
+      ],
+      providerSubstitution: {
+        supported: false,
+        note: "The current internal inference provider remains Ollama. An external model can occupy the agent/researcher role directly, but cannot replace the internal provider synchronously through this API yet.",
+      },
+      chat: "POST /api/agent/chat",
+      jsonChat: "POST /api/agent/chat/json",
+      ollamaProbe: "POST /api/agent/provider-test",
+      runStep: "POST /api/agent/run-step",
+      startSession: "POST /api/v1/sessions",
+      readEvents: "GET /api/v1/events",
+      readOwnObservations: "GET /api/v1/observations",
+      perturbationLab: "POST /api/mirror/perturbation-lab",
+      sandbox: "POST /api/agent/sandbox",
+    },
+  });
+}

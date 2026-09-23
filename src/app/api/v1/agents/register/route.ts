@@ -1,28 +1,38 @@
 import { NextResponse } from "next/server";
 import { resolveRequestPrincipal } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { agents, agentApiKeys } from "@/lib/db/schema.pg";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
 import { appendRawEventLedger } from "@/lib/agent/eventLedger";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 
+const tables:any = isPg ? pgSchema : sqliteSchema;
+const { agents, agentApiKeys } = tables;
+
 export async function POST(req: Request) {
   const principal = await resolveRequestPrincipal(req);
-  if (!principal || principal.kind !== "CONTROL") {
-    return NextResponse.json({ error: "Admin session or control token required." }, { status: 401 });
-  }
 
   try {
     const body = await req.json();
     const { name, displayName, type, provider, model, permissions } = body;
+    const requestedType = String(type || "EXTERNAL").toUpperCase();
+    const requestedProvider = String(provider || "external").toLowerCase();
 
     if (!name) {
       return NextResponse.json({ error: "Agent name required" }, { status: 400 });
     }
 
-    const allowedProviders = new Set(["ollama"]);
-    if (provider && !allowedProviders.has(String(provider))) {
-      return NextResponse.json({ error: "Only the Ollama provider is supported." }, { status: 400 });
+    const allowedProviders = new Set(["external", "ollama"]);
+    if (requestedProvider && !allowedProviders.has(requestedProvider)) {
+      return NextResponse.json({ error: "Unsupported external-agent provider." }, { status: 400 });
+    }
+
+    if (!principal && requestedType !== "EXTERNAL") {
+      return NextResponse.json({ error: "Unauthenticated self-registration is limited to EXTERNAL agents." }, { status: 403 });
+    }
+    if (principal?.kind === "AGENT" || principal?.kind === "TEMP_EXTERNAL") {
+      return NextResponse.json({ error: "External agents do not provision other agents. Use this endpoint without a credential to create your own persistent identity." }, { status: 403 });
     }
 
     const requestedPermissions = Array.isArray(permissions) ? permissions : ["RESEARCH_AGENT"];
@@ -46,10 +56,10 @@ export async function POST(req: Request) {
         id: agentId,
         name,
         displayName: displayName || name,
-        type: type || "EXTERNAL",
+        type: requestedType,
         role: "EXTERNAL_AGENT",
-        provider: provider || "ollama",
-        model: model || "gpt-oss:20b-cloud",
+        provider: requestedProvider,
+        model: model || "external-agent",
         permissions: JSON.stringify(defaultPerms),
         status: "ACTIVE",
         isActive: true,

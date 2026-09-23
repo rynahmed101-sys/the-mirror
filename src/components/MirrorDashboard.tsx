@@ -87,8 +87,11 @@ export default function MirrorDashboard() {
 
   // Modals state
   const [showRegisterModal, setShowRegisterModal] = useState(false);
-  const [newAgentData, setNewAgentData] = useState({ name: "", type: "LOCAL", provider: "ollama", model: "gpt-oss:20b-cloud" });
+  const [newAgentData, setNewAgentData] = useState({ name: "External AI Research Agent", type: "EXTERNAL", provider: "external", model: "gpt-5.6-luna" });
   const [registeredKey, setRegisteredKey] = useState<string | null>(null);
+  const [testingRegisteredAgent, setTestingRegisteredAgent] = useState(false);
+  const [registeredAgentTest, setRegisteredAgentTest] = useState<any>(null);
+  const [agentActionBusy, setAgentActionBusy] = useState<string | null>(null);
 
   const fetchAllData = async () => {
     try {
@@ -140,9 +143,7 @@ export default function MirrorDashboard() {
     try {
       const res = await fetch("/api/v1/agents/register", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newAgentData),
       });
       const data = await res.json();
@@ -154,6 +155,24 @@ export default function MirrorDashboard() {
       }
     } catch (err: any) {
       alert("Registration failed: " + err.message);
+    }
+  };
+
+  const handleToggleAgent = async (agentId: string, blocked: boolean) => {
+    setAgentActionBusy(agentId);
+    try {
+      const res = await fetch(`/api/v1/agents/${agentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blocked }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Agent update failed");
+      await fetchAllData();
+    } catch (error:any) {
+      alert(error?.message || "Agent update failed");
+    } finally {
+      setAgentActionBusy(null);
     }
   };
 
@@ -587,7 +606,17 @@ export default function MirrorDashboard() {
                   </div>
                   <div className="text-slate-400 text-[11px]">ID: <span className="text-slate-200">{a.id}</span></div>
                   <div className="text-slate-400 text-[11px]">Provider: <span className="text-cyan-400">{a.provider}</span> ({a.model})</div>
-                  <div className="text-slate-400 text-[11px]">Status: <span className="text-emerald-400 font-bold">{a.status || "ACTIVE"}</span></div>
+                  <div className="text-slate-400 text-[11px]">Status: <span className={a.isActive === false ? "text-rose-400 font-bold" : "text-emerald-400 font-bold"}>{a.status || "ACTIVE"}</span></div>
+                  {a.id !== "mirror-primary" && (
+                    <button
+                      type="button"
+                      disabled={agentActionBusy === a.id}
+                      onClick={() => handleToggleAgent(a.id, a.isActive !== false)}
+                      className="w-full mt-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-50"
+                    >
+                      {agentActionBusy === a.id ? "Updating..." : a.isActive === false ? "Unblock Agent" : "Block Agent"}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -780,9 +809,45 @@ export default function MirrorDashboard() {
                   </div>
                 </div>
                 <button
+                  type="button"
+                  disabled={testingRegisteredAgent}
+                  onClick={async () => {
+                    if (!registeredKey) return;
+                    setTestingRegisteredAgent(true);
+                    setRegisteredAgentTest(null);
+                    try {
+                      const headers = { Authorization: "Bearer " + registeredKey };
+                      const [identityRes, ollamaRes] = await Promise.all([
+                        fetch("/api/v1/agents/me", { headers }),
+                        fetch("/api/agent/provider-test", {
+                          method: "POST",
+                          headers: { ...headers, "Content-Type": "application/json" },
+                          body: JSON.stringify({ prompt: "Identify the external-agent connection in one sentence and confirm whether the Mirror Ollama runtime answered." }),
+                        }),
+                      ]);
+                      const identity = await identityRes.json();
+                      const ollama = await ollamaRes.json();
+                      setRegisteredAgentTest({ identity, ollama });
+                    } catch (error: any) {
+                      setRegisteredAgentTest({ error: error?.message || String(error) });
+                    } finally {
+                      setTestingRegisteredAgent(false);
+                    }
+                  }}
+                  className="w-full py-2 bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 text-white rounded font-bold"
+                >
+                  {testingRegisteredAgent ? "Testing agent identity + Ollama..." : "Test External Agent + Ollama"}
+                </button>
+                {registeredAgentTest && (
+                  <pre className="max-h-64 overflow-auto rounded-lg border border-slate-800 bg-black/40 p-3 text-[10px] text-slate-300 whitespace-pre-wrap">
+                    {JSON.stringify(registeredAgentTest, null, 2)}
+                  </pre>
+                )}
+                <button
                   onClick={() => {
                     setShowRegisterModal(false);
                     setRegisteredKey(null);
+                    setRegisteredAgentTest(null);
                   }}
                   className="w-full py-2 bg-slate-800 text-slate-200 rounded font-bold"
                 >
@@ -792,20 +857,31 @@ export default function MirrorDashboard() {
             ) : (
               <form onSubmit={handleRegisterAgent} className="space-y-4 text-xs font-mono">
                 <div className="text-[10px] text-emerald-300">
-                  Your authenticated admin session authorizes this operation. No API key required.
-                </div>
-                <div>
-                  <label className="text-slate-400">Agent Display Name:</label>
-                  <input
-                    type="text"
-                    required
-                    value={newAgentData.name}
-                    onChange={(e) => setNewAgentData({ ...newAgentData, name: e.target.value })}
-                    placeholder="e.g., ChatGPT Research Instance"
-                    className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
-                  />
+                  The dashboard session authorizes this operation. External AIs can self-register through the REST endpoint without admin involvement.
                 </div>
                 <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-slate-400">Agent Display Name:</label>
+                    <input
+                      type="text"
+                      required
+                      value={newAgentData.name}
+                      onChange={(e) => setNewAgentData({ ...newAgentData, name: e.target.value })}
+                      placeholder="e.g., ChatGPT Research Instance"
+                      className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-slate-400">Type:</label>
+                    <select
+                      value={newAgentData.type}
+                      onChange={(e) => setNewAgentData({ ...newAgentData, type: e.target.value })}
+                      className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
+                    >
+                      <option value="EXTERNAL">External</option>
+                      <option value="LOCAL">Local</option>
+                    </select>
+                  </div>
                   <div>
                     <label className="text-slate-400">Provider:</label>
                     <select
@@ -813,7 +889,8 @@ export default function MirrorDashboard() {
                       onChange={(e) => setNewAgentData({ ...newAgentData, provider: e.target.value })}
                       className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
                     >
-                      <option value="ollama">Ollama</option>
+                      <option value="external">External AI</option>
+                      <option value="ollama">Ollama-controlled agent</option>
                     </select>
                   </div>
                   <div>
@@ -822,7 +899,7 @@ export default function MirrorDashboard() {
                       type="text"
                       value={newAgentData.model}
                       onChange={(e) => setNewAgentData({ ...newAgentData, model: e.target.value })}
-                      placeholder="gpt-oss:20b-cloud"
+                      placeholder="gpt-5.6-luna or external model identifier"
                       className="w-full mt-1 bg-slate-900 border border-slate-800 rounded p-2 text-slate-200"
                     />
                   </div>

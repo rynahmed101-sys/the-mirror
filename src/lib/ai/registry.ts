@@ -42,7 +42,12 @@ export function getActiveProviderName(): ProviderName {
 }
 
 export function getActiveModel(): string | null {
-  return activeModel || process.env.OLLAMA_DEFAULT_MODEL || null;
+  if (activeModel) return activeModel;
+  const configured = process.env.OLLAMA_DEFAULT_MODEL;
+  if (configured) return configured;
+  const mode = (process.env.OLLAMA_MODE || "").toLowerCase();
+  const hosted = mode === "cloud" || mode === "online" || mode === "remote" || Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
+  return hosted ? "gpt-oss:20b-cloud" : "llama3.2";
 }
 
 export function setActiveProvider(name: ProviderName, model?: string): void {

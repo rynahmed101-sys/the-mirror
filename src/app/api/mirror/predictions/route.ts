@@ -1,14 +1,24 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { predictions, timelineEvents } from "@/lib/db/schema.pg";
-import { sql, eq } from "drizzle-orm";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
+import { sql, eq, and } from "drizzle-orm";
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 
-export async function GET() {
+const tables: any = isPg ? pgSchema : sqliteSchema;
+const { predictions, timelineEvents, experiments } = tables;
+
+export async function GET(req: Request) {
   try {
-    const list = await db
-      .select()
-      .from(predictions)
-      .orderBy(sql`${predictions.createdAt} DESC`);
+    const actor = await requireExperimentalActor(req, new URL(req.url).searchParams.get("agentId"));
+    let query = db.select().from(predictions);
+    const requestedAgentId = new URL(req.url).searchParams.get("agentId");
+    if (actor.mode !== "CONTROL") {
+      query = query.where(eq(predictions.agentId, actor.agentId)) as any;
+    } else if (requestedAgentId) {
+      query = query.where(eq(predictions.agentId, requestedAgentId)) as any;
+    }
+    const list = await query.orderBy(sql`${predictions.createdAt} DESC`);
 
     // Calculate Brier score / accuracy metrics
     const evaluated = list.filter((p) => p.status !== "PENDING");
@@ -53,19 +63,35 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { prediction, confidence, rationale, experimentId, agentId } = body;
+    const actor = await requireExperimentalActor(req, typeof body.agentId === "string" ? body.agentId : null);
+    const { prediction, confidence, rationale, experimentId } = body;
+    const numericConfidence = Number(confidence);
+    const agentId = actor.agentId;
 
     if (!prediction || confidence === undefined) {
       return NextResponse.json({ error: "Prediction text and confidence required" }, { status: 400 });
+    }
+    if (!Number.isFinite(numericConfidence) || numericConfidence < 0 || numericConfidence > 1) {
+      return NextResponse.json({ error: "Confidence must be a number between 0 and 1." }, { status: 400 });
+    }
+    if (experimentId) {
+      const ownedExperiment = await db
+        .select({ id: experiments.id })
+        .from(experiments)
+        .where(and(eq(experiments.id, String(experimentId)), eq(experiments.agentId, agentId)))
+        .limit(1);
+      if (!ownedExperiment.length) {
+        return NextResponse.json({ error: "Experiment does not belong to the authenticated agent." }, { status: 403 });
+      }
     }
 
     const [pred] = await db
       .insert(predictions)
       .values({
-        agentId: agentId || "mirror-primary",
+        agentId,
         experimentId: experimentId || null,
         prediction,
-        confidence,
+        confidence: numericConfidence,
         rationale: rationale || null,
         status: "PENDING",
       })
@@ -76,7 +102,7 @@ export async function POST(req: Request) {
       title: `Prediction Logged (Confidence: ${Math.round(confidence * 100)}%)`,
       description: prediction,
       agentId: agentId || "mirror-primary",
-      metadata: JSON.stringify({ predictionId: pred.id, confidence, experimentId }),
+      metadata: JSON.stringify({ predictionId: pred.id, confidence: numericConfidence, experimentId }),
     });
 
     return NextResponse.json({ success: true, prediction: pred });
@@ -91,6 +117,7 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();
+    const actor = await requireExperimentalActor(req, null);
     const { predictionId, actualOutcome, evaluationNotes } = body;
 
     if (!predictionId || actualOutcome === undefined) {
@@ -108,8 +135,12 @@ export async function PATCH(req: Request) {
         status: newStatus,
         evaluatedAt: new Date(),
       })
-      .where(eq(predictions.id, predictionId))
+      .where(and(eq(predictions.id, predictionId), eq(predictions.agentId, actor.agentId)))
       .returning();
+
+    if (!updated) {
+      return NextResponse.json({ error: "Prediction not found for the authenticated agent." }, { status: 404 });
+    }
 
     await db.insert(timelineEvents).values({
       eventType: "PREDICTION_EVALUATED",

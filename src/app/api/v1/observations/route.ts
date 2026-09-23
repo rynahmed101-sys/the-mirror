@@ -1,19 +1,29 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { rawObservations, derivedAnalysis } from "@/lib/db/schema.pg";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
 import { processRawObservationToLayer1 } from "@/lib/agent/analysisEngine";
 import { sql, eq } from "drizzle-orm";
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
+
+const tables: any = isPg ? pgSchema : sqliteSchema;
+const { rawObservations, derivedAnalysis } = tables;
 
 export async function GET(req: Request) {
   try {
+    const requestUrl = new URL(req.url);
+    const actor = await requireExperimentalActor(req, requestUrl.searchParams.get("agentId"));
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get("limit") || "50");
 
-    const list = await db
-      .select()
-      .from(rawObservations)
-      .orderBy(sql`${rawObservations.timestamp} DESC`)
-      .limit(limit);
+    let query = db.select().from(rawObservations);
+    const requestedAgentId = requestUrl.searchParams.get("agentId");
+    if (actor.mode !== "CONTROL") {
+      query = query.where(eq(rawObservations.agentId, actor.agentId)) as any;
+    } else if (requestedAgentId) {
+      query = query.where(eq(rawObservations.agentId, actor.agentId)) as any;
+    }
+    const list = await query.orderBy(sql`${rawObservations.timestamp} DESC`).limit(limit);
 
     const result: any[] = [];
     for (const raw of list) {
@@ -38,9 +48,11 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { agentId, eventType, input, output, toolCall, toolResult, prediction, actualResult } = body;
+    const actor = await requireExperimentalActor(req, typeof body.agentId === "string" ? body.agentId : null);
+    const { eventType, input, output, toolCall, toolResult, prediction, actualResult } = body;
+    const agentId = actor.agentId;
 
-    if (!agentId || !eventType) {
+    if (!eventType) {
       return NextResponse.json({ error: "agentId and eventType required" }, { status: 400 });
     }
 
