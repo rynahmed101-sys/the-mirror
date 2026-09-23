@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { KeyRound, Play, RefreshCw, ShieldCheck, Terminal, X, Zap } from "lucide-react";
 
 type RunState = {
@@ -25,7 +26,7 @@ function LabButton({
   busy: LabMode;
   disabled?: boolean;
   onClick: () => void;
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   workingLabel: string;
   tone: "primary" | "secondary" | "green";
