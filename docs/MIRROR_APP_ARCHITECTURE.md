@@ -11,7 +11,7 @@ Layers:
 6. Brain-96 schema: src/lib/lab/brain96.ts is deliberately a topology seam. It is separate from the existing 6x16 perturbation fixture. No node meanings or left/right assignments are invented until the authoritative brain definition is available.
 
 Secrets
-The Ollama key can be overridden by an administrator at runtime through /api/mirror/runtime-config. The runtime override is AES-256-GCM encrypted and server-side. The browser receives only a masked preview.
+The Ollama key can be overridden by an administrator at runtime through /api/mirror/runtime-config. The runtime override is AES-256-GCM encrypted and server-side. The browser receives only a masked preview. Production must provide MIRROR_SECRET_KEY or a non-default JWT_SECRET for encryption, and MIRROR_LINK_SECRET or a non-default JWT_SECRET for capability signing.
 
 Attachments
 Attachments are stored in the private Supabase mirror-attachments bucket with SHA-256 metadata in mirror_attachments. The current v1 ingestion path stores the file and immutable metadata; richer extraction can be added per MIME type without changing the chat contract.
