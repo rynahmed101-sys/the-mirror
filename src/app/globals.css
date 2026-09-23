@@ -1202,3 +1202,14 @@ html {
     border-color: rgba(255,255,255,0.14);
   }
 }
+
+
+.mirror-table-row {
+  transition: background-color 160ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mirror-table-row:hover {
+    background: rgba(24,24,27,0.48);
+  }
+}
