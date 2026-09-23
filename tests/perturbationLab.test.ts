@@ -13,6 +13,8 @@ import {
 import { resolveExternalActor } from "../src/lib/auth/externalActor";
 import { isTemporaryExternalToken } from "../src/lib/auth";
 import { buildExternalAgentCapabilities } from "../src/lib/agent/externalCapabilities";
+import { normalizeAnalysisText } from "../src/lib/agent/analysisEngine";
+import { resolveExperimentRevealSource } from "../src/lib/agent/blindIsolation";
 
 import {
   SIMULATION_LOCK_MAX_AGE_MS,
@@ -148,4 +150,18 @@ test("fresh projection locks block a second suite but stale locks can recover", 
   assert.equal(shouldBlockSimulationRun([fresh], now), true);
   assert.equal(shouldBlockSimulationRun([stale], now), false);
   assert.equal(shouldBlockSimulationRun([{ ...fresh, status: "RELEASED" }], now), false);
+});
+
+
+test("structured observation values are normalized before Layer 1 string analysis", () => {
+  assert.equal(normalizeAnalysisText("plain text"), "plain text");
+  assert.equal(normalizeAnalysisText({ observed: true, values: [1, 2, 3] }), '{"observed":true,"values":[1,2,3]}');
+  assert.equal(normalizeAnalysisText(["a", "b"]), '["a","b"]');
+  assert.equal(normalizeAnalysisText(null), "");
+});
+
+test("experiment reveal provenance follows the actual revealer", () => {
+  assert.equal(resolveExperimentRevealSource("SYSTEM"), "SYSTEM");
+  assert.equal(resolveExperimentRevealSource("RESEARCHER"), "RESEARCHER");
+  assert.equal(resolveExperimentRevealSource("external-agent"), "RESEARCHER");
 });
