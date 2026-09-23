@@ -12,7 +12,7 @@ import { resolveExternalActor } from "@/lib/auth/externalActor";
 import { ensureGuestAgent } from "@/lib/auth/experimentalActor";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 1800;
 
 const tables:any = isPg ? pgSchema : sqliteSchema;
 const { systemConfig, rawMessages, rawObservations, timelineEvents, agentSessions } = tables;
@@ -37,10 +37,9 @@ export async function POST(req: Request) {
         .from(agentSessions)
         .where(and(eq(agentSessions.id, sessionId), eq(agentSessions.agentId, agentId)))
         .limit(1);
-      if (!ownedSession.length) {
-        return NextResponse.json({ error: "Session does not belong to the authenticated agent." }, { status: 403 });
-      }
+      if (!ownedSession.length) return NextResponse.json({ error: "Session does not belong to the authenticated agent." }, { status: 403 });
     }
+
     const maxToolSteps = Math.min(8, Math.max(1, Number(body.maxToolSteps) || 5));
     const systemPrompt = await getSystemPrompt(agentId);
     const fullMessages:ChatMessage[] = [
