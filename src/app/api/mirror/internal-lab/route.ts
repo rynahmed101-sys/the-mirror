@@ -15,6 +15,9 @@ export async function POST(req: Request) {
   if (!adminAuthorized && !internalAuthorized) return NextResponse.json({ error: "Admin session or internal lab authorization required." }, { status: 403 });
   const body = await req.json().catch(() => ({}));
   const mode = typeof body.mode === "string" ? body.mode : "full";
+  if (!["ledger","sandbox","projection","full"].includes(mode)) {
+    return NextResponse.json({ error:"Unsupported internal lab mode." }, { status:400 });
+  }
   const out: any = { mode, startedAt: new Date().toISOString() };
   try {
     await appendRawEventLedger({ agentId: "mirror-primary", eventType: "INTERNAL_LAB_RUN_STARTED", source: "SYSTEM", payload: { mode } });
