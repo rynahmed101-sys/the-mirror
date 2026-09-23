@@ -1142,3 +1142,17 @@ html {
     filter: brightness(1.08);
   }
 }
+
+
+.mirror-dashboard-action-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  margin: 0.9rem 1rem 0;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgba(244,63,94,0.28);
+  border-radius: 0.75rem;
+  background: rgba(127,29,29,0.16);
+  color: #fecdd3;
+  font: 500 0.68rem/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
