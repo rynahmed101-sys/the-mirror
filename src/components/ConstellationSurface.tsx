@@ -42,7 +42,7 @@ export default function ConstellationSurface() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const runSearch = async (event?: React.FormEvent) => {
+  const runSearch = useCallback(async (event?: React.FormEvent) => {
     event?.preventDefault();
     const q = query.trim();
     if (!q) return;
@@ -76,7 +76,7 @@ export default function ConstellationSurface() {
     }
   };
 
-  useEffect(() => { runSearch(); }, []);
+  useEffect(() => { void runSearch(); }, [runSearch]);
 
   const counts = useMemo(() => ({
     semantic: hits.filter((h) => h.match_layer === "semantic").length,
