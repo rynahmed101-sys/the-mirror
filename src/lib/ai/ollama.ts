@@ -126,7 +126,8 @@ export class OllamaProvider extends AIProviderBase {
     const start = Date.now();
 
     try {
-      if (this.requiresApiKey() && !this.apiKey) {
+      const runtimeKey = normalizeOllamaApiKey(await getConfiguredOllamaApiKey()) || this.apiKey;
+      if (this.requiresApiKey() && !runtimeKey) {
         return {
           isHealthy: false,
           provider: this.name,
