@@ -1100,3 +1100,45 @@ html {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Main dashboard header controls share the lab control hit-target and focus system. */
+.mirror-header-action {
+  min-height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 0.7rem;
+  border: 1px solid rgba(255,255,255,0.09);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+
+.mirror-header-action--primary {
+  background: #b91c1c;
+  color: #fff;
+  border-color: rgba(248,113,113,0.34);
+  box-shadow: 0 10px 24px rgba(127,29,29,0.14);
+}
+
+.mirror-header-action--secondary {
+  background: rgba(82,30,30,0.34);
+  color: #fecaca;
+  border-color: rgba(248,113,113,0.18);
+}
+
+.mirror-header-refresh {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mirror-header-action:not(:disabled):hover,
+  .mirror-header-refresh:not(:disabled):hover {
+    filter: brightness(1.08);
+  }
+}
