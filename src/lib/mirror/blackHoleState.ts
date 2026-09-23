@@ -1,4 +1,7 @@
-import { neonSql, sqlite, isPg } from "../db";
+import { neonSql, sqlite, db, isPg } from "../db";
+import * as sqliteSchema from "../db/schema";
+import * as pgSchema from "../db/schema.pg";
+import { count, desc } from "drizzle-orm";
 
 export type MirrorLifeState =
   | "SINGULARITY"
@@ -7,6 +10,17 @@ export type MirrorLifeState =
   | "INTEGRATING"
   | "DORMANT"
   | "ERROR";
+
+export type MirrorIngestionSnapshot = {
+  observedAt:string;
+  totalRecords:number;
+  counts:Record<string,number>;
+  latest:{
+    timeline:string|null;
+    ledgerSequence:number|null;
+    ledgerHash:string|null;
+  };
+};
 
 export type MirrorBlackHoleState = {
   agentId:string;
@@ -18,6 +32,7 @@ export type MirrorBlackHoleState = {
   lastAction:string|null;
   lastError:string|null;
   activeNodes:string[];
+  memory:MirrorIngestionSnapshot|null;
   updatedAt:string;
 };
 
@@ -71,6 +86,9 @@ function normalize(row:any,agentId:string):MirrorBlackHoleState{
     lastAction:row?.last_action||null,
     lastError:row?.last_error||null,
     activeNodes:nodes.map(String),
+    memory:row?.memory_snapshot
+      ? (()=>{try{return typeof row.memory_snapshot==="string"?JSON.parse(row.memory_snapshot):row.memory_snapshot}catch{return null}})()
+      : null,
     updatedAt:row?.updated_at ? new Date(row.updated_at).toISOString() : new Date().toISOString()
   };
 }
@@ -84,7 +102,10 @@ export async function getBlackHoleState(agentId="mirror-primary"):Promise<Mirror
     const fresh=await neonSql\`SELECT * FROM mirror_black_hole_state WHERE agent_id=\${agentId} LIMIT 1\`;
     return normalize(fresh?.[0],agentId);
   }
-  const row:any=sqlite.prepare("SELECT * FROM mirror_black_hole_state WHERE agent_id=? LIMIT 1").get(agentId);
+  const row:any=sqlite.prepare(`SELECT s.*,m.snapshot AS memory_snapshot
+    FROM mirror_black_hole_state s
+    LEFT JOIN mirror_black_hole_memory m ON m.agent_id=s.agent_id
+    WHERE s.agent_id=? LIMIT 1`).get(agentId);
   if(row) return normalize(row,agentId);
   sqlite.prepare("INSERT INTO mirror_black_hole_state(agent_id,updated_at) VALUES(?,?)").run(agentId,Date.now());
   return getBlackHoleState(agentId);
@@ -160,4 +181,60 @@ export async function settleBlackHole(agentId="mirror-primary"){
   if(isPg) await neonSql\`UPDATE mirror_black_hole_state SET state='SINGULARITY',updated_at=NOW() WHERE agent_id=\${agentId}\`;
   else sqlite.prepare("UPDATE mirror_black_hole_state SET state='SINGULARITY',updated_at=? WHERE agent_id=?").run(Date.now(),agentId);
   return getBlackHoleState(agentId);
+}
+
+
+const sourceTables:any = isPg ? pgSchema : sqliteSchema;
+
+export async function ingestMirrorMemory(agentId="mirror-primary"):Promise<MirrorIngestionSnapshot>{
+  await ensureTable();
+  const names = [
+    "agents","agentApiKeys","agentSessions","rawEventLedger","rawMessages","rawObservations",
+    "derivedAnalysis","selfModels","selfModelClaims","behavioralBaselines","anomalies","openQuestions",
+    "experiments","predictions","journalEntries","discoveries","behavioralObservations",
+    "agentInteractions","toolLogs","timelineEvents","apiAuditLogs"
+  ] as const;
+
+  const counts:Record<string,number> = {};
+  await Promise.all(names.map(async (name)=>{
+    const table=sourceTables[name];
+    if(!table) { counts[name]=0; return; }
+    const [row] = await db.select({value:count()}).from(table);
+    counts[name]=Number(row?.value||0);
+  }));
+
+  const [latestTimeline] = sourceTables.timelineEvents
+    ? await db.select().from(sourceTables.timelineEvents).orderBy(desc(sourceTables.timelineEvents.createdAt)).limit(1)
+    : [];
+  const [latestLedger] = sourceTables.rawEventLedger
+    ? await db.select().from(sourceTables.rawEventLedger).orderBy(desc(sourceTables.rawEventLedger.sequenceNumber)).limit(1)
+    : [];
+
+  const snapshot:MirrorIngestionSnapshot = {
+    observedAt:new Date().toISOString(),
+    totalRecords:Object.values(counts).reduce((sum,n)=>sum+n,0),
+    counts,
+    latest:{
+      timeline:latestTimeline?.title ? String(latestTimeline.title) : null,
+      ledgerSequence:latestLedger?.sequenceNumber != null ? Number(latestLedger.sequenceNumber) : null,
+      ledgerHash:latestLedger?.eventHash ? String(latestLedger.eventHash) : null
+    }
+  };
+
+  const brainState = await getBlackHoleState(agentId);
+  snapshot.counts.brain96_state_nodes = brainState.activeNodes.length;
+  snapshot.totalRecords += brainState.activeNodes.length;
+
+  const payload=JSON.stringify(snapshot);
+  if(isPg){
+    await neonSql`INSERT INTO mirror_black_hole_memory(agent_id,snapshot,updated_at)
+      VALUES(${agentId},${payload}::jsonb,NOW())
+      ON CONFLICT(agent_id) DO UPDATE SET snapshot=EXCLUDED.snapshot,updated_at=NOW()`;
+  }else{
+    sqlite!.prepare(`INSERT INTO mirror_black_hole_memory(agent_id,snapshot,updated_at)
+      VALUES(?,?,?)
+      ON CONFLICT(agent_id) DO UPDATE SET snapshot=excluded.snapshot,updated_at=excluded.updated_at`)
+      .run(agentId,payload,Date.now());
+  }
+  return snapshot;
 }
