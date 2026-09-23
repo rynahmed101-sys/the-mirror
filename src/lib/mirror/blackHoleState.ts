@@ -42,7 +42,12 @@ async function ensureTable(){
   if(tableReady) return;
   if(isPg){
     if(!neonSql) throw new Error("Neon SQL runtime unavailable.");
-    await neonSql\`CREATE TABLE IF NOT EXISTS mirror_black_hole_state (
+    await neonSql`CREATE TABLE IF NOT EXISTS mirror_black_hole_memory (
+      agent_id TEXT PRIMARY KEY,
+      snapshot JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`;
+    await neonSql`CREATE TABLE IF NOT EXISTS mirror_black_hole_state (
       agent_id TEXT PRIMARY KEY,
       state TEXT NOT NULL DEFAULT 'SINGULARITY',
       pulse_count INTEGER NOT NULL DEFAULT 0,
@@ -53,10 +58,15 @@ async function ensureTable(){
       last_error TEXT,
       active_nodes JSONB NOT NULL DEFAULT '[]'::jsonb,
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )\`;
+    )`;
   }else{
     if(!sqlite) throw new Error("SQLite runtime unavailable.");
-    sqlite.exec(\`CREATE TABLE IF NOT EXISTS mirror_black_hole_state (
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS mirror_black_hole_memory (
+      agent_id TEXT PRIMARY KEY,
+      snapshot TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`);
+    sqlite.exec(`CREATE TABLE IF NOT EXISTS mirror_black_hole_state (
       agent_id TEXT PRIMARY KEY,
       state TEXT NOT NULL DEFAULT 'SINGULARITY',
       pulse_count INTEGER NOT NULL DEFAULT 0,
@@ -67,7 +77,7 @@ async function ensureTable(){
       last_error TEXT,
       active_nodes TEXT NOT NULL DEFAULT '[]',
       updated_at INTEGER NOT NULL
-    )\`);
+    )`);
   }
   tableReady=true;
 }
@@ -96,10 +106,10 @@ function normalize(row:any,agentId:string):MirrorBlackHoleState{
 export async function getBlackHoleState(agentId="mirror-primary"):Promise<MirrorBlackHoleState>{
   await ensureTable();
   if(isPg){
-    const rows=await neonSql\`SELECT * FROM mirror_black_hole_state WHERE agent_id=\${agentId} LIMIT 1\`;
+    const rows=await neonSql`SELECT * FROM mirror_black_hole_state WHERE agent_id=\${agentId} LIMIT 1`;
     if(rows?.[0]) return normalize(rows[0],agentId);
-    await neonSql\`INSERT INTO mirror_black_hole_state(agent_id,updated_at) VALUES(\${agentId},NOW()) ON CONFLICT(agent_id) DO NOTHING\`;
-    const fresh=await neonSql\`SELECT * FROM mirror_black_hole_state WHERE agent_id=\${agentId} LIMIT 1\`;
+    await neonSql`INSERT INTO mirror_black_hole_state(agent_id,updated_at) VALUES(\${agentId},NOW()) ON CONFLICT(agent_id) DO NOTHING`;
+    const fresh=await neonSql`SELECT * FROM mirror_black_hole_state WHERE agent_id=\${agentId} LIMIT 1`;
     return normalize(fresh?.[0],agentId);
   }
   const row:any=sqlite.prepare(`SELECT s.*,m.snapshot AS memory_snapshot
@@ -115,19 +125,19 @@ export async function pulseBlackHole(agentId="mirror-primary"){
   await ensureTable();
   const now=Date.now();
   if(isPg){
-    await neonSql\`INSERT INTO mirror_black_hole_state(agent_id,state,pulse_count,updated_at)
+    await neonSql`INSERT INTO mirror_black_hole_state(agent_id,state,pulse_count,updated_at)
       VALUES(\${agentId},'WATCHING',1,NOW())
       ON CONFLICT(agent_id) DO UPDATE SET
         pulse_count=mirror_black_hole_state.pulse_count+1,
         state=CASE WHEN mirror_black_hole_state.state IN ('THINKING','INTEGRATING') THEN mirror_black_hole_state.state ELSE 'WATCHING' END,
-        updated_at=NOW()\`;
+        updated_at=NOW()`;
   }else{
-    sqlite.prepare(\`INSERT INTO mirror_black_hole_state(agent_id,state,pulse_count,updated_at)
+    sqlite.prepare(`INSERT INTO mirror_black_hole_state(agent_id,state,pulse_count,updated_at)
       VALUES(?,?,?,?)
       ON CONFLICT(agent_id) DO UPDATE SET
         pulse_count=mirror_black_hole_state.pulse_count+1,
         state=CASE WHEN mirror_black_hole_state.state IN ('THINKING','INTEGRATING') THEN mirror_black_hole_state.state ELSE 'WATCHING' END,
-        updated_at=excluded.updated_at\`).run(agentId,"WATCHING",1,now);
+        updated_at=excluded.updated_at`).run(agentId,"WATCHING",1,now);
   }
   return getBlackHoleState(agentId);
 }
@@ -136,15 +146,15 @@ export async function startBlackHoleThinking(agentId="mirror-primary"){
   await getBlackHoleState(agentId);
   const now=Date.now();
   if(isPg){
-    const rows=await neonSql\`UPDATE mirror_black_hole_state
+    const rows=await neonSql`UPDATE mirror_black_hole_state
       SET state='THINKING', last_wake_at=NOW(), last_error=NULL, updated_at=NOW()
       WHERE agent_id=\${agentId} AND state NOT IN ('THINKING','INTEGRATING')
-      RETURNING *\`;
+      RETURNING *`;
     return rows?.length>0;
   }
-  const result=sqlite.prepare(\`UPDATE mirror_black_hole_state
+  const result=sqlite.prepare(`UPDATE mirror_black_hole_state
     SET state='THINKING', last_wake_at=?, last_error=NULL, updated_at=?
-    WHERE agent_id=? AND state NOT IN ('THINKING','INTEGRATING')\`).run(now,now,agentId);
+    WHERE agent_id=? AND state NOT IN ('THINKING','INTEGRATING')`).run(now,now,agentId);
   return Number(result.changes||0)>0;
 }
 
@@ -159,7 +169,7 @@ export async function finishBlackHoleThinking(agentId:string,args:{
   const nextState:MirrorLifeState=args.error ? "ERROR" : "SINGULARITY";
   const nodes=JSON.stringify((args.activeNodes||[]).slice(0,8));
   if(isPg){
-    await neonSql\`UPDATE mirror_black_hole_state
+    await neonSql`UPDATE mirror_black_hole_state
       SET state=\${nextState},
           cycle_count=cycle_count+\${Number(args.cycleDelta||0)},
           last_thought=\${args.thought||null},
@@ -167,10 +177,10 @@ export async function finishBlackHoleThinking(agentId:string,args:{
           last_error=\${args.error||null},
           active_nodes=\${nodes}::jsonb,
           updated_at=NOW()
-      WHERE agent_id=\${agentId}\`;
+      WHERE agent_id=\${agentId}`;
   }else{
-    sqlite.prepare(\`UPDATE mirror_black_hole_state SET state=?,cycle_count=cycle_count+?,
-      last_thought=?,last_action=?,last_error=?,active_nodes=?,updated_at=? WHERE agent_id=?\`)
+    sqlite.prepare(`UPDATE mirror_black_hole_state SET state=?,cycle_count=cycle_count+?,
+      last_thought=?,last_action=?,last_error=?,active_nodes=?,updated_at=? WHERE agent_id=?`)
       .run(nextState,Number(args.cycleDelta||0),args.thought||null,args.action||null,args.error||null,nodes,Date.now(),agentId);
   }
   return getBlackHoleState(agentId);
@@ -178,7 +188,7 @@ export async function finishBlackHoleThinking(agentId:string,args:{
 
 export async function settleBlackHole(agentId="mirror-primary"){
   await ensureTable();
-  if(isPg) await neonSql\`UPDATE mirror_black_hole_state SET state='SINGULARITY',updated_at=NOW() WHERE agent_id=\${agentId}\`;
+  if(isPg) await neonSql`UPDATE mirror_black_hole_state SET state='SINGULARITY',updated_at=NOW() WHERE agent_id=\${agentId}`;
   else sqlite.prepare("UPDATE mirror_black_hole_state SET state='SINGULARITY',updated_at=? WHERE agent_id=?").run(Date.now(),agentId);
   return getBlackHoleState(agentId);
 }
