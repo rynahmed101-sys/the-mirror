@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
 import { aiRegistry } from "@/lib/ai/registry";
 import { getSystemPrompt } from "@/lib/agent/prompts";
-import { db } from "@/lib/db";
-import {
-  agents,
-  agentSessions,
-  rawMessages,
-  rawObservations,
-} from "@/lib/db/schema.pg";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
 import { extractBearerToken, validateApiToken } from "@/lib/auth";
 import { processRawObservationToLayer1 } from "@/lib/agent/analysisEngine";
 import { appendRawEventLedger } from "@/lib/agent/eventLedger";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+
+const tables:any = isPg ? pgSchema : sqliteSchema;
+const { agents, agentSessions, rawMessages, rawObservations } = tables;
 
 const DEFAULT_AGENT_ID = "mirror-primary";
 
