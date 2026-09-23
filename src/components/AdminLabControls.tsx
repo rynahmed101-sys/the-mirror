@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ReactNode } from "react";
 import { KeyRound, Play, RefreshCw, ShieldCheck, Terminal, X, Zap } from "lucide-react";
 
 type RunState = {
@@ -34,7 +33,7 @@ export default function AdminLabControls() {
 
   useEffect(() => {
     void refreshRunState();
-    const interval = window.setInterval(() => void refreshRunState(), 15000);
+    const interval = window.setInterval(() => void refreshRunState(), 5000);
     return () => window.clearInterval(interval);
   }, []);
 
