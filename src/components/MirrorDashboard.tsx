@@ -302,10 +302,10 @@ export default function MirrorDashboard() {
               onClick={() => setActiveTab(tab.id as any)}
               className={`mirror-index__item ${
                 isActive
-                  ? "border-cyan-400 text-cyan-300 bg-cyan-950/20"
+                  ? "mirror-index__item--active"
                   : isStage3
-                  ? "border-transparent text-emerald-300 hover:text-cyan-300 font-bold bg-slate-900/60"
-                  : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/40"
+                  ? "mirror-index__item--stage"
+                  : ""
               }`}
             >
               <Icon className={`w-4 h-4 ${isActive ? "text-cyan-400" : isStage3 ? "text-emerald-400" : "text-slate-500"}`} />
@@ -547,7 +547,7 @@ export default function MirrorDashboard() {
                   </thead>
                   <tbody className="divide-y divide-slate-800/50 text-[11px]">
                     {ledgerEventsList.map((ev: any) => (
-                      <tr key={ev.id || ev.sequenceNumber} className="hover:bg-slate-900/40 transition">
+                      <tr key={ev.id || ev.sequenceNumber} className="mirror-table-row">
                         <td className="p-3 font-bold text-purple-400">
                           #{ev.sequenceNumber}
                         </td>
