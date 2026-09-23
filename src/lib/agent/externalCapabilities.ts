@@ -13,6 +13,8 @@ export function buildExternalAgentCapabilities(origin: string) {
   const base = String(origin || "").replace(/\/$/, "");
   const endpoints: ExternalAgentEndpoint[] = [
     { method: "GET", path: "/api/agent/capabilities", purpose: "Read the machine-facing protocol manifest.", authentication: "none", mutatesState: false },
+    { method: "GET", path: "/api/agent/access/{id}", purpose: "Resolve and describe a scoped external laboratory link.", authentication: "registered_or_guest", mutatesState: false },
+    { method: "POST", path: "/api/agent/access/{id}", purpose: "Use a scoped external laboratory link for chat, tests, provider verification, or knowledge search.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 300 },
     { method: "POST", path: "/api/v1/agents/register", purpose: "Self-register a persistent external AI identity and receive a one-time mirror_ak_... key.", authentication: "none", mutatesState: true },
     { method: "GET", path: "/api/v1/agents/me", purpose: "Resolve the caller external-agent identity.", authentication: "registered_or_guest", mutatesState: false },
     { method: "POST", path: "/api/agent/chat", purpose: "Run the native Mirror tool loop with streaming event output.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 300 },
@@ -49,18 +51,20 @@ export function buildExternalAgentCapabilities(origin: string) {
     },
     identityModel: {
       registered: "A persistent external AI identity with one-time mirror_ak_... credential.",
-      temporary: "An ephemeral guest identity derived from an admin-issued temporary research token.",
+      temporary: "An ephemeral guest identity derived from an admin-issued temporary credential.",
+      linkCapability: "An expirable, revocable URL capability that binds an external researcher to its own Mirror agent identity and laboratory scope.",
       ownership: "Registered keys may act only as their own agent. Temporary guests cannot select another agent identity.",
     },
     authentication: {
-      registeredAgent: { scheme: "Bearer", header: "Authorization: Bearer mirror_ak_...", scope: "persistent external agent" },
-      temporaryGuest: { scheme: "Bearer", header: "Authorization: Bearer <temporary-token>", scope: "temporary external guest" },
+      registeredAgent: { scheme: "Bearer", header: "Authorization: Bearer mirror_ak_...", scope: "persistent external agent", legacy: true },
+      temporaryGuest: { scheme: "Bearer", header: "Authorization: Bearer <temporary-token>", scope: "temporary external guest", legacy: true },
+      linkCapability: { scheme: "URL", path: "/access/{id}", scope: "scoped external laboratory", recommended: true },
       admin: { scheme: "Bearer or dashboard session", externalAgentsMayUse: false, purpose: "controller-only administrative and internal laboratory operations" },
     },
     links: {
       capabilities: base + "/api/agent/capabilities",
       selfRegistration: base + "/api/v1/agents/register",
-      manual: "https://raw.githubusercontent.com/rynahmed101-sys/the-mirror/b305e3ef14f13854ee92de2fb308c31bcc4170f5/docs/EXTERNAL_AI_OPERATIONS_MANUAL.md",
+      manual: "https://raw.githubusercontent.com/rynahmed101-sys/the-mirror/main/docs/EXTERNAL_AI_OPERATIONS_MANUAL.md",
     },
     limits: {
       chatToolSteps: 8,
