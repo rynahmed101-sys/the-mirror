@@ -56,6 +56,7 @@ export default function AdminLabControls() {
   const [show, setShow] = useState(false);
   const [runState, setRunState] = useState<RunState>({ active: false, activeAgents: [], activeCount: 0 });
   const [confirmProjection, setConfirmProjection] = useState(false);
+  const [showStressTests, setShowStressTests] = useState(false);
 
   async function refreshRunState() {
     try {
@@ -184,27 +185,16 @@ export default function AdminLabControls() {
           {projectionBusy ? "Projection active" : busy === "projection" ? "Running…" : "20-Chamber"}
         </button>
 
-        <LabButton
-          mode="ledger"
-          busy={busy}
-          disabled={false}
-          onClick={() => void runLab("ledger")}
-          icon={<Zap className="w-3.5 h-3.5" aria-hidden="true" />}
-          label="50×20 Stress"
-          workingLabel="Stress…"
-          tone="secondary"
-        />
-
-        <LabButton
-          mode="sandbox"
-          busy={busy}
-          disabled={false}
-          onClick={() => void runLab("sandbox")}
-          icon={<Terminal className="w-3.5 h-3.5" aria-hidden="true" />}
-          label="Sandbox Stress"
-          workingLabel="Testing…"
-          tone="green"
-        />
+        <button
+          type="button"
+          onClick={() => setShowStressTests(true)}
+          disabled={!!busy}
+          className="mirror-admin-action mirror-admin-action--secondary"
+          title="Open the bounded stress-test controls"
+        >
+          <Zap className="w-3.5 h-3.5" aria-hidden="true" />
+          Stress Tests
+        </button>
       </div>
 
       {(show || token || result) && (
@@ -265,6 +255,63 @@ export default function AdminLabControls() {
                 {JSON.stringify(result, null, 2)}
               </pre>
             )}
+          </div>
+        </div>
+      )}
+
+      {showStressTests && (
+        <div
+          className="mirror-modal-backdrop"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.currentTarget === e.target) setShowStressTests(false);
+          }}
+        >
+          <div
+            className="mirror-admin-modal mirror-admin-modal--confirm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="stress-title"
+            aria-describedby="stress-copy"
+          >
+            <div className="mirror-section-kicker">Bounded diagnostics</div>
+            <h2 id="stress-title" className="text-base font-bold mt-1">Stress Tests</h2>
+            <p id="stress-copy" className="text-sm text-slate-400 leading-6 mt-3">
+              Run one diagnostic at a time. These checks write test records and can add load.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-3 mt-5">
+              <button
+                type="button"
+                className="mirror-admin-action mirror-admin-action--secondary min-h-16"
+                onClick={() => {
+                  setShowStressTests(false);
+                  void runLab("ledger");
+                }}
+                disabled={!!busy}
+                aria-busy={busy === "ledger"}
+              >
+                {busy === "ledger" ? <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Zap className="w-3.5 h-3.5" aria-hidden="true" />}
+                50×20 Ledger Stress
+              </button>
+              <button
+                type="button"
+                className="mirror-admin-action mirror-admin-action--green min-h-16"
+                onClick={() => {
+                  setShowStressTests(false);
+                  void runLab("sandbox");
+                }}
+                disabled={!!busy}
+                aria-busy={busy === "sandbox"}
+              >
+                {busy === "sandbox" ? <RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Terminal className="w-3.5 h-3.5" aria-hidden="true" />}
+                Sandbox Stress
+              </button>
+            </div>
+            <div className="flex justify-end mt-4">
+              <button type="button" className="mirror-secondary-button" onClick={() => setShowStressTests(false)}>
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
