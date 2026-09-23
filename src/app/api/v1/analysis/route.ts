@@ -13,8 +13,9 @@ export async function GET(req: Request) {
     const list = await db
       .select()
       .from(derivedAnalysis)
+      .where(eq(derivedAnalysis.agentId, actor.agentId))
       .orderBy(sql`${derivedAnalysis.createdAt} DESC`)
-      .where(eq(derivedAnalysis.agentId, actor.agentId)).orderBy(sql`${derivedAnalysis.createdAt} DESC`).limit(100);
+      .limit(100);
 
     return NextResponse.json(list);
   } catch (error: any) {
