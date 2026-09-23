@@ -25,7 +25,11 @@ export type MirrorAccessCapability = {
   label: string;
 };
 
-const secret = () => process.env.MIRROR_LINK_SECRET || process.env.JWT_SECRET || "change-me-in-production";
+const secret = () => {
+  const value = process.env.MIRROR_LINK_SECRET || process.env.JWT_SECRET;
+  if (!value || value === "change-me-in-production") throw new Error("Mirror access-link secret is not configured securely.");
+  return value;
+};
 
 function sign(id: string) {
   return createHmac("sha256", secret()).update(id).digest("base64url");
