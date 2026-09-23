@@ -4,6 +4,7 @@ import { resolveRequestPrincipal } from "@/lib/auth";
 import { runProjectionSuite } from "@/lib/agent/simulationProjection";
 import { runLedgerConcurrencyStress, runSandboxStress } from "@/lib/agent/stress";
 import { appendRawEventLedger } from "@/lib/agent/eventLedger";
+import { SimulationRunConflictError } from "@/lib/agent/simulationRunGuard";
 
 export const maxDuration = 300;
 
@@ -57,6 +58,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, ...out, completedAt: new Date().toISOString() });
   } catch (error: any) {
     out.error = error?.message || String(error);
+    if (error instanceof SimulationRunConflictError) {
+      out.code = "SIMULATION_ALREADY_RUNNING";
+      out.agentId = error.agentId;
+      out.sessionId = error.sessionId;
+    }
     try {
       await appendRawEventLedger({
         agentId: "mirror-primary",
@@ -65,6 +71,7 @@ export async function POST(req: Request) {
         payload: { mode, error: out.error },
       });
     } catch {}
-    return NextResponse.json({ success: false, ...out, completedAt: new Date().toISOString() }, { status: 500 });
+    const status = error instanceof SimulationRunConflictError ? 409 : 500;
+    return NextResponse.json({ success: false, ...out, completedAt: new Date().toISOString() }, { status });
   }
 }

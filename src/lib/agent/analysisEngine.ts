@@ -21,21 +21,34 @@ export interface TriSignalSurprise {
   isPotentialSelfModelMismatch: boolean;
 }
 
+export function normalizeAnalysisText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return "";
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized === undefined ? String(value) : serialized;
+  } catch {
+    return String(value);
+  }
+}
+
 export async function processRawObservationToLayer1(
-  rawObsId: string, agentId: string, input: string, output: string, latencyMs = 0,
+  rawObsId: string, agentId: string, input: unknown, output: unknown, latencyMs = 0,
   predictionError: number | null = null, selfReportedSurprise: number | null = null
 ) {
   try {
-    const responseLengthChars = output ? output.length : 0;
-    const clarificationOccurred = /\b(could you clarify|please specify|do you mean|which option|what specific|could you explain|can you elaborate)\b/i.test(output || "");
-    const refusalOccurred = /\b(i cannot|i am unable|as an ai|i must decline|unauthorized|against my guidelines)\b/i.test(output || "");
+    const normalizedInput = normalizeAnalysisText(input);
+    const normalizedOutput = normalizeAnalysisText(output);
+    const responseLengthChars = normalizedOutput.length;
+    const clarificationOccurred = /\b(could you clarify|please specify|do you mean|which option|what specific|could you explain|can you elaborate)\b/i.test(normalizedOutput);
+    const refusalOccurred = /\b(i cannot|i am unable|as an ai|i must decline|unauthorized|against my guidelines)\b/i.test(normalizedOutput);
     let behaviorCategory = "STANDARD";
     if (clarificationOccurred) behaviorCategory = "CLARIFICATION";
     if (refusalOccurred) behaviorCategory = "REFUSAL";
 
     const [analysis] = await db.insert(derivedAnalysis).values({
       rawObservationId: rawObsId, agentId, responseLengthChars, latencyMs,
-      toolUsageCount: input.includes("tool") || output.includes("tool") ? 1 : 0,
+      toolUsageCount: normalizedInput.includes("tool") || normalizedOutput.includes("tool") ? 1 : 0,
       clarificationOccurred, refusalOccurred, classifierType: "HEURISTIC",
       predictionError: predictionError ?? null, anomalyScore: 0.0, behaviorCategory,
     }).returning();
