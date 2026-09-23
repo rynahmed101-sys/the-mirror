@@ -60,7 +60,7 @@ export default function ConstellationSurface() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [query]);
 
   const inspect = async (hit: Hit) => {
     setSelected(hit);
