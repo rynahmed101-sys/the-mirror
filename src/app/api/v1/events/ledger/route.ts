@@ -9,9 +9,6 @@ const tables:any = isPg ? pgSchema : sqliteSchema;
 const { rawEventLedger, apiAuditLogs } = tables;
 
 export async function GET(req: Request) {
-  const startTime = Date.now();
-  let statusCode = 200;
-
   try {
     const actor = await requireExperimentalActor(req);
     const { searchParams } = new URL(req.url);
@@ -95,7 +92,6 @@ export async function GET(req: Request) {
       },
     });
   } catch (error: any) {
-    statusCode = 500;
     try {
       await db.insert(apiAuditLogs).values({
         endpoint: "/api/v1/events/ledger",
