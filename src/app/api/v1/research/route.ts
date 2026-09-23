@@ -1,3 +1,6 @@
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
 import { NextResponse } from "next/server";
 import { aiRegistry } from "@/lib/ai/registry";
 import { getSystemPrompt } from "@/lib/agent/prompts";
@@ -76,7 +79,12 @@ export async function POST(req: Request) {
   const requestId = `research_${nanoid(10)}`;
 
   try {
-    const body = (await req.json()) as Partial<ResearchBody>;
+    let body: Partial<ResearchBody>;
+    try {
+      body = (await req.json()) as Partial<ResearchBody>;
+    } catch {
+      return NextResponse.json({ error: "Malformed JSON request." }, { status: 400 });
+    }
     const observation =
       typeof body.observation === "string" ? body.observation.trim() : "";
     const thoughts =
@@ -103,9 +111,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (questions.length > 10) {
+    if (questions.length > 4) {
       return NextResponse.json(
-        { error: "A research request may contain at most 10 questions" },
+        { error: "A research request may contain at most 4 questions per request" },
         { status: 400 }
       );
     }
