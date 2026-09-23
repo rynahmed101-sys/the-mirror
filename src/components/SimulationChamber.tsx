@@ -37,12 +37,6 @@ type RunState = {
   lastActivityAt: string | null;
 };
 
-function scoreLabel(v: number) {
-  if (v >= 0.75) return "STRONG";
-  if (v >= 0.5) return "PARTIAL";
-  return "WEAK";
-}
-
 function formatTime(value: string | null | undefined) {
   if (!value) return "—";
   const date = new Date(value);
