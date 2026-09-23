@@ -236,7 +236,7 @@ export default function SimulationChamber() {
               </div>
             </div>
             <p className="text-sm text-slate-400 mt-3 max-w-2xl leading-6">
-              Twenty bounded chambers compare pre-action projections with observed behavior.
+              Twenty bounded chambers compare predicted and observed actions.
             </p>
           </div>
 
@@ -290,14 +290,6 @@ export default function SimulationChamber() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="mirror-quiet-button shrink-0"
-          >
-            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-            Refresh state
-          </button>
         </section>
 
         <div className="grid lg:grid-cols-3 gap-4">
@@ -386,7 +378,16 @@ export default function SimulationChamber() {
             )}
           </section>
 
-          <section className="mirror-lab-panel p-5 space-y-4" aria-labelledby="sandbox-heading">
+
+        </div>
+
+        <details className="mirror-lab-panel p-5">
+          <summary className="cursor-pointer list-none text-sm font-bold text-slate-200">
+            Isolation diagnostics
+          </summary>
+          <div className="mt-4 max-w-xl space-y-4">
+            <p className="text-xs text-slate-500 leading-5">Run one deterministic probe outside the Mirror process.</p>
+            <div className="space-y-4">
             <div>
               <div className="mirror-section-kicker">Isolation check</div>
               <h2 id="sandbox-heading" className="text-base font-bold flex items-center gap-2 mt-1">
@@ -423,8 +424,9 @@ export default function SimulationChamber() {
                 </div>
               </div>
             )}
-          </section>
-        </div>
+            </div>
+          </div>
+        </details>
 
         {error && (
           <div className="mirror-error-banner" role="alert">
