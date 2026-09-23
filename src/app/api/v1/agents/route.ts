@@ -12,9 +12,9 @@ export async function GET(req: Request) {
   try {
     const actor = await requireExperimentalActor(req);
     const requestedAgentId = new URL(req.url).searchParams.get("agentId");
-    const targetAgentId = actor.mode === "CONTROL" ? requestedAgentId : actor.agentId;
+    const targetAgentId = actor.mode === "CONTROL" && requestedAgentId ? requestedAgentId : actor.agentId;
     let query = db.select().from(agents);
-    if (actor.mode !== "CONTROL" || targetAgentId) {
+    if (targetAgentId) {
       query = query.where(eq(agents.id, targetAgentId || actor.agentId)) as any;
     }
     const list = await query.orderBy(sql`${agents.createdAt} DESC`);
