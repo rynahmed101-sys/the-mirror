@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveRequestPrincipal } from "@/lib/auth";
 import { db, isPg } from "@/lib/db";
 import * as sqliteSchema from "@/lib/db/schema";
 import * as pgSchema from "@/lib/db/schema.pg";
@@ -9,7 +10,9 @@ import { getSupabaseMirrorStatus } from "@/lib/db/supabaseMirror";
 const tables:any = isPg ? pgSchema : sqliteSchema;
 const { systemConfig, agents, selfModels, selfModelClaims, experiments, predictions, journalEntries, discoveries, toolLogs } = tables;
 
-export async function GET() {
+export async function GET(req:Request) {
+  const principal=await resolveRequestPrincipal(req);
+  if(!principal||principal.kind!=="CONTROL") return NextResponse.json({error:"Admin session or control credential required."},{status:403});
   try {
     const config = await db.select().from(systemConfig).limit(1);
     const stored = config[0];
