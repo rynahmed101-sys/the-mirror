@@ -6,7 +6,7 @@ import { runLedgerConcurrencyStress, runSandboxStress } from "@/lib/agent/stress
 import { appendRawEventLedger } from "@/lib/agent/eventLedger";
 import { SimulationRunConflictError } from "@/lib/agent/simulationRunGuard";
 
-export const maxDuration = 300;
+export const maxDuration = 1800;
 
 export async function POST(req: Request) {
   const principal = await resolveRequestPrincipal(req);
@@ -21,24 +21,14 @@ export async function POST(req: Request) {
   const out: any = { mode, startedAt: new Date().toISOString() };
 
   try {
-    await appendRawEventLedger({
-      agentId: "mirror-primary",
-      eventType: "INTERNAL_LAB_RUN_STARTED",
-      source: "SYSTEM",
-      payload: { mode },
-    });
+    await appendRawEventLedger({ agentId: "mirror-primary", eventType: "INTERNAL_LAB_RUN_STARTED", source: "SYSTEM", payload: { mode } });
 
     if (mode === "ledger" || mode === "full") {
-      out.ledger = await runLedgerConcurrencyStress({
-        writers: body.writers,
-        eventsPerWriter: body.eventsPerWriter,
-      });
+      out.ledger = await runLedgerConcurrencyStress({ writers: body.writers, eventsPerWriter: body.eventsPerWriter });
     }
-
     if (mode === "sandbox" || mode === "full") {
       out.sandbox = await runSandboxStress({ probes: body.probes });
     }
-
     if (mode === "projection" || mode === "full") {
       out.projection = await runProjectionSuite({
         agentIds: Array.isArray(body.agentIds) ? body.agentIds : ["mirror-primary"],
@@ -48,13 +38,7 @@ export async function POST(req: Request) {
       });
     }
 
-    await appendRawEventLedger({
-      agentId: "mirror-primary",
-      eventType: "INTERNAL_LAB_RUN_COMPLETED",
-      source: "SYSTEM",
-      payload: { mode, pass: true },
-    });
-
+    await appendRawEventLedger({ agentId: "mirror-primary", eventType: "INTERNAL_LAB_RUN_COMPLETED", source: "SYSTEM", payload: { mode, pass: true } });
     return NextResponse.json({ success: true, ...out, completedAt: new Date().toISOString() });
   } catch (error: any) {
     out.error = error?.message || String(error);
@@ -63,14 +47,7 @@ export async function POST(req: Request) {
       out.agentId = error.agentId;
       out.sessionId = error.sessionId;
     }
-    try {
-      await appendRawEventLedger({
-        agentId: "mirror-primary",
-        eventType: "INTERNAL_LAB_RUN_FAILED",
-        source: "SYSTEM",
-        payload: { mode, error: out.error },
-      });
-    } catch {}
+    try { await appendRawEventLedger({ agentId: "mirror-primary", eventType: "INTERNAL_LAB_RUN_FAILED", source: "SYSTEM", payload: { mode, error: out.error } }); } catch {}
     const status = error instanceof SimulationRunConflictError ? 409 : 500;
     return NextResponse.json({ success: false, ...out, completedAt: new Date().toISOString() }, { status });
   }
