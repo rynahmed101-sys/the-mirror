@@ -9,11 +9,14 @@ const tables:any = isPg ? pgSchema : sqliteSchema;
 const { agents } = tables;
 
 export async function GET(req: Request) {
-  await requireExperimentalActor(req);
   try {
+    const actor = await requireExperimentalActor(req);
+    const requestedAgentId = new URL(req.url).searchParams.get("agentId");
+    const targetAgentId = actor.mode === "CONTROL" ? requestedAgentId : actor.agentId;
     const list = await db
       .select()
       .from(agents)
+      .where(targetAgentId ? (await import("drizzle-orm")).eq(agents.id, targetAgentId) : undefined)
       .orderBy(sql`${agents.createdAt} DESC`);
 
     return NextResponse.json(
