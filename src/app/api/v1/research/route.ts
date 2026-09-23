@@ -4,11 +4,12 @@ import { getSystemPrompt } from "@/lib/agent/prompts";
 import { db, isPg } from "@/lib/db";
 import * as sqliteSchema from "@/lib/db/schema";
 import * as pgSchema from "@/lib/db/schema.pg";
-import { extractBearerToken, validateApiToken } from "@/lib/auth";
+
 import { processRawObservationToLayer1 } from "@/lib/agent/analysisEngine";
 import { appendRawEventLedger } from "@/lib/agent/eventLedger";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 
 const tables:any = isPg ? pgSchema : sqliteSchema;
 const { agents, agentSessions, rawMessages, rawObservations } = tables;
@@ -75,11 +76,6 @@ export async function POST(req: Request) {
   const requestId = `research_${nanoid(10)}`;
 
   try {
-    const token = extractBearerToken(req.headers.get("authorization"));
-    if (!token || !(await validateApiToken(token))) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const body = (await req.json()) as Partial<ResearchBody>;
     const observation =
       typeof body.observation === "string" ? body.observation.trim() : "";
@@ -90,10 +86,8 @@ export async function POST(req: Request) {
           (q): q is string => typeof q === "string" && q.trim().length > 0
         )
       : [];
-    const agentId =
-      typeof body.agentId === "string" && body.agentId.trim()
-        ? body.agentId.trim()
-        : DEFAULT_AGENT_ID;
+    const actor = await requireExperimentalActor(req, typeof body.agentId === "string" ? body.agentId : null);
+    const agentId = actor.agentId;
 
     if (!observation) {
       return NextResponse.json(
