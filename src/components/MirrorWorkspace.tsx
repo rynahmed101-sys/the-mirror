@@ -23,7 +23,8 @@ export default function MirrorWorkspace(){
   const [keyPreview,setKeyPreview]=useState<string|null>(null);
   const [newKey,setNewKey]=useState("");
   const [link,setLink]=useState<any>(null);
-  const [attachment,setAttachment]=useState<any>(null);\n  const [brain,setBrain]=useState<any>(null);
+  const [attachment,setAttachment]=useState<any>(null);
+  const [brain,setBrain]=useState<any>(null);
 
   useEffect(()=>{
     Promise.all([
@@ -33,7 +34,8 @@ export default function MirrorWorkspace(){
     ]).then(([lab,knowledge,config])=>{
       if(Array.isArray(lab?.plugins)) setPlugins(lab.plugins);
       if(Array.isArray(knowledge?.connectors)) setKnowledgeConnectors(knowledge.connectors);
-      setKeyPreview(config?.keyPreview||null);\n      if(brainData?.definition) setBrain(brainData);
+      setKeyPreview(config?.keyPreview||null);
+      if(brainData?.definition) setBrain(brainData);
     });
   },[]);
 
