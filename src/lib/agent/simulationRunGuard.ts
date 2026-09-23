@@ -8,6 +8,19 @@
 
 export const SIMULATION_LOCK_MAX_AGE_MS = 20 * 60 * 1000;
 
+export class SimulationRunConflictError extends Error {
+  readonly statusCode = 409;
+
+  constructor(
+    message: string,
+    readonly agentId: string,
+    readonly sessionId?: string,
+  ) {
+    super(message);
+    this.name = "SimulationRunConflictError";
+  }
+}
+
 export type SimulationRunLock = {
   status: string;
   acquiredAt: Date | number | string | null | undefined;
