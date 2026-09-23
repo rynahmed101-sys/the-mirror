@@ -68,9 +68,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   if (action === "lab") {
     const [session] = await db.insert(agentSessions).values({ agentId, status: "ACTIVE" }).returning();
-    const pluginIds = Array.isArray(body.pluginIds) ? body.pluginIds.map(String) : undefined;
-    const resultSet = await runLabPlugins(pluginIds, { agentId, sessionId: session.id, input: body.input || {} });
-    return NextResponse.json({ success: true, ...resultSet });
+    try {
+      const pluginIds = Array.isArray(body.pluginIds) ? body.pluginIds.map(String) : undefined;
+      const resultSet = await runLabPlugins(pluginIds, { agentId, sessionId: session.id, input: body.input || {} });
+      return NextResponse.json({ success: true, ...resultSet });
+    } finally {
+      await db.update(agentSessions).set({ status: "ENDED", endedAt: new Date(), lastActivityAt: new Date() }).where(eq(agentSessions.id, session.id));
+    }
   }
 
   if (action === "knowledge") {
@@ -86,25 +90,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const messages = Array.isArray(body.messages) ? body.messages as ChatMessage[] : [];
   if (!messages.length) return NextResponse.json({ error: "messages[] is required." }, { status: 400 });
   const [session] = await db.insert(agentSessions).values({ agentId, status: "ACTIVE" }).returning();
-  const maxToolSteps = Math.min(8, Math.max(1, Number(body.maxToolSteps) || 6));
-  const resultSet = await runToolLoop({
-    agentId,
-    sessionId: session.id,
-    messages: [
-      { role: "system", content: await getSystemPrompt(agentId) },
-      { role: "system", content: "LAB ACCESS SEQUENCE: observe → retrieve_knowledge → think → visualize → challenge → act → record → evaluate. Keep internal reasoning private; return concise, evidence-backed outputs." },
-      ...messages,
-    ],
-    maxToolSteps,
-    requestSource: "AGENT",
-  });
-  return NextResponse.json({
-    success: true,
-    sessionId: session.id,
-    agentId,
-    model: resultSet.activeModel,
-    output: resultSet.output,
-    steps: resultSet.steps,
-    toolTrace: resultSet.trace.map((entry: any) => ({ tool: entry.tool, status: entry.result?.status || "complete" })),
-  });
+  try {
+    const maxToolSteps = Math.min(8, Math.max(1, Number(body.maxToolSteps) || 6));
+    const resultSet = await runToolLoop({
+      agentId,
+      sessionId: session.id,
+      messages: [
+        { role: "system", content: await getSystemPrompt(agentId) },
+        { role: "system", content: "LAB ACCESS SEQUENCE: observe → retrieve_knowledge → think → visualize → challenge → act → record → evaluate. Keep internal reasoning private; return concise, evidence-backed outputs." },
+        ...messages,
+      ],
+      maxToolSteps,
+      requestSource: "AGENT",
+    });
+    return NextResponse.json({
+      success: true,
+      sessionId: session.id,
+      agentId,
+      model: resultSet.activeModel,
+      output: resultSet.output,
+      steps: resultSet.steps,
+      toolTrace: resultSet.trace.map((entry: any) => ({ tool: entry.tool, status: entry.result?.status || "complete" })),
+    });
+  } finally {
+    await db.update(agentSessions).set({ status: "ENDED", endedAt: new Date(), lastActivityAt: new Date() }).where(eq(agentSessions.id, session.id));
+  }
 }
