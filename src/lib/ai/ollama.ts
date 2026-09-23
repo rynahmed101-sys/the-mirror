@@ -19,6 +19,7 @@ import type {
   ToolCall,
 } from "./provider";
 import { AIProvider as AIProviderBase } from "./provider";
+import { getConfiguredOllamaApiKey } from "../config/runtimeSecrets";
 
 export function resolveOllamaRuntimeConfig(env: Record<string, string | undefined> = process.env) {
   const requestedMode = (env.OLLAMA_MODE || "").toLowerCase();
@@ -90,13 +91,14 @@ export class OllamaProvider extends AIProviderBase {
     this.isLocal = !cfg.cloud && /^https?:\/\/(localhost|127\.0\.0\.1)(?::\d+)?(?:\/|$)/i.test(this.baseUrl);
   }
 
-  private getHeaders(): Record<string, string> {
+  private async getHeaders(): Promise<Record<string, string>> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
 
-    if (!this.isLocal && this.apiKey) {
-      headers.Authorization = `Bearer ${this.apiKey}`;
+    const runtimeKey = normalizeOllamaApiKey(await getConfiguredOllamaApiKey()) || this.apiKey;
+    if (!this.isLocal && runtimeKey) {
+      headers.Authorization = `Bearer ${runtimeKey}`;
     }
 
     return headers;
@@ -134,7 +136,7 @@ export class OllamaProvider extends AIProviderBase {
       }
 
       const res = await fetch(`${this.baseUrl}/tags`, {
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         signal: AbortSignal.timeout(8000),
       });
 
@@ -166,7 +168,7 @@ export class OllamaProvider extends AIProviderBase {
   async listModels(): Promise<ModelInfo[]> {
     try {
       const res = await fetch(`${this.baseUrl}/tags`, {
-        headers: this.getHeaders(),
+        headers: await this.getHeaders(),
         signal: AbortSignal.timeout(8000),
       });
 
@@ -221,7 +223,7 @@ export class OllamaProvider extends AIProviderBase {
 
     const res = await fetch(`${this.baseUrl}/chat`, {
       method: "POST",
-      headers: this.getHeaders(),
+      headers: await this.getHeaders(),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(180_000),
     });
@@ -279,7 +281,7 @@ export class OllamaProvider extends AIProviderBase {
 
     const res = await fetch(`${this.baseUrl}/chat`, {
       method: "POST",
-      headers: this.getHeaders(),
+      headers: await this.getHeaders(),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(300_000),
     });
