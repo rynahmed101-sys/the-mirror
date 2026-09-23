@@ -11,6 +11,7 @@ import { resolveExternalActor } from "@/lib/auth/externalActor";
 import { ensureGuestAgent } from "@/lib/auth/experimentalActor";
 
 export const runtime = "nodejs";
+export const maxDuration = 1800;
 import { sql } from "drizzle-orm";
 
 const tables:any = isPg ? pgSchema : sqliteSchema;
