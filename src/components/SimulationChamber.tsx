@@ -65,6 +65,9 @@ export default function SimulationChamber() {
   const [sandboxRunning, setSandboxRunning] = useState(false);
   const [sandboxResult, setSandboxResult] = useState<any>(null);
   const [error, setError] = useState("");
+  const [runState, setRunState] = useState<any>({});
+  const [confirmRun, setConfirmRun] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [confirmRun, setConfirmRun] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -132,6 +135,7 @@ export default function SimulationChamber() {
   const startBlocked = running || selectedAgents.length === 0 || selectedBusy;
 
   async function runSuite() {
+    setConfirmRun(false);
     setRunning(true);
     setError("");
     setRun(null);
@@ -298,6 +302,19 @@ export default function SimulationChamber() {
             Refresh state
           </button>
         </section>
+
+        <div className={`p-4 rounded-xl border ${runState?.active ? "border-amber-700/60 bg-amber-950/20" : "border-slate-800 bg-slate-950/60"}`} role="status" aria-live="polite">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="flex items-start gap-3">
+              {runState?.active ? <AlertTriangle className="w-5 h-5 text-amber-300 mt-0.5" aria-hidden="true"/> : <Shield className="w-5 h-5 text-emerald-300 mt-0.5" aria-hidden="true"/>}
+              <div>
+                <div className="text-xs font-bold font-mono uppercase">{runState?.active ? "Projection run in progress" : "Projection runner ready"}</div>
+                <div className="text-[11px] text-slate-400 mt-1">{runState?.active ? "An active server-side session was detected. New projection starts are locked until it finishes." : "Full runs can exceed the 5-minute HTTP window; a timeout is treated as an uncertain request state, not as permission to retry."}</div>
+              </div>
+            </div>
+            <div className="text-[10px] font-mono text-slate-500">Last activity: {runState?.lastActivityAt ? new Date(runState.lastActivityAt).toLocaleTimeString() : "—"}</div>
+          </div>
+        </div>
 
         <div className="grid lg:grid-cols-3 gap-4">
           <section className="lg:col-span-2 mirror-lab-panel p-5 space-y-5" aria-labelledby="suite-heading">
