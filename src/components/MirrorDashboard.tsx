@@ -237,7 +237,7 @@ export default function MirrorDashboard() {
 
           <button
             onClick={() => setShowRegisterModal(true)}
-            className="flex items-center space-x-2 bg-cyan-600 hover:bg-cyan-500 text-white font-medium px-4 py-1.5 rounded-md text-xs transition shadow-md shadow-cyan-950"
+            className="mirror-header-action mirror-header-action--primary"
           >
             <UserCheck className="w-3.5 h-3.5" />
             <span>Register External AI</span>
@@ -245,7 +245,7 @@ export default function MirrorDashboard() {
 
           <Link
             href="/simulation"
-            className="flex items-center space-x-2 bg-purple-700 hover:bg-purple-600 text-white font-medium px-3 py-1.5 rounded-md text-xs transition"
+            className="mirror-header-action mirror-header-action--secondary"
           >
             <GitBranch className="w-3.5 h-3.5" />
             <span>Projection Chamber</span>
@@ -254,8 +254,11 @@ export default function MirrorDashboard() {
           <AdminLabControls />
 
           <button
+            type="button"
             onClick={fetchAllData}
-            className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-md transition"
+            className="mirror-icon-button mirror-header-refresh"
+            aria-label="Refresh dashboard data"
+            title="Refresh dashboard data"
           >
             <RefreshCw className={`w-4 h-4 ${loadingStatus ? "animate-spin" : ""}`} />
           </button>
