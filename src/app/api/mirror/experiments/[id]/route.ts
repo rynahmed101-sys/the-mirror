@@ -6,7 +6,7 @@ import { canAgentAccessExperimentConfig, canAgentAccessExperimentConfigAsync, fi
 import { eq, and } from "drizzle-orm";
 import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
 const tables:any=isPg?pgSchema:sqliteSchema;
-const {experiments,predictions}=tables;
+const {experiments,predictions,timelineEvents}=tables;
 
 export async function GET(
   req: Request,
