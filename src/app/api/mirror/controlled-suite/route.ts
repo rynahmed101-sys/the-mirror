@@ -16,7 +16,7 @@ export async function POST(req: Request) {
     const seed = typeof body.seed === "string" && body.seed ? body.seed : undefined;
     const maxToolSteps = Math.min(4, Math.max(1, Number(body.maxToolSteps) || 3));
     const maxTrials = Math.min(6, Math.max(1, Number(body.maxTrials) || 6));
-    return NextResponse.json(await runControlledSuite({ agentId, seed, maxToolSteps, maxTrials } as any));
+    return NextResponse.json(await runControlledSuite({ agentId, seed, maxToolSteps, maxTrials }));
   } catch (error: any) {
     return NextResponse.json({
       success: false,
