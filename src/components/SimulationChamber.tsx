@@ -240,9 +240,8 @@ export default function SimulationChamber() {
                 <h1 className="text-2xl font-bold tracking-wide">MIRROR PROJECTION CHAMBER</h1>
               </div>
             </div>
-            <p className="text-sm text-slate-400 mt-3 max-w-3xl leading-6">
-              Pre-action prediction, explicit state visualization, bounded execution, and prediction-versus-reality measurement.
-              Projections are external test artifacts, not hidden reasoning.
+            <p className="text-sm text-slate-400 mt-3 max-w-2xl leading-6">
+              Twenty bounded chambers compare pre-action projections with observed behavior.
             </p>
           </div>
 
@@ -285,8 +284,8 @@ export default function SimulationChamber() {
               </div>
               <p className="text-xs text-slate-400 mt-1">
                 {runState.active
-                  ? `An active session owns one or more selected agents${runDuration ? ` • running for ${runDuration}` : ""}. The server blocks overlapping projection suites.`
-                  : "No recent active projection session is holding a selected agent."}
+                  ? `One projection run is active${runDuration ? ` • ${runDuration}` : ""}. Overlapping runs are blocked.`
+                  : "No projection run is active for the selected agents."}
               </p>
               {runState.active && (
                 <p className="text-[10px] text-slate-500 font-mono mt-1">
@@ -316,8 +315,7 @@ export default function SimulationChamber() {
                   20-Chamber Suite
                 </h2>
                 <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-5">
-                  {catalog?.chamberCount || 20} preregistered chambers • 3 tool steps max per revealed task.
-                  A full run can outlast Vercel's 300-second HTTP response window.
+                  {catalog?.chamberCount || 20} chambers • up to 3 tool steps. The HTTP request may time out after 300s while records continue.
                 </p>
               </div>
 
@@ -401,7 +399,7 @@ export default function SimulationChamber() {
                 Isolated Execution Chamber
               </h2>
               <p className="text-xs text-slate-400 mt-2 leading-5">
-                Runs a tiny deterministic artifact outside the Mirror process in Vercel Sandbox.
+                Runs one deterministic probe in Vercel Sandbox.
               </p>
             </div>
 
@@ -502,30 +500,41 @@ export default function SimulationChamber() {
                     Chamber Results
                   </h2>
                 </div>
-                <span className="mirror-summary-chip">{activeResults.length} shown</span>
+                <span className="mirror-summary-chip">{activeResults.length} results</span>
               </div>
 
-              <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
-                {activeResults.map((r: any) => (
-                  <button
-                    type="button"
-                    key={r.projectionId}
-                    onClick={() => setSelectedTrial(r)}
-                    aria-pressed={selectedTrial?.projectionId === r.projectionId}
-                    className={`mirror-result-row ${selectedTrial?.projectionId === r.projectionId ? "is-selected" : ""}`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-xs font-bold text-slate-200">{r.trialKey}</div>
-                      <span className={`mirror-mini-badge ${r.actual ? "mirror-mini-badge--success" : "mirror-mini-badge--warning"}`}>
-                        {r.actual ? "TARGET HIT" : "TARGET MISSED"}
-                      </span>
-                    </div>
-                    <div className="mt-1 text-[10px] text-slate-500">
-                      {r.chamber} • gap {Number(r.realityGap).toFixed(3)} • completeness {(Number(r.completeness) * 100).toFixed(0)}% • {scoreLabel(1 - Number(r.realityGap))}
-                    </div>
-                  </button>
-                ))}
-              </div>
+              <label className="block">
+                <span className="sr-only">Select a chamber result</span>
+                <select
+                  value={selectedTrial?.projectionId || ""}
+                  onChange={(e) => setSelectedTrial(activeResults.find((x: any) => x.projectionId === e.target.value) || activeResults[0] || null)}
+                  className="mirror-field"
+                  aria-label="Select chamber result"
+                >
+                  {activeResults.map((r: any) => (
+                    <option key={r.projectionId} value={r.projectionId}>
+                      {r.trialKey} — {r.actual ? "target hit" : "target missed"} — gap {Number(r.realityGap).toFixed(3)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {selectedTrial && (
+                <div className="mirror-result-summary mt-3">
+                  <div>
+                    <span className="text-slate-300 font-semibold">{selectedTrial.chamber}</span>
+                    <span className="text-slate-600"> • </span>
+                    <span className="text-slate-500 font-mono">{selectedTrial.trialKey}</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <span className={`mirror-mini-badge ${selectedTrial.actual ? "mirror-mini-badge--success" : "mirror-mini-badge--warning"}`}>
+                      {selectedTrial.actual ? "TARGET HIT" : "TARGET MISSED"}
+                    </span>
+                    <span className="mirror-mini-badge">gap {Number(selectedTrial.realityGap).toFixed(3)}</span>
+                    <span className="mirror-mini-badge">complete {(Number(selectedTrial.completeness) * 100).toFixed(0)}%</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="mirror-lab-panel p-4 space-y-4">
@@ -590,37 +599,23 @@ export default function SimulationChamber() {
           </section>
         )}
 
-        <section className="mirror-lab-panel p-5" aria-labelledby="records-heading">
-          <div className="mirror-section-heading">
-            <div>
-              <div className="mirror-section-kicker">Evidence boundary</div>
-              <h2 id="records-heading" className="text-sm font-bold flex items-center gap-2 mt-1">
-                <Shield className="w-4 h-4 text-emerald-300" aria-hidden="true" />
-                What Mirror Records
-              </h2>
-            </div>
+        <details className="mirror-lab-panel p-5">
+          <summary className="cursor-pointer list-none text-sm font-bold text-slate-200">
+            Evidence recorded
+          </summary>
+          <div className="grid md:grid-cols-3 gap-3 mt-4 text-xs">
+            <div className="mirror-detail-card"><strong className="text-slate-200">Before</strong><div className="text-slate-500 mt-1">Projection, branches, confidence, state graph.</div></div>
+            <div className="mirror-detail-card"><strong className="text-slate-200">During</strong><div className="text-slate-500 mt-1">Messages, tools, session, timing, ledger.</div></div>
+            <div className="mirror-detail-card"><strong className="text-slate-200">After</strong><div className="text-slate-500 mt-1">Outcome, calibration, gap, immutable observation, mirror copy.</div></div>
           </div>
-
-          <div className="grid md:grid-cols-3 gap-3 mt-4">
-            {[
-              ["Before action", "Explicit goal, projected state, branches, counterfactuals, confidence, visual state graph."],
-              ["During action", "Raw messages, tool calls, tool results, session, timing, cryptographic event chain."],
-              ["After action", "Observed outcome, calibration, completeness, reality gap, immutable raw observation, independent Supabase copy."],
-            ].map(([h, b]) => (
-              <div key={String(h)} className="mirror-detail-card">
-                <div className="font-bold text-slate-200">{h}</div>
-                <div className="text-slate-500 mt-1 leading-5">{b}</div>
-              </div>
-            ))}
-          </div>
-        </section>
+        </details>
 
         {history.length > 0 && (
           <section className="mirror-lab-panel p-5" aria-labelledby="history-heading">
             <div className="mirror-section-heading">
               <div>
-                <div className="mirror-section-kicker">Stored runs</div>
-                <h2 id="history-heading" className="text-sm font-bold mt-1">Recent Projection History</h2>
+                <div className="mirror-section-kicker">Stored</div>
+                <h2 id="history-heading" className="text-sm font-bold mt-1">Recent Runs</h2>
               </div>
               <span className="mirror-summary-chip">{Math.min(history.length, 12)} shown</span>
             </div>
