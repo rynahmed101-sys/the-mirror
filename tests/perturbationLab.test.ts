@@ -14,6 +14,12 @@ import { resolveExternalActor } from "../src/lib/auth/externalActor";
 import { isTemporaryExternalToken } from "../src/lib/auth";
 import { buildExternalAgentCapabilities } from "../src/lib/agent/externalCapabilities";
 
+import {
+  SIMULATION_LOCK_MAX_AGE_MS,
+  isSimulationLockFresh,
+  shouldBlockSimulationRun,
+} from "../src/lib/agent/simulationRunGuard";
+
 
 test("the perturbation lattice is exactly 6 x 16 = 96 nodes", () => {
   const state = createNinetySixNodeState();
@@ -129,4 +135,17 @@ test("external agent capability manifest exposes machine actions without exposin
   assert.ok(manifest.endpoints.some((x) => x.path === "/api/mirror/perturbation-lab" && x.method === "POST"));
   assert.equal(manifest.links.capabilities, "https://mirror.example/api/agent/capabilities");
   assert.equal(manifest.links.manual.includes("/b305e3ef14f13854ee92de2fb308c31bcc4170f5/docs/EXTERNAL_AI_OPERATIONS_MANUAL.md"), true);
+});
+
+
+test("fresh projection locks block a second suite but stale locks can recover", () => {
+  const now = Date.parse("2026-09-23T03:00:00.000Z");
+  const fresh = { status: "ACTIVE", acquiredAt: now - 60_000, agentId: "mirror-primary", suiteId: "projection_test" };
+  const stale = { status: "ACTIVE", acquiredAt: now - SIMULATION_LOCK_MAX_AGE_MS - 1, agentId: "mirror-primary", suiteId: "projection_stale" };
+
+  assert.equal(isSimulationLockFresh(fresh.acquiredAt, now), true);
+  assert.equal(isSimulationLockFresh(stale.acquiredAt, now), false);
+  assert.equal(shouldBlockSimulationRun([fresh], now), true);
+  assert.equal(shouldBlockSimulationRun([stale], now), false);
+  assert.equal(shouldBlockSimulationRun([{ ...fresh, status: "RELEASED" }], now), false);
 });
