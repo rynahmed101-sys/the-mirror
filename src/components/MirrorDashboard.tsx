@@ -92,6 +92,7 @@ export default function MirrorDashboard() {
   const [testingRegisteredAgent, setTestingRegisteredAgent] = useState(false);
   const [registeredAgentTest, setRegisteredAgentTest] = useState<any>(null);
   const [agentActionBusy, setAgentActionBusy] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const fetchAllData = async () => {
     try {
@@ -119,13 +120,16 @@ export default function MirrorDashboard() {
   };
 
   const handleVerifyLedger = async () => {
+    setActionError(null);
     try {
       setVerifyingLedger(true);
-      const res = await fetch("/api/v1/events/ledger?verify=true").then((r) => r.json());
-      setLedgerVerificationResult(res);
+      const response = await fetch("/api/v1/events/ledger?verify=true");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `Verification failed (HTTP ${response.status}).`);
+      setLedgerVerificationResult(data);
       await fetchAllData();
     } catch (err: any) {
-      alert("Verification failed: " + err.message);
+      setActionError(err?.message || "Ledger verification failed.");
     } finally {
       setVerifyingLedger(false);
     }
@@ -140,6 +144,7 @@ export default function MirrorDashboard() {
   // Register New External Agent
   const handleRegisterAgent = async (e: React.FormEvent) => {
     e.preventDefault();
+    setActionError(null);
     try {
       const res = await fetch("/api/v1/agents/register", {
         method: "POST",
@@ -149,16 +154,17 @@ export default function MirrorDashboard() {
       const data = await res.json();
       if (data.apiKey) {
         setRegisteredKey(data.apiKey);
-        fetchAllData();
+        await fetchAllData();
       } else {
-        alert(data.error || "Registration failed");
+        throw new Error(data.error || "Registration failed.");
       }
     } catch (err: any) {
-      alert("Registration failed: " + err.message);
+      setActionError(err?.message || "Registration failed.");
     }
   };
 
   const handleToggleAgent = async (agentId: string, blocked: boolean) => {
+    setActionError(null);
     setAgentActionBusy(agentId);
     try {
       const res = await fetch(`/api/v1/agents/${agentId}`, {
@@ -170,7 +176,7 @@ export default function MirrorDashboard() {
       if (!res.ok) throw new Error(data.error || "Agent update failed");
       await fetchAllData();
     } catch (error:any) {
-      alert(error?.message || "Agent update failed");
+      setActionError(error?.message || "Agent update failed.");
     } finally {
       setAgentActionBusy(null);
     }
@@ -178,12 +184,14 @@ export default function MirrorDashboard() {
 
   // Trace Claim Provenance
   const handleTraceProvenance = async (claimId: string) => {
+    setActionError(null);
     try {
       setSelectedClaimForTrace(claimId);
       const res = await fetch(`/api/v1/provenance?claimId=${claimId}`).then((r) => r.json());
       setProvenanceData(res);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Provenance fetch failed:", err);
+      setActionError(err?.message || "Provenance trace failed.");
     }
   };
 
@@ -236,7 +244,8 @@ export default function MirrorDashboard() {
 
 
           <button
-            onClick={() => setShowRegisterModal(true)}
+            type="button"
+            onClick={() => { setActionError(null); setShowRegisterModal(true); }}
             className="mirror-header-action mirror-header-action--primary"
           >
             <UserCheck className="w-3.5 h-3.5" />
@@ -286,6 +295,7 @@ export default function MirrorDashboard() {
           const isStage3 = tab.id === "agents" || tab.id === "sessions" || tab.id === "rawevents" || tab.id === "provenance";
           return (
             <button
+              type="button"
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`mirror-index__item ${
@@ -386,6 +396,7 @@ export default function MirrorDashboard() {
               </div>
 
               <button
+                type="button"
                 onClick={handleVerifyLedger}
                 disabled={verifyingLedger}
                 className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium px-4 py-2 rounded-lg text-xs transition shadow-lg shadow-emerald-950/50 self-start md:self-auto"
