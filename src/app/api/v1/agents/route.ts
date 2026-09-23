@@ -13,11 +13,11 @@ export async function GET(req: Request) {
     const actor = await requireExperimentalActor(req);
     const requestedAgentId = new URL(req.url).searchParams.get("agentId");
     const targetAgentId = actor.mode === "CONTROL" ? requestedAgentId : actor.agentId;
-    const list = await db
-      .select()
-      .from(agents)
-      
-      .orderBy(sql`${agents.createdAt} DESC`);
+    let query = db.select().from(agents);
+    if (actor.mode !== "CONTROL" || targetAgentId) {
+      query = query.where(eq(agents.id, targetAgentId || actor.agentId)) as any;
+    }
+    const list = await query.orderBy(sql`${agents.createdAt} DESC`);
 
     return NextResponse.json(
       list.map((a) => ({
