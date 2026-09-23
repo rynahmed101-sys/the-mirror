@@ -6,6 +6,7 @@ import { runToolLoop } from "@/lib/agent/autopilot";
 import { getSystemPrompt } from "@/lib/agent/prompts";
 import { aiRegistry } from "@/lib/ai/registry";
 import type { ChatMessage } from "@/lib/ai/provider";
+import { eq } from "drizzle-orm";
 import { db, isPg } from "@/lib/db";
 import * as sqliteSchema from "@/lib/db/schema";
 import * as pgSchema from "@/lib/db/schema.pg";
