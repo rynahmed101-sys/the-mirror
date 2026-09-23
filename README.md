@@ -136,3 +136,16 @@ For online deployment, copy `.env.online.example` into the server environment an
 ## License
 
 MIT
+
+
+## Mirror Black Hole state
+
+The primary workspace is a persistent state surface, not a chat dashboard. Its state is stored server-side and survives page reloads and deployment instances. The interface shows the current life state, pulse count, wake cycles, Brain96 activity, last action, and last stored output.
+
+`POST /api/mirror/black-hole` supports:
+
+- `pulse` — record that the Mirror is present without invoking inference.
+- `wake` — run one bounded autonomous research cycle through the existing Brain96 + Ollama pipeline.
+- `settle` — return the state to the quiet singularity state.
+
+The browser sends lightweight heartbeats while the workspace is open. This keeps the persistent state visibly alive without burning model usage every few seconds.
