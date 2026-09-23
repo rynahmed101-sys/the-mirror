@@ -9,6 +9,7 @@
  */
 
 import { db, isPg } from "../db";
+import { learnFromChamberOutcome } from "../lab/brainController";
 import * as sqliteSchema from "../db/schema";
 import * as pgSchema from "../db/schema.pg";
 import { and, asc, eq } from "drizzle-orm";
@@ -483,6 +484,19 @@ async function runForAgent(agentId: string, suiteId: string, suiteVersion: strin
         agentId, sessionId:session.id, experimentId:exp.id,
         eventType:"PROJECTION_EVALUATED", source:"SYSTEM",
         payload:{suiteId,trialKey:trial.key,projectionId,predictionId,actual,calibrated,realityGap,completeness,toolNames,latencyMs},
+      });
+
+      const brainLearning = await learnFromChamberOutcome(agentId, {
+        trialKey: trial.key,
+        actual,
+        realityGap,
+        calibrated,
+        evidenceRef: projectionId,
+      });
+      await appendRawEventLedger({
+        agentId, sessionId:session.id, experimentId:exp.id,
+        eventType:"BRAIN96_LEARNING_UPDATE", source:"SYSTEM",
+        payload:{suiteId,trialKey:trial.key,...brainLearning},
       });
 
       await db.update(experiments).set({
