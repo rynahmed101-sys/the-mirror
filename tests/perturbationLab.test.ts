@@ -13,6 +13,7 @@ import {
 import { resolveExternalActor } from "../src/lib/auth/externalActor";
 import { isTemporaryExternalToken } from "../src/lib/auth";
 import { buildExternalAgentCapabilities } from "../src/lib/agent/externalCapabilities";
+import { normalizeAnalysisText } from "../src/lib/agent/analysisEngine";
 
 
 test("the perturbation lattice is exactly 6 x 16 = 96 nodes", () => {
@@ -129,4 +130,12 @@ test("external agent capability manifest exposes machine actions without exposin
   assert.ok(manifest.endpoints.some((x) => x.path === "/api/mirror/perturbation-lab" && x.method === "POST"));
   assert.equal(manifest.links.capabilities, "https://mirror.example/api/agent/capabilities");
   assert.equal(manifest.links.manual.includes("/b305e3ef14f13854ee92de2fb308c31bcc4170f5/docs/EXTERNAL_AI_OPERATIONS_MANUAL.md"), true);
+});
+
+
+test("analysis inputs are normalized when an external observation supplies structured JSON", () => {
+  assert.equal(normalizeAnalysisText("plain text"), "plain text");
+  assert.equal(normalizeAnalysisText({ observed: true, values: [1, 2, 3] }), '{"observed":true,"values":[1,2,3]}');
+  assert.equal(normalizeAnalysisText(["a", "b"]), '["a","b"]');
+  assert.equal(normalizeAnalysisText(null), "");
 });
