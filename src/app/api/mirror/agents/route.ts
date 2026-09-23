@@ -12,6 +12,11 @@ const { agents, agentInteractions } = tables;
 export async function GET(req: Request) {
   const principal = await resolveRequestPrincipal(req);
   if (!principal) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  if (principal.kind !== "CONTROL") {
+    const actorId = principal.kind === "AGENT" ? principal.agentId : "agent_guest_" + principal.tokenId;
+    const list = await db.select().from(agents).where(eq(agents.id, actorId));
+    return NextResponse.json(list);
+  }
   try {
     const list = await db.select().from(agents);
     return NextResponse.json(list);
@@ -32,8 +37,11 @@ export async function POST(req: Request) {
 
     // Action can be: 'SEND_MESSAGE' or 'CREATE_AGENT'
     if (action === "SEND_MESSAGE") {
-      if (principal.kind !== "CONTROL" && principal.kind === "AGENT" && senderId !== principal.agentId) {
-        return NextResponse.json({ error: "Agents may only send messages as themselves." }, { status: 403 });
+      if (principal.kind !== "CONTROL") {
+        const actorId = principal.kind === "AGENT" ? principal.agentId : "agent_guest_" + principal.tokenId;
+        if (senderId !== actorId) {
+          return NextResponse.json({ error: "Agents may only send messages as themselves." }, { status: 403 });
+        }
       }
       if (!senderId || !receiverId || !message) {
         return NextResponse.json({ error: "Sender, receiver, and message required" }, { status: 400 });
