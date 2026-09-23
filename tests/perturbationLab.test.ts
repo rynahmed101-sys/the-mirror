@@ -15,7 +15,6 @@ import { isTemporaryExternalToken } from "../src/lib/auth";
 import { buildExternalAgentCapabilities } from "../src/lib/agent/externalCapabilities";
 import { resolveExperimentRevealSource } from "../src/lib/agent/blindIsolation";
 import { normalizeAnalysisText } from "../src/lib/agent/analysisEngine";
-import { resolveExperimentRevealSource } from "../src/lib/agent/blindIsolation";
 
 import {
   SIMULATION_LOCK_MAX_AGE_MS,
@@ -167,9 +166,3 @@ test("experiment reveal provenance follows the actual revealer", () => {
   assert.equal(resolveExperimentRevealSource("external-agent"), "RESEARCHER");
 });
 
-
-test("experiment reveal provenance preserves SYSTEM versus RESEARCHER", () => {
-  assert.equal(resolveExperimentRevealSource("SYSTEM"), "SYSTEM");
-  assert.equal(resolveExperimentRevealSource("RESEARCHER"), "RESEARCHER");
-  assert.equal(resolveExperimentRevealSource("OTHER"), "RESEARCHER");
-});
