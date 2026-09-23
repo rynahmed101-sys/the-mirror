@@ -601,8 +601,9 @@ export default function MirrorDashboard() {
                 <p className="text-xs text-slate-400">First-class agent profiles with hashed API keys, provider info, and permission scopes.</p>
               </div>
               <button
-                onClick={() => setShowRegisterModal(true)}
-                className="flex items-center space-x-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium px-4 py-2 rounded-lg transition"
+                type="button"
+                onClick={() => { setActionError(null); setShowRegisterModal(true); }}
+                className="mirror-header-action mirror-header-action--primary"
               >
                 <Plus className="w-4 h-4" />
                 <span>Register Agent</span>
@@ -710,6 +711,7 @@ export default function MirrorDashboard() {
                 <h3 className="font-bold text-slate-200 text-sm">Select Self-Model Claim:</h3>
                 {selfModel?.claims?.map((c: any) => (
                   <button
+                    type="button"
                     key={c.id}
                     onClick={() => handleTraceProvenance(c.id)}
                     className={`w-full text-left p-3 rounded-lg border transition ${
@@ -858,6 +860,7 @@ export default function MirrorDashboard() {
                   </pre>
                 )}
                 <button
+                  type="button"
                   onClick={() => {
                     setShowRegisterModal(false);
                     setRegisteredKey(null);
