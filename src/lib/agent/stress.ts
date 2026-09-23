@@ -19,7 +19,7 @@ export async function runLedgerConcurrencyStress(options?: {
       Promise.all(
         Array.from({ length: eventsPerWriter }, (_, event) =>
           appendRawEventLedger({
-            agentId: "mirror-stress-" + writer.toString().padStart(2, "0"),
+            agentId: "mirror-primary",
             sessionId: "stress-" + writer,
             experimentId: "exp_mirror_stress",
             requestId: "stress-" + writer + "-" + event + "-" + Date.now(),
