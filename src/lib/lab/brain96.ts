@@ -138,11 +138,13 @@ export function validateBrain96(definition: Brain96Definition) {
     if (!Number.isFinite(node.tendency) || node.tendency < -1 || node.tendency > 1) {
       throw new Error("Brain tendency must be in [-1,1].");
     }
-    if (node.hemisphere !== "left" && node.hemisphere !== "right") {
-      throw new Error("Brain hemisphere must be left or right.");
-    }
-    if (!node.layer || !node.column || !Array.isArray(node.keywords)) {
-      throw new Error("Brain nodes require layer, column, and keyword metadata.");
+    if (definition.version === BRAIN96_VERSION) {
+      if (node.hemisphere !== "left" && node.hemisphere !== "right") {
+        throw new Error("Operational Brain96 hemisphere must be left or right.");
+      }
+      if (!node.layer || !node.column || !Array.isArray(node.keywords)) {
+        throw new Error("Operational Brain96 nodes require layer, column, and keyword metadata.");
+      }
     }
   }
   for (const edge of definition.edges) {
