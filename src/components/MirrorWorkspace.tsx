@@ -30,7 +30,8 @@ export default function MirrorWorkspace(){
     Promise.all([
       fetch("/api/lab/plugins",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
       fetch("/api/knowledge/connectors",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
-      fetch("/api/mirror/runtime-config",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),\n      fetch("/api/brain",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
+      fetch("/api/mirror/runtime-config",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
+      fetch("/api/brain",{cache:"no-store"}).then(r=>r.json()).catch(()=>null),
     ]).then(([lab,knowledge,config,brainData])=>{
       if(Array.isArray(lab?.plugins)) setPlugins(lab.plugins);
       if(Array.isArray(knowledge?.connectors)) setKnowledgeConnectors(knowledge.connectors);
