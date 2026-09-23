@@ -401,7 +401,7 @@ export default function MirrorDashboard() {
                 type="button"
                 onClick={handleVerifyLedger}
                 disabled={verifyingLedger}
-                className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium px-4 py-2 rounded-lg text-xs transition shadow-lg shadow-emerald-950/50 self-start md:self-auto"
+                className="mirror-header-action mirror-header-action--utility self-start md:self-auto"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${verifyingLedger ? "animate-spin" : ""}`} />
                 <span>{verifyingLedger ? "Verifying SHA-256 Chain..." : "Run Cryptographic Verification"}</span>
@@ -605,7 +605,7 @@ export default function MirrorDashboard() {
               <button
                 type="button"
                 onClick={() => { setActionError(null); setShowRegisterModal(true); }}
-                className="mirror-header-action mirror-header-action--primary"
+                className="mirror-header-action mirror-header-action--secondary"
               >
                 <Plus className="w-4 h-4" />
                 <span>Register Agent</span>
@@ -629,7 +629,7 @@ export default function MirrorDashboard() {
                       type="button"
                       disabled={agentActionBusy === a.id}
                       onClick={() => handleToggleAgent(a.id, a.isActive !== false)}
-                      className="w-full mt-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-50"
+                      className="mirror-inline-action w-full mt-2 disabled:opacity-50"
                     >
                       {agentActionBusy === a.id ? "Updating..." : a.isActive === false ? "Unblock Agent" : "Block Agent"}
                     </button>
@@ -716,10 +716,8 @@ export default function MirrorDashboard() {
                     type="button"
                     key={c.id}
                     onClick={() => handleTraceProvenance(c.id)}
-                    className={`w-full text-left p-3 rounded-lg border transition ${
-                      selectedClaimForTrace === c.id
-                        ? "bg-purple-950 border-purple-600 text-white font-bold"
-                        : "bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700"
+                    className={`mirror-claim-button w-full text-left p-3 ${
+                      selectedClaimForTrace === c.id ? "is-selected" : ""
                     }`}
                   >
                     <div className="text-[10px] text-purple-400 uppercase">{c.category}</div>
@@ -852,7 +850,7 @@ export default function MirrorDashboard() {
                       setTestingRegisteredAgent(false);
                     }
                   }}
-                  className="w-full py-2 bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 text-white rounded font-bold"
+                  className="mirror-header-action mirror-header-action--utility w-full"
                 >
                   {testingRegisteredAgent ? "Testing agent identity + Ollama..." : "Test External Agent + Ollama"}
                 </button>
@@ -868,7 +866,7 @@ export default function MirrorDashboard() {
                     setRegisteredKey(null);
                     setRegisteredAgentTest(null);
                   }}
-                  className="w-full py-2 bg-slate-800 text-slate-200 rounded font-bold"
+                  className="mirror-secondary-button w-full"
                 >
                   Done
                 </button>
@@ -929,11 +927,11 @@ export default function MirrorDashboard() {
                     onClick={() => {
                       setShowRegisterModal(false);
                       }}
-                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded"
+                    className="mirror-secondary-button"
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="px-4 py-2 bg-cyan-600 text-white rounded font-bold">
+                  <button type="submit" className="mirror-primary-button">
                     Generate API Key
                   </button>
                 </div>
