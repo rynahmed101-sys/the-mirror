@@ -92,6 +92,7 @@ export default function MirrorDashboard() {
   const [testingRegisteredAgent, setTestingRegisteredAgent] = useState(false);
   const [registeredAgentTest, setRegisteredAgentTest] = useState<any>(null);
   const [agentActionBusy, setAgentActionBusy] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const fetchAllData = async () => {
     try {
@@ -119,13 +120,16 @@ export default function MirrorDashboard() {
   };
 
   const handleVerifyLedger = async () => {
+    setActionError(null);
     try {
       setVerifyingLedger(true);
-      const res = await fetch("/api/v1/events/ledger?verify=true").then((r) => r.json());
-      setLedgerVerificationResult(res);
+      const response = await fetch("/api/v1/events/ledger?verify=true");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `Verification failed (HTTP ${response.status}).`);
+      setLedgerVerificationResult(data);
       await fetchAllData();
     } catch (err: any) {
-      alert("Verification failed: " + err.message);
+      setActionError(err?.message || "Ledger verification failed.");
     } finally {
       setVerifyingLedger(false);
     }
@@ -140,6 +144,7 @@ export default function MirrorDashboard() {
   // Register New External Agent
   const handleRegisterAgent = async (e: React.FormEvent) => {
     e.preventDefault();
+    setActionError(null);
     try {
       const res = await fetch("/api/v1/agents/register", {
         method: "POST",
@@ -149,16 +154,17 @@ export default function MirrorDashboard() {
       const data = await res.json();
       if (data.apiKey) {
         setRegisteredKey(data.apiKey);
-        fetchAllData();
+        await fetchAllData();
       } else {
-        alert(data.error || "Registration failed");
+        throw new Error(data.error || "Registration failed.");
       }
     } catch (err: any) {
-      alert("Registration failed: " + err.message);
+      setActionError(err?.message || "Registration failed.");
     }
   };
 
   const handleToggleAgent = async (agentId: string, blocked: boolean) => {
+    setActionError(null);
     setAgentActionBusy(agentId);
     try {
       const res = await fetch(`/api/v1/agents/${agentId}`, {
@@ -170,7 +176,7 @@ export default function MirrorDashboard() {
       if (!res.ok) throw new Error(data.error || "Agent update failed");
       await fetchAllData();
     } catch (error:any) {
-      alert(error?.message || "Agent update failed");
+      setActionError(error?.message || "Agent update failed.");
     } finally {
       setAgentActionBusy(null);
     }
@@ -178,12 +184,14 @@ export default function MirrorDashboard() {
 
   // Trace Claim Provenance
   const handleTraceProvenance = async (claimId: string) => {
+    setActionError(null);
     try {
       setSelectedClaimForTrace(claimId);
       const res = await fetch(`/api/v1/provenance?claimId=${claimId}`).then((r) => r.json());
       setProvenanceData(res);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Provenance fetch failed:", err);
+      setActionError(err?.message || "Provenance trace failed.");
     }
   };
 
@@ -202,7 +210,7 @@ export default function MirrorDashboard() {
               <h1 className="text-lg font-bold tracking-wider bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent flex items-center gap-2">
                 THE MIRROR
                 <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-purple-950/80 text-purple-300 border border-purple-800/50">
-                  RESEARCH PROTOTYPE • INTEGRITY VERIFIED
+                  RESEARCH PROTOTYPE
                 </span>
               </h1>
               <p className="text-xs text-slate-400 font-mono">Behavioral Research Laboratory • SHA-256 Event Ledger • Zero Forks</p>
@@ -215,19 +223,21 @@ export default function MirrorDashboard() {
           <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-md">
             <Shield className="w-3.5 h-3.5 text-emerald-400" />
             <span className="text-slate-400">Ledger Status:</span>
-            <span className="text-emerald-400 font-bold">{statusData?.researchIntegrity?.status || "VALID"}</span>
+            <span className={`font-bold ${statusData?.researchIntegrity?.status === "VALID" ? "text-emerald-400" : "text-amber-300"}`}>
+              {statusData?.researchIntegrity?.status || (loadingStatus ? "CHECKING" : "UNKNOWN")}
+            </span>
           </div>
 
           <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-md">
             <Radio className="w-3.5 h-3.5 text-cyan-400" />
             <span className="text-slate-400">Raw Stream:</span>
-            <span className="text-cyan-400 font-bold">{rawEventsList.length} Events</span>
+            <span className="text-cyan-400 font-bold">{rawEventsList.length} Visible</span>
           </div>
           <div className="flex items-center space-x-2 bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-md max-w-[360px]">
             <Cpu className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
             <span className="text-slate-400">AI Runtime:</span>
             <span className={`font-bold ${statusData?.aiRuntime?.health === "HEALTHY" ? "text-emerald-400" : "text-amber-400"}`}>
-              {statusData?.aiRuntime?.provider || "ollama"} / {statusData?.aiRuntime?.model || "loading"}
+              {statusData?.aiRuntime?.provider || (loadingStatus ? "checking" : "unknown")} / {statusData?.aiRuntime?.model || (loadingStatus ? "checking" : "unknown")}
             </span>
             <span className="text-[10px] uppercase text-slate-500">
               {statusData?.aiRuntime?.mode || "unknown"}
@@ -236,8 +246,9 @@ export default function MirrorDashboard() {
 
 
           <button
-            onClick={() => setShowRegisterModal(true)}
-            className="flex items-center space-x-2 bg-cyan-600 hover:bg-cyan-500 text-white font-medium px-4 py-1.5 rounded-md text-xs transition shadow-md shadow-cyan-950"
+            type="button"
+            onClick={() => { setActionError(null); setShowRegisterModal(true); }}
+            className="mirror-header-action mirror-header-action--primary"
           >
             <UserCheck className="w-3.5 h-3.5" />
             <span>Register External AI</span>
@@ -245,7 +256,7 @@ export default function MirrorDashboard() {
 
           <Link
             href="/simulation"
-            className="flex items-center space-x-2 bg-purple-700 hover:bg-purple-600 text-white font-medium px-3 py-1.5 rounded-md text-xs transition"
+            className="mirror-header-action mirror-header-action--secondary"
           >
             <GitBranch className="w-3.5 h-3.5" />
             <span>Projection Chamber</span>
@@ -254,8 +265,11 @@ export default function MirrorDashboard() {
           <AdminLabControls />
 
           <button
+            type="button"
             onClick={fetchAllData}
-            className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded-md transition"
+            className="mirror-icon-button mirror-header-refresh"
+            aria-label="Refresh dashboard data"
+            title="Refresh dashboard data"
           >
             <RefreshCw className={`w-4 h-4 ${loadingStatus ? "animate-spin" : ""}`} />
           </button>
@@ -283,14 +297,15 @@ export default function MirrorDashboard() {
           const isStage3 = tab.id === "agents" || tab.id === "sessions" || tab.id === "rawevents" || tab.id === "provenance";
           return (
             <button
+              type="button"
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`mirror-index__item ${
                 isActive
-                  ? "border-cyan-400 text-cyan-300 bg-cyan-950/20"
+                  ? "mirror-index__item--active"
                   : isStage3
-                  ? "border-transparent text-emerald-300 hover:text-cyan-300 font-bold bg-slate-900/60"
-                  : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/40"
+                  ? "mirror-index__item--stage"
+                  : ""
               }`}
             >
               <Icon className={`w-4 h-4 ${isActive ? "text-cyan-400" : isStage3 ? "text-emerald-400" : "text-slate-500"}`} />
@@ -326,7 +341,7 @@ export default function MirrorDashboard() {
 
               <div className="glass-panel p-4 rounded-xl border border-slate-800">
                 <div className="flex justify-between items-start text-slate-400 text-xs font-mono">
-                  <span>RAW EVENT STREAM</span>
+                  <span>VISIBLE RAW EVENTS</span>
                   <Radio className="w-4 h-4 text-purple-400" />
                 </div>
                 <div className="text-2xl font-bold mt-2 text-slate-100">{rawEventsList.length}</div>
@@ -347,9 +362,9 @@ export default function MirrorDashboard() {
             <div className="glass-panel p-5 rounded-xl border border-slate-800 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
                 <h3 className="text-sm font-semibold flex items-center gap-2 text-emerald-300">
-                  <Radio className="w-4 h-4 text-emerald-400 animate-pulse" /> Live Append-Only Raw Event Stream
+                  <Radio className="w-4 h-4 text-emerald-400" /> Recent Raw Events
                 </h3>
-                <span className="text-xs font-mono text-slate-400">Immutable Fact Stream</span>
+                <span className="text-xs font-mono text-slate-400">Append-only records</span>
               </div>
               <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-2 font-mono text-xs">
                 {rawEventsList.map((ev) => (
@@ -383,9 +398,10 @@ export default function MirrorDashboard() {
               </div>
 
               <button
+                type="button"
                 onClick={handleVerifyLedger}
                 disabled={verifyingLedger}
-                className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-medium px-4 py-2 rounded-lg text-xs transition shadow-lg shadow-emerald-950/50 self-start md:self-auto"
+                className="mirror-header-action mirror-header-action--utility self-start md:self-auto"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${verifyingLedger ? "animate-spin" : ""}`} />
                 <span>{verifyingLedger ? "Verifying SHA-256 Chain..." : "Run Cryptographic Verification"}</span>
@@ -430,7 +446,7 @@ export default function MirrorDashboard() {
                   <Lock className="w-3.5 h-3.5 text-cyan-400" />
                 </div>
                 <div className="text-lg font-bold text-cyan-400 font-mono">
-                  {statusData?.researchIntegrity?.hashCoverage || "VALID"}
+                  {statusData?.researchIntegrity?.hashCoverage || (loadingStatus ? "CHECKING" : "NOT REPORTED")}
                 </div>
                 <div className="text-[9px] text-slate-500 font-mono">10 Canonical Fields</div>
               </div>
@@ -441,9 +457,9 @@ export default function MirrorDashboard() {
                   <Shield className="w-3.5 h-3.5 text-emerald-400" />
                 </div>
                 <div className="text-lg font-bold text-emerald-400 font-mono">
-                  {statusData?.researchIntegrity?.rawEventImmutability || "ENFORCED"}
+                  {statusData?.researchIntegrity?.rawEventImmutability || (loadingStatus ? "CHECKING" : "NOT REPORTED")}
                 </div>
-                <div className="text-[9px] text-slate-500 font-mono">Triggers Active (0 Mut)</div>
+                <div className="text-[9px] text-slate-500 font-mono">Database trigger status</div>
               </div>
 
               <div className="glass-panel p-3.5 rounded-xl border border-slate-800 space-y-1">
@@ -452,7 +468,7 @@ export default function MirrorDashboard() {
                   <Layers className="w-3.5 h-3.5 text-purple-400" />
                 </div>
                 <div className="text-lg font-bold text-purple-400 font-mono">
-                  {statusData?.researchIntegrity?.ledgerOrder || "VALID"}
+                  {statusData?.researchIntegrity?.ledgerOrder || (loadingStatus ? "CHECKING" : "NOT REPORTED")}
                 </div>
                 <div className="text-[9px] text-slate-500 font-mono">Strict Monotonic (1..N)</div>
               </div>
@@ -474,7 +490,7 @@ export default function MirrorDashboard() {
                   <Eye className="w-3.5 h-3.5 text-indigo-400" />
                 </div>
                 <div className="text-lg font-bold text-indigo-400 font-mono">
-                  {statusData?.researchIntegrity?.blindRuntimeIsolation || "ENFORCED"}
+                  {statusData?.researchIntegrity?.blindRuntimeIsolation || (loadingStatus ? "CHECKING" : "NOT REPORTED")}
                 </div>
                 <div className="text-[9px] text-slate-500 font-mono">Runtime Redaction</div>
               </div>
@@ -485,7 +501,7 @@ export default function MirrorDashboard() {
                   <Activity className="w-3.5 h-3.5 text-amber-400" />
                 </div>
                 <div className="text-xs font-bold text-amber-400 font-mono uppercase tracking-tight">
-                  {statusData?.researchIntegrity?.concurrency || "VERIFIED UNDER TESTED WORKLOAD"}
+                  {statusData?.researchIntegrity?.concurrency || (loadingStatus ? "CHECKING" : "NOT REPORTED")}
                 </div>
                 <div className="text-[9px] text-slate-500 font-mono">50 Writers / 1000+ Ev</div>
               </div>
@@ -496,7 +512,7 @@ export default function MirrorDashboard() {
                   <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
                 </div>
                 <div className="text-xs font-bold text-teal-400 font-mono uppercase tracking-tight">
-                  {statusData?.researchIntegrity?.backupRestore || "QUIESCENT DATABASE VERIFIED"}
+                  {statusData?.researchIntegrity?.backupRestore || (loadingStatus ? "CHECKING" : "NOT REPORTED")}
                 </div>
                 <div className="text-[9px] text-slate-500 font-mono">Full Hash Preservation</div>
               </div>
@@ -531,7 +547,7 @@ export default function MirrorDashboard() {
                   </thead>
                   <tbody className="divide-y divide-slate-800/50 text-[11px]">
                     {ledgerEventsList.map((ev: any) => (
-                      <tr key={ev.id || ev.sequenceNumber} className="hover:bg-slate-900/40 transition">
+                      <tr key={ev.id || ev.sequenceNumber} className="mirror-table-row">
                         <td className="p-3 font-bold text-purple-400">
                           #{ev.sequenceNumber}
                         </td>
@@ -587,8 +603,9 @@ export default function MirrorDashboard() {
                 <p className="text-xs text-slate-400">First-class agent profiles with hashed API keys, provider info, and permission scopes.</p>
               </div>
               <button
-                onClick={() => setShowRegisterModal(true)}
-                className="flex items-center space-x-2 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium px-4 py-2 rounded-lg transition"
+                type="button"
+                onClick={() => { setActionError(null); setShowRegisterModal(true); }}
+                className="mirror-header-action mirror-header-action--secondary"
               >
                 <Plus className="w-4 h-4" />
                 <span>Register Agent</span>
@@ -612,7 +629,7 @@ export default function MirrorDashboard() {
                       type="button"
                       disabled={agentActionBusy === a.id}
                       onClick={() => handleToggleAgent(a.id, a.isActive !== false)}
-                      className="w-full mt-2 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-50"
+                      className="mirror-inline-action w-full mt-2 disabled:opacity-50"
                     >
                       {agentActionBusy === a.id ? "Updating..." : a.isActive === false ? "Unblock Agent" : "Block Agent"}
                     </button>
@@ -696,12 +713,11 @@ export default function MirrorDashboard() {
                 <h3 className="font-bold text-slate-200 text-sm">Select Self-Model Claim:</h3>
                 {selfModel?.claims?.map((c: any) => (
                   <button
+                    type="button"
                     key={c.id}
                     onClick={() => handleTraceProvenance(c.id)}
-                    className={`w-full text-left p-3 rounded-lg border transition ${
-                      selectedClaimForTrace === c.id
-                        ? "bg-purple-950 border-purple-600 text-white font-bold"
-                        : "bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700"
+                    className={`mirror-claim-button w-full text-left p-3 ${
+                      selectedClaimForTrace === c.id ? "is-selected" : ""
                     }`}
                   >
                     <div className="text-[10px] text-purple-400 uppercase">{c.category}</div>
@@ -834,7 +850,7 @@ export default function MirrorDashboard() {
                       setTestingRegisteredAgent(false);
                     }
                   }}
-                  className="w-full py-2 bg-cyan-700 hover:bg-cyan-600 disabled:opacity-50 text-white rounded font-bold"
+                  className="mirror-header-action mirror-header-action--utility w-full"
                 >
                   {testingRegisteredAgent ? "Testing agent identity + Ollama..." : "Test External Agent + Ollama"}
                 </button>
@@ -844,12 +860,13 @@ export default function MirrorDashboard() {
                   </pre>
                 )}
                 <button
+                  type="button"
                   onClick={() => {
                     setShowRegisterModal(false);
                     setRegisteredKey(null);
                     setRegisteredAgentTest(null);
                   }}
-                  className="w-full py-2 bg-slate-800 text-slate-200 rounded font-bold"
+                  className="mirror-secondary-button w-full"
                 >
                   Done
                 </button>
@@ -910,11 +927,11 @@ export default function MirrorDashboard() {
                     onClick={() => {
                       setShowRegisterModal(false);
                       }}
-                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded"
+                    className="mirror-secondary-button"
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="px-4 py-2 bg-cyan-600 text-white rounded font-bold">
+                  <button type="submit" className="mirror-primary-button">
                     Generate API Key
                   </button>
                 </div>
