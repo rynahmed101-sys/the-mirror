@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { behavioralObservations, timelineEvents } from "@/lib/db/schema";
-import { sql } from "drizzle-orm";
+import { db, isPg } from "@/lib/db";
+import * as sqliteSchema from "@/lib/db/schema";
+import * as pgSchema from "@/lib/db/schema.pg";
+import { requireExperimentalActor } from "@/lib/auth/experimentalActor";
+import { sql, eq } from "drizzle-orm";
+const tables:any=isPg?pgSchema:sqliteSchema;
+const {behavioralObservations,timelineEvents}=tables;
 
-export async function GET() {
+export async function GET(req:Request) {
+    const actor=await requireExperimentalActor(req,new URL(req.url).searchParams.get("agentId"));
   try {
     const list = await db
       .select()
       .from(behavioralObservations)
+      .where(eq(behavioralObservations.agentId,actor.agentId))
       .orderBy(sql`${behavioralObservations.createdAt} DESC`);
 
     return NextResponse.json(
@@ -27,7 +33,8 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { observationType, description, metrics, experimentId, agentId } = body;
+    const { observationType, description, metrics, experimentId } = body;
+    const actor=await requireExperimentalActor(req,typeof body.agentId==="string"?body.agentId:null);
 
     if (!observationType || !description) {
       return NextResponse.json({ error: "Observation type and description required" }, { status: 400 });
@@ -36,7 +43,7 @@ export async function POST(req: Request) {
     const [obs] = await db
       .insert(behavioralObservations)
       .values({
-        agentId: agentId || "mirror-primary",
+        agentId: actor.agentId,
         experimentId: experimentId || null,
         observationType,
         description,
@@ -48,7 +55,7 @@ export async function POST(req: Request) {
       eventType: "OBSERVATION_LOGGED",
       title: `Observation: ${observationType}`,
       description,
-      agentId: agentId || "mirror-primary",
+      agentId: actor.agentId,
       metadata: JSON.stringify({ observationId: obs.id, metrics }),
     });
 
