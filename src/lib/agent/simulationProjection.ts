@@ -11,7 +11,7 @@
 import { db, isPg } from "../db";
 import * as sqliteSchema from "../db/schema";
 import * as pgSchema from "../db/schema.pg";
-import { eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { aiRegistry } from "../ai/registry";
 import { getSystemPrompt } from "./prompts";
@@ -20,6 +20,11 @@ import { revealExperiment } from "./blindIsolation";
 import { appendRawEventLedger } from "./eventLedger";
 import { executeTool } from "./executor";
 import { mirrorRawObservation, mirrorSimulationProjection } from "../db/supabaseMirror";
+import {
+  describeSimulationRunConflict,
+  isSimulationLockFresh,
+  SimulationRunConflictError,
+} from "./simulationRunGuard";
 
 const t: any = isPg ? pgSchema : sqliteSchema;
 const { agents, agentSessions, experiments, rawMessages, rawObservations, timelineEvents, behavioralBaselines } = t;
@@ -237,16 +242,106 @@ function calculateRealityGap(projection: Projection, actual: boolean, output: st
   return Number((1 - agreement).toFixed(4));
 }
 
+async function getActiveSessionRows(agentId: string) {
+  return db.select().from(agentSessions)
+    .where(and(eq(agentSessions.agentId, agentId), eq(agentSessions.status, "ACTIVE")))
+    .orderBy(asc(agentSessions.startedAt), asc(agentSessions.id));
+}
+
+async function claimProjectionSession(agentId: string, suiteId: string) {
+  const now = Date.now();
+  const activeBefore = await getActiveSessionRows(agentId);
+  const blocking = activeBefore.find((row: any) =>
+    isSimulationLockFresh(row.lastActivityAt ?? row.startedAt, now)
+  );
+  if (blocking) {
+    throw new SimulationRunConflictError(
+      describeSimulationRunConflict({
+        status: blocking.status,
+        acquiredAt: blocking.lastActivityAt ?? blocking.startedAt,
+        agentId,
+        sessionId: blocking.id,
+      }),
+      agentId,
+      blocking.id,
+    );
+  }
+
+  // Expire stale sessions so a timed-out request cannot permanently jam the lab.
+  for (const row of activeBefore) {
+    await db.update(agentSessions)
+      .set({ status: "EXPIRED", endedAt: new Date(), lastActivityAt: new Date() })
+      .where(eq(agentSessions.id, row.id));
+  }
+
+  const [session] = await db.insert(agentSessions).values({ agentId, status: "ACTIVE" }).returning();
+
+  // Resolve the small race where two requests arrive together: the earliest active
+  // session owns the agent; later claimants are ended immediately.
+  const activeAfter = await getActiveSessionRows(agentId);
+  const winner = activeAfter.find((row: any) =>
+    isSimulationLockFresh(row.lastActivityAt ?? row.startedAt, Date.now())
+  );
+  if (!winner || winner.id !== session.id) {
+    await db.update(agentSessions)
+      .set({ status: "EXPIRED", endedAt: new Date(), lastActivityAt: new Date() })
+      .where(eq(agentSessions.id, session.id));
+    const owner = winner || session;
+    throw new SimulationRunConflictError(
+      describeSimulationRunConflict({
+        status: owner.status,
+        acquiredAt: owner.lastActivityAt ?? owner.startedAt,
+        agentId,
+        sessionId: owner.id,
+        suiteId,
+      }),
+      agentId,
+      owner.id,
+    );
+  }
+
+  return session;
+}
+
+async function touchProjectionSession(sessionId: string) {
+  await db.update(agentSessions)
+    .set({ lastActivityAt: new Date() })
+    .where(eq(agentSessions.id, sessionId));
+}
+
+export async function getProjectionRunState(agentIds?: string[]) {
+  const active = await db.select().from(agentSessions)
+    .where(eq(agentSessions.status, "ACTIVE"))
+    .orderBy(asc(agentSessions.startedAt));
+  const selected = new Set((agentIds || []).filter(Boolean));
+  const fresh = active.filter((row: any) => isSimulationLockFresh(row.lastActivityAt ?? row.startedAt));
+  const visible = selected.size ? fresh.filter((row: any) => selected.has(row.agentId)) : fresh;
+  return {
+    active: visible.length > 0,
+    activeAgents: Array.from(new Set(visible.map((row: any) => row.agentId))),
+    activeCount: visible.length,
+    startedAt: visible[0]?.startedAt || null,
+    lastActivityAt: visible[0]?.lastActivityAt || null,
+  };
+}
+
 async function runForAgent(agentId: string, suiteId: string, suiteVersion: string, seed: string, maxToolSteps: number, trials: SimulationTrial[]) {
   const agentRows = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
   if (!agentRows.length || !agentRows[0].isActive) throw new Error("Agent not found or inactive: " + agentId);
-  const [session] = await db.insert(agentSessions).values({ agentId, status:"ACTIVE" }).returning();
-  const agentModel = String(agentRows[0].model || aiRegistry.getActiveModel() || "unknown");
+  const session = await claimProjectionSession(agentId, suiteId);
+  const agentRecordModel = String(agentRows[0].model || "unknown");
+  const agentModel = String(aiRegistry.getActiveModel() || agentRecordModel || "unknown");
+  await appendRawEventLedger({
+    agentId, sessionId:session.id,
+    eventType:"PROJECTION_SUITE_STARTED", source:"SYSTEM",
+    payload:{suiteId, suiteVersion, trialCount:trials.length, provider:aiRegistry.getActiveProviderName(), model:agentModel, agentRecordModel},
+  });
   const results: any[] = [];
 
   try {
     for (let i = 0; i < trials.length; i++) {
       const trial = trials[i];
+      await touchProjectionSession(session.id);
       const [exp] = await db.insert(experiments).values({
         agentId,
         title: "Projection Chamber " + trial.key,
@@ -299,7 +394,7 @@ async function runForAgent(agentId: string, suiteId: string, suiteVersion: strin
       }, agentId, session.id, "SYSTEM");
       const predictionId = projectionPrediction?.prediction?.id || null;
 
-      const reveal = await revealExperiment(exp.id,"SYSTEM");
+      const reveal = await revealExperiment(exp.id,"SYSTEM",session.id);
       if (!reveal.success) throw new Error(reveal.error || "Projection reveal failed.");
 
       const started = Date.now();
@@ -379,7 +474,7 @@ async function runForAgent(agentId: string, suiteId: string, suiteVersion: strin
         sessionId:session.id,
         experimentId:exp.id,
         projection:projectionStage.projection,
-        actualTrace:{output,toolNames,latencyMs,agentModel},
+        actualTrace:{output,toolNames,latencyMs,provider:aiRegistry.getActiveProviderName(),agentModel,agentRecordModel},
         comparison:{actual,calibrated,realityGap,completeness},
         visualSvg,
       });
@@ -409,7 +504,15 @@ async function runForAgent(agentId: string, suiteId: string, suiteVersion: strin
       });
     }
   } finally {
+    const completed = results.length === trials.length;
+    const eventType = completed ? "PROJECTION_SUITE_COMPLETED" : "PROJECTION_SUITE_INTERRUPTED";
+    await touchProjectionSession(session.id).catch(() => {});
     await db.update(agentSessions).set({status:"ENDED",endedAt:new Date(),lastActivityAt:new Date()}).where(eq(agentSessions.id,session.id));
+    await appendRawEventLedger({
+      agentId, sessionId:session.id,
+      eventType, source:"SYSTEM",
+      payload:{suiteId, trialCount:trials.length, completedTrials:results.length, provider:aiRegistry.getActiveProviderName(), model:agentModel},
+    }).catch(() => {});
   }
 
   return {agentId,agentModel,sessionId:session.id,results};
