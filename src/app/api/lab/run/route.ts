@@ -16,12 +16,16 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const actor = await requireExperimentalActor(req, typeof body.agentId === "string" ? body.agentId : null);
     const [session] = await db.insert(agentSessions).values({ agentId: actor.agentId, status: "ACTIVE" }).returning();
-    const result = await runLabPlugins(Array.isArray(body.pluginIds) ? body.pluginIds.map(String) : undefined, {
-      agentId: actor.agentId,
-      sessionId: session.id,
-      input: body.input && typeof body.input === "object" ? body.input : {},
-    });
-    return NextResponse.json({ success: true, actor, sessionId: session.id, ...result });
+    try {
+      const result = await runLabPlugins(Array.isArray(body.pluginIds) ? body.pluginIds.map(String) : undefined, {
+        agentId: actor.agentId,
+        sessionId: session.id,
+        input: body.input && typeof body.input === "object" ? body.input : {},
+      });
+      return NextResponse.json({ success: true, actor, sessionId: session.id, ...result });
+    } finally {
+      await db.update(agentSessions).set({ status:"ENDED", endedAt:new Date(), lastActivityAt:new Date() }).where((await import("drizzle-orm")).eq(agentSessions.id, session.id));
+    }
   } catch (error: any) {
     const message = error?.message || String(error);
     return NextResponse.json({ error: message }, { status: message === "Unauthorized" ? 401 : 400 });
