@@ -103,3 +103,29 @@ test("historical layered trajectory is evidence from the same model, not a diffe
   assert.equal(traj?.rawNodeStatesAvailable, false);
   assert.equal(traj?.sourceTransitionLawAvailable, false);
 });
+
+
+test("reference 96-node transition updates all nodes synchronously from the same prior state", () => {
+  const { step96RelationalCore } = require("../src/lib/experimentalLab/unified96Transition");
+  const state = { nodes: Float64Array.from([0, 10, 20]) };
+  const weights = new Map([
+    ["0->1", 1],
+    ["1->0", 1],
+    ["1->2", 1],
+    ["2->1", 1],
+  ]);
+  const next = step96RelationalCore(state, { dt: 0.1, nodeCount: 3, weights });
+  assert.deepEqual(Array.from(next.nodes), [1, 10, 19]);
+  assert.equal(next.nodes.reduce((a, b) => a + b, 0), 30);
+});
+
+test("reference relational core preserves the node-count invariant", () => {
+  const { step96RelationalCore } = require("../src/lib/experimentalLab/unified96Transition");
+  assert.throws(
+    () => step96RelationalCore(
+      { nodes: Float64Array.from([0, 1]) },
+      { dt: 0.1, nodeCount: 96, weights: new Map() },
+    ),
+    /expected 96 nodes/,
+  );
+});
