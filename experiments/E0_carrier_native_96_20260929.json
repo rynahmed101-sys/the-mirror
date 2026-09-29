@@ -1,0 +1,116 @@
+{
+  "experiment_id": "E0_CARRIER_NATIVE_96_20260929",
+  "protocol_version": "0.2.0",
+  "model_id": "96NODE_UNIFIED_PHYSICAL_INFORMATIONAL_COGNITIVE",
+  "model_version": "Part155-carrier-native-96",
+  "implementation_id": "carrier-native-reference-96",
+  "engine_version": "unified96Transition-reference-rk4",
+  "provenance": {
+    "primary_source": "Grand_Theory_Logical_Reconstruction_v155_CARRIER_NATIVE_WAVE",
+    "source_part": 155,
+    "source_definition": "z_i=exp(h_i+i phi_i); q_i=phi_i; p_i=kappa h_i",
+    "exact_representative": "H=sum_i kappa^2[cosh(p_i/kappa)-1]+b sum_edges w_ij[1-cos(q_i-q_j)]",
+    "historical_layered_csv_relation": "same model family; separate historical trajectory"
+  },
+  "seed": "20260929",
+  "topology": {
+    "type": "periodic_96_node_cycle_test_surface",
+    "nodes": 96,
+    "edge_weight": 1
+  },
+  "parameters": {
+    "kappa": 1.0,
+    "b": 2.5,
+    "dt": 0.001,
+    "integrator": "synchronous_RK4"
+  },
+  "tests": {
+    "E0_homogeneous_reference": {
+      "initial_state": "q_i=0.73,p_i=0 for all i",
+      "steps": 1000,
+      "frames": 1001,
+      "max_state_change": 0.0,
+      "energy_drift": 0.0,
+      "total_p_drift": 0.0,
+      "classification": "OBSERVED"
+    },
+    "C1_deterministic_replay": {
+      "max_final_state_difference": 0.0,
+      "classification": "REPRODUCED"
+    },
+    "C1_time_reversal": {
+      "forward_steps": 5000,
+      "backward_steps": 5000,
+      "momentum_reversal": "p->-p",
+      "max_state_error": 4.163336342344337e-15,
+      "classification": "REPRODUCED"
+    },
+    "C5_conservation": {
+      "random_seed": 20260929,
+      "steps": 10000,
+      "energy_initial": 0.5950315806189261,
+      "energy_max_abs_drift": 5.5067062021407764e-14,
+      "total_canonical_momentum_max_abs_drift": 5.551115123125783e-15,
+      "classification": "MODEL_DEPENDENT"
+    },
+    "C6_global_phase_symmetry": {
+      "shift": 1.234567,
+      "rhs_max_abs_error": 9.159339953157541e-16,
+      "hamiltonian_abs_error": 2.220446049250313e-16,
+      "classification": "MODEL_DEPENDENT"
+    },
+    "C8_spectrum": {
+      "laplacian_eigenvalue_formula": "lambda_k=2-2cos(2pi k/96)",
+      "max_numerical_spectrum_error": 3.1086244689504383e-15,
+      "low_mode_omega_over_lattice_k": 1.5811388300842,
+      "sqrt_b": 1.5811388300841898,
+      "linear_mode_projection_error": 0.0,
+      "null_mode": {
+        "k": 0,
+        "lambda": 0.0,
+        "omega": 0.0
+      },
+      "classification": "CROSS_SCALE"
+    },
+    "R_phase_single_site": {
+      "initial_condition": "q_0=0.1; all other q_i=0; p_i=0",
+      "steps": 5000,
+      "initial_energy": 0.024979173609870897,
+      "energy_max_abs_drift": 3.4416913763379853e-15,
+      "total_p_max_abs_drift": 6.661338147750939e-16,
+      "max_q_node0": 0.1,
+      "max_q_node1": 0.04856568198083212,
+      "max_q_node95": 0.04856568198083212,
+      "classification": "OBSERVED"
+    },
+    "R_radial_single_site": {
+      "initial_condition": "p_0=0.1; all other p_i=0; q_i=0",
+      "steps": 5000,
+      "initial_energy": 0.005004168055803504,
+      "energy_max_abs_drift": 3.4416913763379853e-15,
+      "total_p_max_abs_drift": 3.0531133177191805e-16,
+      "max_abs_q_node0": 0.04651499532231505,
+      "classification": "OBSERVED"
+    },
+    "C3_parameter_matrix": {
+      "kappa": [0.5,1.0,2.0],
+      "b": [1.0,2.5,4.0],
+      "dt": [0.0005,0.001,0.002],
+      "combinations": 27,
+      "max_energy_abs_drift": 7.278622149442526e-13,
+      "min_energy_abs_drift": 1.8318679906315083e-15,
+      "max_total_p_abs_drift": 1.887379141862766e-15,
+      "classification": "CROSS_ENGINE"
+    }
+  },
+  "raw_trajectory_policy": {
+    "E0_homogeneous": "exactly stationary; lossless compressed encoding is valid because every frame equals the initial state",
+    "nontrivial_probes": "raw q,p trajectories retained in execution workspace; repository record stores measured reductions and provenance"
+  },
+  "interpretation_boundary": [
+    "The tests validate the Part-155 carrier-native test surface and its numerical implementation.",
+    "They do not establish microscopic uniqueness of the Hamiltonian.",
+    "They do not derive 3+1 physical spacetime or select a physical future branch.",
+    "The periodic 96-cycle is a stated test surface, not assumed physical space."
+  ]
+}
