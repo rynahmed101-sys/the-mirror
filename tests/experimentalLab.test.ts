@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { step96RelationalCore } from "../src/lib/experimentalLab/unified96Transition";
 import {
   experimentFingerprint,
   parameterMatrix,
@@ -106,7 +107,6 @@ test("historical layered trajectory is evidence from the same model, not a diffe
 
 
 test("reference 96-node transition updates all nodes synchronously from the same prior state", () => {
-  const { step96RelationalCore } = require("../src/lib/experimentalLab/unified96Transition");
   const nodes = new Float64Array(96);
   nodes[1] = 10;
   nodes[2] = 20;
@@ -123,7 +123,6 @@ test("reference 96-node transition updates all nodes synchronously from the same
 });
 
 test("reference relational core preserves the node-count invariant", () => {
-  const { step96RelationalCore } = require("../src/lib/experimentalLab/unified96Transition");
   assert.throws(
     () => step96RelationalCore(
       { nodes: Float64Array.from([0, 1]) },
