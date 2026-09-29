@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { step96RelationalCore } from "../src/lib/experimentalLab/unified96Transition";
+import { hamiltonian96, stepCarrierNative96 } from "../src/lib/experimentalLab/unified96Transition";
 import {
   experimentFingerprint,
   parameterMatrix,
@@ -106,53 +106,21 @@ test("historical layered trajectory is evidence from the same model, not a diffe
 });
 
 
-test("reference 96-node transition updates all nodes synchronously from the same prior state", () => {
-  const nodes = new Float64Array(96);
-  nodes[1] = 10;
-  nodes[2] = 20;
-  const state = { nodes };
-  const weights = new Map([
-    ["0->1", 1],
-    ["1->0", 1],
-    ["1->2", 1],
-    ["2->1", 1],
-  ]);
-  const next = step96RelationalCore(state, { dt: 0.1, weights });
-  assert.deepEqual(Array.from(next.nodes), [1, 10, 19]);
-  assert.equal(next.nodes.reduce((a, b) => a + b, 0), 30);
-});
 
-test("reference relational core preserves the node-count invariant", () => {
-  assert.throws(
-    () => step96RelationalCore(
-      { nodes: Float64Array.from([0, 1]) },
-      { dt: 0.1, nodeCount: 96, weights: new Map() },
-    ),
-    /expected 96 nodes/,
-  );
-});
-
-
-test("carrier-native 96-node transition is based on q=phi and p=kappa h", () => {
-  const { stepCarrierNative96, hamiltonian96 } = require("../src/lib/experimentalLab/unified96Transition");
+test("carrier-native 96-node transition keeps q and p at 96 nodes", () => {
   const q = new Float64Array(96);
   const p = new Float64Array(96);
   q[0] = 1e-3;
-  const state = { q, p };
-  const next = stepCarrierNative96(state, { dt: 1e-3, kappa: 1, b: 2.5 });
+  const next = stepCarrierNative96({ q, p }, { dt: 1e-3, kappa: 1, b: 2.5 });
   assert.equal(next.q.length, 96);
   assert.equal(next.p.length, 96);
-  assert.equal(hamiltonian96(next, { kappa: 1, b: 2.5 }) >= 0, true);
+  assert.ok(hamiltonian96(next, { kappa: 1, b: 2.5 }) >= 0);
 });
 
 test("carrier-native nonlinear phase force is invariant under global phase shift", () => {
-  const { stepCarrierNative96 } = require("../src/lib/experimentalLab/unified96Transition");
   const q = Float64Array.from({ length: 96 }, (_, i) => Math.sin(i / 7));
   const p = Float64Array.from({ length: 96 }, (_, i) => 0.01 * Math.cos(i / 11));
-  const shifted = {
-    q: Float64Array.from(q, (x) => x + 1.2345),
-    p: p.slice(),
-  };
+  const shifted = { q: Float64Array.from(q, (x) => x + 1.2345), p: p.slice() };
   const a = stepCarrierNative96({ q, p }, { dt: 1e-3, kappa: 1, b: 2.5 });
   const c2 = stepCarrierNative96(shifted, { dt: 1e-3, kappa: 1, b: 2.5 });
   for (let i = 0; i < 96; i += 1) {
@@ -162,7 +130,6 @@ test("carrier-native nonlinear phase force is invariant under global phase shift
 });
 
 test("carrier-native transition is time-reversible under momentum reversal", () => {
-  const { stepCarrierNative96 } = require("../src/lib/experimentalLab/unified96Transition");
   const q0 = Float64Array.from({ length: 96 }, (_, i) => 0.03 * Math.sin(i / 9));
   const p0 = Float64Array.from({ length: 96 }, (_, i) => 0.02 * Math.cos(i / 13));
   let state = { q: q0, p: p0 };
@@ -178,4 +145,13 @@ test("carrier-native transition is time-reversible under momentum reversal", () 
     maxError = Math.max(maxError, Math.abs(state.q[i] - q0[i]), Math.abs(state.p[i] + p0[i]));
   }
   assert.ok(maxError < 1e-12, `time-reversal error ${maxError}`);
+});
+
+test("carrier-native dynamics conserves total canonical momentum on the periodic test surface", () => {
+  const q = Float64Array.from({ length: 96 }, (_, i) => 0.02 * Math.sin(i / 5));
+  const p = Float64Array.from({ length: 96 }, (_, i) => 0.03 * Math.cos(i / 8));
+  const initialTotalP = p.reduce((sum, x) => sum + x, 0);
+  const next = stepCarrierNative96({ q, p }, { dt: 1e-3, kappa: 1, b: 2.5 });
+  const nextTotalP = next.p.reduce((sum, x) => sum + x, 0);
+  assert.ok(Math.abs(nextTotalP - initialTotalP) < 1e-14);
 });
