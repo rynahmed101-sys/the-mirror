@@ -65,6 +65,8 @@ export type TrajectoryFrame<TState> = {
 
 export type ExperimentRecord<TState> = {
   experiment_id: string;
+  implementation_id: string;
+  provenance: ExperimentalValue | Record<string, unknown>;
   protocol_version: typeof EXPERIMENTAL_LAB_PROTOCOL_VERSION;
   model_version: string;
   engine_version: string;
@@ -83,6 +85,8 @@ export type ExperimentRecord<TState> = {
 
 export type BaselineOptions<TState> = {
   experimentId: string;
+  implementationId: string;
+  provenance: ExperimentalValue | Record<string, unknown>;
   model: ModelDefinition<TState>;
   seed: string | number;
   parameters?: Readonly<Record<string, unknown>>;
@@ -209,6 +213,8 @@ export function runE0Baseline<TState>(options: BaselineOptions<TState>): Experim
 
   return {
     experiment_id: options.experimentId,
+    implementation_id: options.implementationId,
+    provenance: cloneState(options.provenance),
     protocol_version: EXPERIMENTAL_LAB_PROTOCOL_VERSION,
     model_version: options.model.modelVersion,
     engine_version: options.model.engineVersion,
@@ -229,6 +235,8 @@ export function runE0Baseline<TState>(options: BaselineOptions<TState>): Experim
 export function experimentFingerprint<TState>(record: ExperimentRecord<TState>): string {
   return sha256({
     experiment_id: record.experiment_id,
+    implementation_id: record.implementation_id,
+    provenance: record.provenance,
     protocol_version: record.protocol_version,
     model_version: record.model_version,
     engine_version: record.engine_version,
