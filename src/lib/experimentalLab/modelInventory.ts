@@ -1,0 +1,55 @@
+export const FUNDAMENTAL_LAB_SOURCE_AUDIT = {
+  audit_version: "2026-09-29.1",
+  project: "GRAND_THEORY_FUNDAMENTAL_EXPERIMENTAL_LAB",
+  mirror_repository: "rynahmed101-sys/the-mirror",
+  mirror_commit: "6717ffb468abcf7f52893faa3a4eb0a1fc169ea4",
+  executable_model: {
+    path: "src/lib/lab/brain96.ts",
+    status: "FOUND",
+    kind: "STATIC_BEHAVIORAL_96_NODE_CONTROLLER",
+    dynamic_transition_law: false,
+    topology: "6x16 behavioral taxonomy with generated weighted edges",
+    experimental_use: "CONTROL_ONLY",
+  },
+  perturbation_layer: {
+    path: "src/lib/agent/perturbationLab.ts",
+    status: "FOUND",
+    kind: "STATIC_SPARSE_NODE_PERTURBATION",
+    raw_node_state: "96 scalar node values; one-node epsilon perturbation",
+    dynamic_state_update: false,
+    experimental_use: "CONTROL_ONLY",
+  },
+  archived_dynamic_trajectory: {
+    path: "/96node_layered_simulation_metrics.csv",
+    status: "FOUND_AS_ARTIFACT",
+    raw_trajectory_available: true,
+    transition_source_available: false,
+    metrics_are_ontology: false,
+    note: "Columns such as phase_coherence, temperature, edge_entropy and order_score are preserved as historical labels/measurements and are not promoted to primitives.",
+  },
+  part153_test_surface: {
+    source_file: "/Grand_Theory_Logical_Reconstruction_v154_PRIMITIVE_COMMUTATOR_96NODE.json",
+    status: "FOUND_AS_DERIVATION_ARTIFACT",
+    construction: "4 internal states x 4x3x2 spatial cells = 96 nodes",
+    dynamics: "conditional reversible first-order update; not a complete microscopic simulator",
+    promotion: "DERIVED_TEST_SURFACE",
+  },
+  e0_gate: {
+    status: "BLOCKED_FOR_PHYSICAL_RERUN",
+    reason: "The accessible production source does not expose the evolving 96-node transition function used to generate the archived layered trajectory.",
+    allowed_action: "runE0Baseline becomes executable only after a source-backed transition function is registered; the harness rejects silent substitution.",
+  },
+} as const;
+
+export const PHYSICAL_EXPERIMENT_GATE = {
+  E0_BASELINE_UNPERTURBED: false,
+  E1_FIRE_ENERGY_INJECTION: false,
+  E2_WATER_TRANSPORT_FLOW: false,
+  E3_EARTH_LOAD_DEFORMATION: false,
+  E4_AIR_COMPRESSION_WAVE: false,
+  E5_VACUUM_NULL: false,
+  E6_COLLISION_MERGE_ANNIHILATION: false,
+  E7_ROTATION_VORTEX_CIRCULATION: false,
+  E8_GRAVITY_LIKE_INTERACTION: false,
+  E9_INFORMATION_OBSERVER_PROJECTION: false,
+} as const;
