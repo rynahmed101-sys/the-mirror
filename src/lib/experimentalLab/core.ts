@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export const EXPERIMENTAL_LAB_PROTOCOL_VERSION = "0.1.0" as const;
+export const EXPERIMENTAL_LAB_PROTOCOL_VERSION = "0.2.0" as const;
 
 export type DiscoveryClassification =
   | "OBSERVED"
