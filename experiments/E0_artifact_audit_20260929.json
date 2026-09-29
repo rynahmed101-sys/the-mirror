@@ -6,7 +6,18 @@
     "path": "/96node_layered_simulation_metrics.csv",
     "sha256": "aa03392fc84b6505b4fb6d06d99267183573901e6f46fe92b691ea642800ed3a",
     "rows": 1000,
-    "columns": ["time","phase_coherence","phase_spread","edge_entropy","strong_edge_density","temperature","order_score","activity","components","strong_edge_fraction"]
+    "columns": [
+      "time",
+      "phase_coherence",
+      "phase_spread",
+      "edge_entropy",
+      "strong_edge_density",
+      "temperature",
+      "order_score",
+      "activity",
+      "components",
+      "strong_edge_fraction"
+    ]
   },
   "source_firewall": {
     "transition_law": "UNKNOWN",
@@ -16,15 +27,60 @@
     "interpretation": "DERIVED_METRIC_ARTIFACT_ONLY"
   },
   "observed": {
-    "phase_coherence": {"min": 0.0018809551383473, "min_time": 103.4, "max": 0.9638488158219604, "max_time": 0.0},
-    "phase_spread": {"min": 0.2711315928933765, "min_time": 0.0, "max": 2.296706700615396, "max_time": 108.8},
-    "edge_entropy": {"min": 0.9169198451962832, "min_time": 7.4, "max": 0.9826063701410797, "max_time": 3.2},
-    "strong_edge_density": {"min": 0.0385964912280701, "min_time": 0.0, "max": 0.7956140350877193, "max_time": 3.0},
-    "temperature": {"min": 1.00004192386034, "min_time": 0.0, "max": 1.2801286374841998, "max_time": 26.0},
-    "order_score": {"min": 0.5200626244193762, "min_time": 191.6, "max": 1.0, "max_time": 0.0},
-    "activity": {"min": 0.0050377461120498, "min_time": 0.0, "max": 0.6613433914733391, "max_time": 31.6},
-    "components": {"min": 1.0, "min_time": 0.0, "max": 30.0, "max_time": 7.2},
-    "strong_edge_fraction": {"min": 0.0381944444444444, "min_time": 0.0, "max": 0.7873263888888888, "max_time": 3.0}
+    "phase_coherence": {
+      "min": 0.0018809551383473,
+      "min_time": 103.4,
+      "max": 0.9638488158219604,
+      "max_time": 0
+    },
+    "phase_spread": {
+      "min": 0.2711315928933765,
+      "min_time": 0,
+      "max": 2.296706700615396,
+      "max_time": 108.8
+    },
+    "edge_entropy": {
+      "min": 0.9169198451962832,
+      "min_time": 7.4,
+      "max": 0.9826063701410797,
+      "max_time": 3.2
+    },
+    "strong_edge_density": {
+      "min": 0.0385964912280701,
+      "min_time": 0,
+      "max": 0.7956140350877193,
+      "max_time": 3
+    },
+    "temperature": {
+      "min": 1.00004192386034,
+      "min_time": 0,
+      "max": 1.2801286374841998,
+      "max_time": 26
+    },
+    "order_score": {
+      "min": 0.5200626244193762,
+      "min_time": 191.6,
+      "max": 1,
+      "max_time": 0
+    },
+    "activity": {
+      "min": 0.0050377461120498,
+      "min_time": 0,
+      "max": 0.6613433914733391,
+      "max_time": 31.6
+    },
+    "components": {
+      "min": 1,
+      "min_time": 0,
+      "max": 30,
+      "max_time": 7.2
+    },
+    "strong_edge_fraction": {
+      "min": 0.0381944444444444,
+      "min_time": 0,
+      "max": 0.7873263888888888,
+      "max_time": 3
+    }
   },
   "exact_metric_identity": {
     "left": "strong_edge_density",
@@ -34,5 +90,16 @@
     "classification": "MODEL_DEPENDENT"
   },
   "repeatability_status": "OPEN_SINGLE_TRAJECTORY",
-  "next_gate": "restore exact transition implementation, then rerun E0 with C1-C3 rather than reconstructing dynamics from these outputs"
+  "next_gate": "restore exact transition implementation, then rerun E0 with C1-C3 rather than reconstructing dynamics from these outputs",
+  "model_identity": {
+    "model_id": "96NODE_UNIFIED_PHYSICAL_INFORMATIONAL_COGNITIVE",
+    "relation": "SAME_MODEL_MULTIPLE_IMPLEMENTATIONS",
+    "note": "Historical 96-node trajectory is evidence from the same model; lack of accessible transition source is a source-recovery gate, not evidence of a different model."
+  },
+  "source_transition_gate": {
+    "status": "OPEN",
+    "reason": "Exact evolving transition implementation not yet recovered in accessible Mirror source.",
+    "prohibited_substitution": "output-matched or inferred transition law must not be relabeled source execution."
+  },
+  "classification": "OBSERVED"
 }
