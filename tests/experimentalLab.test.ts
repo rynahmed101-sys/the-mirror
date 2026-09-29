@@ -131,3 +131,51 @@ test("reference relational core preserves the node-count invariant", () => {
     /expected 96 nodes/,
   );
 });
+
+
+test("carrier-native 96-node transition is based on q=phi and p=kappa h", () => {
+  const { stepCarrierNative96, hamiltonian96 } = require("../src/lib/experimentalLab/unified96Transition");
+  const q = new Float64Array(96);
+  const p = new Float64Array(96);
+  q[0] = 1e-3;
+  const state = { q, p };
+  const next = stepCarrierNative96(state, { dt: 1e-3, kappa: 1, b: 2.5 });
+  assert.equal(next.q.length, 96);
+  assert.equal(next.p.length, 96);
+  assert.equal(hamiltonian96(next, { kappa: 1, b: 2.5 }) >= 0, true);
+});
+
+test("carrier-native nonlinear phase force is invariant under global phase shift", () => {
+  const { stepCarrierNative96 } = require("../src/lib/experimentalLab/unified96Transition");
+  const q = Float64Array.from({ length: 96 }, (_, i) => Math.sin(i / 7));
+  const p = Float64Array.from({ length: 96 }, (_, i) => 0.01 * Math.cos(i / 11));
+  const shifted = {
+    q: Float64Array.from(q, (x) => x + 1.2345),
+    p: p.slice(),
+  };
+  const a = stepCarrierNative96({ q, p }, { dt: 1e-3, kappa: 1, b: 2.5 });
+  const c2 = stepCarrierNative96(shifted, { dt: 1e-3, kappa: 1, b: 2.5 });
+  for (let i = 0; i < 96; i += 1) {
+    assert.ok(Math.abs((c2.q[i] - a.q[i]) - 1.2345) < 1e-14);
+    assert.ok(Math.abs(c2.p[i] - a.p[i]) < 1e-14);
+  }
+});
+
+test("carrier-native transition is time-reversible under momentum reversal", () => {
+  const { stepCarrierNative96 } = require("../src/lib/experimentalLab/unified96Transition");
+  const q0 = Float64Array.from({ length: 96 }, (_, i) => 0.03 * Math.sin(i / 9));
+  const p0 = Float64Array.from({ length: 96 }, (_, i) => 0.02 * Math.cos(i / 13));
+  let state = { q: q0, p: p0 };
+  for (let i = 0; i < 1000; i += 1) {
+    state = stepCarrierNative96(state, { dt: 1e-3, kappa: 1, b: 2.5 });
+  }
+  state = { q: state.q, p: Float64Array.from(state.p, (x) => -x) };
+  for (let i = 0; i < 1000; i += 1) {
+    state = stepCarrierNative96(state, { dt: 1e-3, kappa: 1, b: 2.5 });
+  }
+  let maxError = 0;
+  for (let i = 0; i < 96; i += 1) {
+    maxError = Math.max(maxError, Math.abs(state.q[i] - q0[i]), Math.abs(state.p[i] + p0[i]));
+  }
+  assert.ok(maxError < 1e-12, `time-reversal error ${maxError}`);
+});
