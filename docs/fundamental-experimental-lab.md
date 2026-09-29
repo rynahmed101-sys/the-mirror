@@ -37,16 +37,27 @@ This implementation is therefore a SOURCE-GROUNDED PARTIAL REFERENCE TRANSITION,
 
 ## Current source gate
 
-The Mirror repository does not currently expose the exact evolving 96-node transition implementation that generated the retained layered metrics trajectory.
+The Library already contains a source-backed carrier-native 96-node transition in Part 155. The current implementation is registered as an evolving same-model implementation and is executable for the explicit test surface described there.
 
-This creates an OPEN source-recovery gate, not a model-identity split.
+The historical 96-node angular unitarity calculation is a different experimental surface on the same mathematical program: its 6x16 quadrature nodes are independently evaluable and were actually computed in parallel. It is not a node-by-node temporal transition.
 
-The lab must not:
-1. infer a transition law from the output;
-2. fit parameters until the result matches the archived curve;
-3. call that reconstruction "source execution".
+The exact generator behind the older `96node_layered_simulation_metrics.csv` remains a distinct historical trajectory whose raw node states are not present in that CSV. We therefore compare it to the carrier-native implementation rather than silently claiming identity.
 
-Until the transition source is recovered, the historical run is valid for evidence extraction, provenance tracking, cross-engine comparison planning, and falsification tests, but not for a fresh source-backed E0 rerun.
+## Transition semantics
+
+For the Part-155 carrier-native wave sector:
+
+`z_i=exp(h_i+i phi_i), q_i=phi_i, p_i=kappa h_i`
+
+`H_exact=sum_i kappa^2[cosh(p_i/kappa)-1]+b sum_edges w_ij[1-cos(q_i-q_j)]`
+
+and on the 96-node periodic test surface:
+
+`qdot_i=kappa*sinh(p_i/kappa)`
+
+`pdot_i=-b sum_j w_ij sin(q_i-q_j)`
+
+The numerical integrator uses synchronous RK4: each RK stage evaluates the complete coupled 96-node state from one common stage state. No right-to-left or left-to-right sequential node sweep is part of the source method.
 
 ## Experimental order
 
