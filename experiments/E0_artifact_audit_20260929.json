@@ -98,10 +98,13 @@
     "note": "Historical 96-node trajectory is evidence from the same model; lack of accessible transition source is a source-recovery gate, not evidence of a different model."
   },
   "source_transition_gate": {
-    "status": "OPEN",
-    "reason": "Exact evolving transition implementation not yet recovered in accessible Mirror source.",
-    "prohibited_substitution": "output-matched or inferred transition law must not be relabeled source execution."
+    "status": "RESOLVED_FOR_PART155_REFERENCE_SURFACE",
+    "source": "Grand_Theory_Logical_Reconstruction_v155_CARRIER_NATIVE_WAVE",
+    "implementation": "src/lib/experimentalLab/unified96Transition.ts",
+    "exact_scope": "carrier-native 96-node periodic-cycle test surface",
+    "remaining_boundary": "The historical 96node_layered_simulation_metrics.csv generator is still not reconstructed; it remains a separate historical trajectory on the same model family."
   },
-  "classification": "OBSERVED",
-  "provenance_note": "This historical record is retained as evidence from an independent implementation/run; implementation identity is not inferred from the CSV alone."
+  "classification": "REPRODUCED",
+  "provenance_note": "This historical record is retained as evidence from an independent implementation/run; implementation identity is not inferred from the CSV alone.",
+  "current_executable_experiment": "E0_CARRIER_NATIVE_96_20260929"
 }
