@@ -84,6 +84,16 @@ export const GRAND_THEORY_96_NODE_MODEL = {
       notes: "Historical trajectory and derived measurements are preserved as evidence from the same model; this record is not a replacement for the transition source.",
     },
     {
+      id: "reference-relational-core",
+      name: "Source-grounded synchronous relational core",
+      kind: "DERIVATION_TEST_SURFACE",
+      provenance: "Implemented from the explicit relational term in the unified-model source document; not asserted as the historical Gemini/GPT transition implementation.",
+      modelRelation: "DERIVED_TEST_SURFACE",
+      rawNodeStatesAvailable: false,
+      sourceTransitionLawAvailable: true,
+      notes: "Implements only the explicitly written transport term using a synchronous discrete step; topology, dynamic coupling law, and remaining sectors stay external/open.",
+    },
+    {
       id: "part153-commutator-96node",
       name: "Part 153 primitive commutator 96-node construction",
       kind: "DERIVATION_TEST_SURFACE",
