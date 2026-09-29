@@ -1,43 +1,132 @@
-export const FUNDAMENTAL_LAB_SOURCE_AUDIT = {
-  audit_version: "2026-09-29.1",
-  project: "GRAND_THEORY_FUNDAMENTAL_EXPERIMENTAL_LAB",
-  mirror_repository: "rynahmed101-sys/the-mirror",
-  mirror_commit: "6717ffb468abcf7f52893faa3a4eb0a1fc169ea4",
-  executable_model: {
-    path: "src/lib/lab/brain96.ts",
-    status: "FOUND",
-    kind: "STATIC_BEHAVIORAL_96_NODE_CONTROLLER",
-    dynamic_transition_law: false,
-    topology: "6x16 behavioral taxonomy with generated weighted edges",
-    experimental_use: "CONTROL_ONLY",
+/**
+ * Model identity and provenance registry for the Grand Theory / 96-node program.
+ *
+ * Scientific rule:
+ * - model identity is shared across implementations and experiments;
+ * - implementation provenance is never erased;
+ * - different experiments are not silently promoted to identical dynamics;
+ * - absence of a source transition law is recorded as OPEN rather than reconstructed.
+ */
+
+export type ModelRelation =
+  | "SAME_MODEL_INDEPENDENT_IMPLEMENTATION"
+  | "SAME_MODEL_DIFFERENT_EXPERIMENT"
+  | "DERIVED_TEST_SURFACE"
+  | "UNKNOWN_RELATION";
+
+export type ImplementationRecord = {
+  id: string;
+  name: string;
+  kind:
+    | "EVOLVING_96_NODE_IMPLEMENTATION"
+    | "HISTORICAL_EXPERIMENTAL_TRAJECTORY"
+    | "DERIVATION_TEST_SURFACE"
+    | "MODEL_ADJACENT_EXPERIMENTAL_SURFACE";
+  provenance: string;
+  modelRelation: ModelRelation;
+  rawNodeStatesAvailable: boolean;
+  sourceTransitionLawAvailable: boolean;
+  notes: string;
+};
+
+export type ExperimentSurface = {
+  id: string;
+  name: string;
+  provenance: string;
+  modelRelation: ModelRelation;
+  transitionLawRole:
+    | "SOURCE_TRANSITION_CANDIDATE"
+    | "CONTROL_SURFACE"
+    | "DIFFERENT_EXPERIMENT"
+    | "DERIVED_TEST_SURFACE";
+  notes: string;
+};
+
+export const GRAND_THEORY_96_NODE_MODEL = {
+  modelId: "96NODE_UNIFIED_PHYSICAL_INFORMATIONAL_COGNITIVE",
+  modelStatus: "CANDIDATE_UNIFIED_DYNAMICAL_FRAMEWORK",
+  identityRule: "ONE_MODEL_MULTIPLE_IMPLEMENTATIONS_AND_EXPERIMENTAL_SURFACES",
+  architectureSource: {
+    name: "96-Node Unified Physical–Informational–Cognitive Model",
+    sourcePath: "Pasted markdown(3).md",
+    claimsSupported:
+      "One coupled state spans physical, informational, computational, observer/self-model sectors; coupling and dynamic topology are part of the candidate framework.",
   },
-  perturbation_layer: {
-    path: "src/lib/agent/perturbationLab.ts",
-    status: "FOUND",
-    kind: "STATIC_SPARSE_NODE_PERTURBATION",
-    raw_node_state: "96 scalar node values; one-node epsilon perturbation",
-    dynamic_state_update: false,
-    experimental_use: "CONTROL_ONLY",
-  },
-  archived_dynamic_trajectory: {
-    path: "/96node_layered_simulation_metrics.csv",
-    status: "FOUND_AS_ARTIFACT",
-    raw_trajectory_available: true,
-    transition_source_available: false,
-    metrics_are_ontology: false,
-    note: "Columns such as phase_coherence, temperature, edge_entropy and order_score are preserved as historical labels/measurements and are not promoted to primitives.",
-  },
-  part153_test_surface: {
-    source_file: "/Grand_Theory_Logical_Reconstruction_v154_PRIMITIVE_COMMUTATOR_96NODE.json",
-    status: "FOUND_AS_DERIVATION_ARTIFACT",
-    construction: "4 internal states x 4x3x2 spatial cells = 96 nodes",
-    dynamics: "conditional reversible first-order update; not a complete microscopic simulator",
-    promotion: "DERIVED_TEST_SURFACE",
-  },
-  e0_gate: {
-    status: "BLOCKED_FOR_PHYSICAL_RERUN",
-    reason: "The accessible production source does not expose the evolving 96-node transition function used to generate the archived layered trajectory.",
-    allowed_action: "runE0Baseline becomes executable only after a source-backed transition function is registered; the harness rejects silent substitution.",
+  implementations: [
+    {
+      id: "gemini-96node",
+      name: "Gemini 96-node calculation",
+      kind: "EVOLVING_96_NODE_IMPLEMENTATION",
+      provenance: "Independent external implementation reported for the retained 96-node calculation.",
+      modelRelation: "SAME_MODEL_INDEPENDENT_IMPLEMENTATION",
+      rawNodeStatesAvailable: false,
+      sourceTransitionLawAvailable: false,
+      notes: "Treat as an independent implementation of the same model until its executable source is recovered; do not substitute inferred equations for the missing source.",
+    },
+    {
+      id: "gpt-96node",
+      name: "Independent GPT 96-node calculation",
+      kind: "EVOLVING_96_NODE_IMPLEMENTATION",
+      provenance: "Independent GPT implementation reported for the retained 96-node calculation.",
+      modelRelation: "SAME_MODEL_INDEPENDENT_IMPLEMENTATION",
+      rawNodeStatesAvailable: false,
+      sourceTransitionLawAvailable: false,
+      notes: "Treat as an independent implementation of the same model until its executable source is recovered.",
+    },
+    {
+      id: "layered-metrics-csv",
+      name: "96node layered simulation metrics",
+      kind: "HISTORICAL_EXPERIMENTAL_TRAJECTORY",
+      provenance: "Library record: 96node_layered_simulation_metrics.csv",
+      modelRelation: "SAME_MODEL_INDEPENDENT_IMPLEMENTATION",
+      rawNodeStatesAvailable: false,
+      sourceTransitionLawAvailable: false,
+      notes: "Historical trajectory and derived measurements are preserved as evidence from the same model; this record is not a replacement for the transition source.",
+    },
+    {
+      id: "part153-commutator-96node",
+      name: "Part 153 primitive commutator 96-node construction",
+      kind: "DERIVATION_TEST_SURFACE",
+      provenance: "Grand_Theory_Logical_Reconstruction_v154_PRIMITIVE_COMMUTATOR_96NODE.json",
+      modelRelation: "DERIVED_TEST_SURFACE",
+      rawNodeStatesAvailable: false,
+      sourceTransitionLawAvailable: false,
+      notes: "Useful algebraic test surface; not asserted to be the microscopic transition law of the evolving simulation.",
+    },
+    {
+      id: "mirror-brain96",
+      name: "Mirror brain96 controller",
+      kind: "MODEL_ADJACENT_EXPERIMENTAL_SURFACE",
+      provenance: "the-mirror/src/lib/lab/brain96.ts",
+      modelRelation: "SAME_MODEL_DIFFERENT_EXPERIMENT",
+      rawNodeStatesAvailable: false,
+      sourceTransitionLawAvailable: false,
+      notes: "A 96-node behavioral/control experiment. Preserve separately from the evolving physical 96-node run.",
+    },
+  ] as readonly ImplementationRecord[],
+  experimentSurfaces: [
+    {
+      id: "mirror-projection-chamber",
+      name: "Mirror projection/sandbox chamber",
+      provenance: "the-mirror agent projection experiment",
+      modelRelation: "SAME_MODEL_DIFFERENT_EXPERIMENT",
+      transitionLawRole: "DIFFERENT_EXPERIMENT",
+      notes: "A self-observation / agent-projection experiment. It can test projections of the unified model without being declared identical to the layered physical trajectory.",
+    },
+    {
+      id: "part154-carrier-action-gate",
+      name: "Part 154 carrier-action derivation gate",
+      provenance: "Grand_Theory_Logical_Reconstruction_v154_PRIMITIVE_COMMUTATOR_96NODE.json",
+      modelRelation: "DERIVED_TEST_SURFACE",
+      transitionLawRole: "DERIVED_TEST_SURFACE",
+      notes: "Tracks which analytical links are closed, conditional, or still open.",
+    },
+  ] as readonly ExperimentSurface[],
+  unresolvedSourceGate: {
+    status: "OPEN",
+    item: "exact_evolving_96node_transition_implementation",
+    reason: "The currently accessible Mirror repository does not expose the transition law used to generate the historical layered trajectory.",
+    rule: "Do not infer or output-match a transition law and relabel it as source execution.",
   },
 } as const;
 
