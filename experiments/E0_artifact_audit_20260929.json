@@ -1,6 +1,6 @@
 {
   "report_type": "ARTIFACT_BASELINE_AUDIT",
-  "status": "ARTIFACT_REPLAY_NOT_SOURCE_RERUN",
+  "status": "HISTORICAL_SAME_MODEL_EVIDENCE_SOURCE_GATE_OPEN",
   "date": "2026-09-29",
   "source": {
     "path": "/96node_layered_simulation_metrics.csv",
@@ -24,7 +24,8 @@
     "topology": "UNKNOWN",
     "coupling": "UNKNOWN",
     "raw_node_states": "NOT_PRESENT_IN_THIS_ARTIFACT",
-    "interpretation": "DERIVED_METRIC_ARTIFACT_ONLY"
+    "interpretation": "HISTORICAL_DERIVED_MEASUREMENT_TRAJECTORY",
+    "model_identity": "SAME_MODEL_UNIFIED_96_NODE_FRAMEWORK"
   },
   "observed": {
     "phase_coherence": {
@@ -101,5 +102,6 @@
     "reason": "Exact evolving transition implementation not yet recovered in accessible Mirror source.",
     "prohibited_substitution": "output-matched or inferred transition law must not be relabeled source execution."
   },
-  "classification": "OBSERVED"
+  "classification": "OBSERVED",
+  "provenance_note": "This historical record is retained as evidence from an independent implementation/run; implementation identity is not inferred from the CSV alone."
 }
