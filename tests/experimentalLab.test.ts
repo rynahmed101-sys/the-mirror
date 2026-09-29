@@ -69,10 +69,14 @@ test("E0 records unperturbed raw trajectory plus provenance fields", () => {
     experimentId: "E0-TEST-001",
     model: m,
     seed: "seed-0",
+    implementationId: "gpt-96node",
+    provenance: { provider: "GPT", run: "independent-96node" },
     steps: 3,
     step: (state) => ({ values: state.values.map((x) => x + 1) }),
     measure: (state) => ({ sum: state.values.reduce((a, b) => a + b, 0) }),
   });
+  assert.equal(record.implementation_id, "gpt-96node");
+  assert.deepEqual(record.provenance, { provider: "GPT", run: "independent-96node" });
   assert.equal(record.perturbation, null);
   assert.equal(record.raw_trajectory.length, 4);
   assert.equal(record.final_state.values[0], 3);
