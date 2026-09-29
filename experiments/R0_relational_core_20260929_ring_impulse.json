@@ -1,0 +1,52 @@
+{
+  "experiment_id": "R0_RELATIONAL_CORE_20260929_RING_IMPULSE",
+  "protocol_version": "0.2.0",
+  "model_version": "96NODE_UNIFIED_PHYSICAL_INFORMATIONAL_COGNITIVE",
+  "engine_version": "unified96Transition-reference",
+  "implementation_id": "reference-relational-core",
+  "provenance": {
+    "implementation": "src/lib/experimentalLab/unified96Transition.ts",
+    "basis": "Explicit relational transport term in the unified-model document",
+    "historical_match": false
+  },
+  "seed": "deterministic_single_impulse",
+  "initial_state": {
+    "node_count": 96,
+    "initial_nonzero": {
+      "node": 0,
+      "value": 1
+    },
+    "remaining_nodes": 0
+  },
+  "parameters": {
+    "dt": 0.01,
+    "topology": "synthetic_96_node_ring",
+    "edge_weight": 1,
+    "update_order": "synchronous"
+  },
+  "perturbation": "single_node_impulse_at_node_0",
+  "topology": {
+    "type": "synthetic_ring",
+    "nodes": 96,
+    "undirected_edges": 96
+  },
+  "raw_probe": {
+    "one_step": {
+      "node_0": 0.98,
+      "node_1": 0.01,
+      "node_95": 0.01,
+      "node_2": 0
+    },
+    "repeatability_max_abs_difference": 0,
+    "sum_initial": 1,
+    "sum_after_one_step": 1,
+    "sum_after_1000_steps": 0.9999999999999996,
+    "conservation_abs_error_after_1000_steps": 4.440892098500626e-16,
+    "1000_step_min": 0,
+    "1000_step_max": 0.98,
+    "difference_from_left_to_right_sequential_after_one_step": 0.00020000000000000052,
+    "difference_from_right_to_left_sequential_after_one_step": 0.00019999999999997797
+  },
+  "classification": "MODEL_DEPENDENT",
+  "interpretation": "This validates properties of the explicitly implemented relational core under a synthetic ring topology. It does not recover or reproduce the historical Gemini/GPT layered simulation."
+}
