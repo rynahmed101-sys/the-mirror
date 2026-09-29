@@ -18,6 +18,23 @@ Therefore:
 
 Cross-implementation disagreement is an empirical test of the model/implementation, not a reason to redefine the implementations as different theories.
 
+
+## Reference transition now implemented
+
+The repository now contains `src/lib/experimentalLab/unified96Transition.ts`.
+
+It implements only the relational transport term explicitly written in the unified-model source:
+
+`T_i = sum_j A_ij(X_j - X_i)`
+
+with a synchronous explicit-Euler step:
+
+`X_i(t+dt) = X_i(t) + dt*T_i(t)`
+
+All 96 nodes read the same pre-step state. A right-to-left or left-to-right node-by-node sweep is intentionally not used because update ordering is not specified by the source and would introduce an additional dynamical assumption.
+
+This implementation is therefore a SOURCE-GROUNDED PARTIAL REFERENCE TRANSITION, not a claim to have recovered the historical Gemini/GPT transition law. The missing pieces remain the actual initial state, the historical topology/coupling, the dynamic A_ij(X,t) generator, and the remaining force/interaction sectors.
+
 ## Current source gate
 
 The Mirror repository does not currently expose the exact evolving 96-node transition implementation that generated the retained layered metrics trajectory.
