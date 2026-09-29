@@ -8,6 +8,7 @@ import {
   stableStringify,
   validate96NodeTopology,
 } from "../src/lib/experimentalLab/core";
+import { GRAND_THEORY_96_NODE_MODEL } from "../src/lib/experimentalLab/modelInventory";
 
 function model() {
   const nodes = Array.from({ length: 96 }, (_, index) => ({ id: `n${index}`, index }));
@@ -77,4 +78,24 @@ test("E0 records unperturbed raw trajectory plus provenance fields", () => {
   assert.equal(record.final_state.values[0], 3);
   assert.equal(record.derived_measurements.sum, 288);
   assert.equal(experimentFingerprint(record).length, 64);
+});
+
+
+test("96-node model registry keeps implementations and experimental surfaces under one model identity", () => {
+  assert.equal(GRAND_THEORY_96_NODE_MODEL.modelId, "96NODE_UNIFIED_PHYSICAL_INFORMATIONAL_COGNITIVE");
+  assert.ok(GRAND_THEORY_96_NODE_MODEL.implementations.some((x) => x.id === "gemini-96node"));
+  assert.ok(GRAND_THEORY_96_NODE_MODEL.implementations.some((x) => x.id === "gpt-96node"));
+  assert.ok(GRAND_THEORY_96_NODE_MODEL.experimentSurfaces.some((x) => x.id === "mirror-projection-chamber"));
+  assert.equal(
+    GRAND_THEORY_96_NODE_MODEL.experimentSurfaces.find((x) => x.id === "mirror-projection-chamber")?.modelRelation,
+    "SAME_MODEL_DIFFERENT_EXPERIMENT",
+  );
+});
+
+test("historical layered trajectory is evidence from the same model, not a different model", () => {
+  const traj = GRAND_THEORY_96_NODE_MODEL.implementations.find((x) => x.id === "layered-metrics-csv");
+  assert.equal(traj?.kind, "HISTORICAL_EXPERIMENTAL_TRAJECTORY");
+  assert.equal(traj?.modelRelation, "SAME_MODEL_INDEPENDENT_IMPLEMENTATION");
+  assert.equal(traj?.rawNodeStatesAvailable, false);
+  assert.equal(traj?.sourceTransitionLawAvailable, false);
 });
