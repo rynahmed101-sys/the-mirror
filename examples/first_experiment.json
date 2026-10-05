@@ -1,24 +1,23 @@
 {
-  "id": "relational-recurrence-v1",
+  "id": "demo-relational-run-manifest",
   "hypothesis": {
-    "id": "h-relational-001",
-    "statement": "A bounded relational recurrence can produce nontrivial trajectories without being fitted to an established physical law.",
+    "id": "demo-relational-rule",
+    "statement": "Repeated application of a relational rule may produce a stable state.",
     "assumptions": [
-      "The recurrence is iterated deterministically.",
-      "The initial state is the only externally supplied state."
+      "The rule is applied repeatedly."
     ],
-    "expected_behavior": "Open-ended; characterize the resulting trajectory rather than assuming a target."
+    "expected_behavior": "Unknown until executed."
   },
   "model": {
-    "id": "relational-recurrence",
-    "version": "1"
+    "id": "scalar-relational-rule",
+    "version": "0.1"
   },
-  "initial_state": 0.5,
+  "initial_state": 0.0,
   "parameters": {
-    "alpha": 0.37,
-    "beta": 0.19
+    "gain": 0.35,
+    "offset": 10.0
   },
-  "steps": 50,
+  "steps": 20,
   "dt": 1.0,
   "metadata": {
     "purpose": "first machine-readable Mirror experiment"
