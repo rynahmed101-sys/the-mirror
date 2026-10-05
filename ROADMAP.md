@@ -73,6 +73,8 @@ mirror_lab/
   perturb.py
   ledger.py
   operator.py
+  manifest.py
+  registry.py
   examples.py
   cli.py
 ~~~
@@ -99,7 +101,8 @@ Next:
 - [ ] Add artifact storage.
 - [ ] Add structured execution diagnostics.
 - [ ] Add reproducible random-seed handling without global RNG state.
-- [ ] Add machine-readable operator commands/results for plugin integration.
+- [x] Add machine-readable experiment manifests and operator execution path for plugin integration.
+- [ ] Add richer machine-readable operator commands/results for plugin integration.
 
 ## Phase 2 — Simulation engine layer
 Do NOT build one giant simulator. Build an adapter contract so specialized engines can execute the same experimental lifecycle.
