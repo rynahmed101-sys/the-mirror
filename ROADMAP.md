@@ -1,10 +1,12 @@
 # THE MIRROR — RESEARCH & ENGINEERING ROADMAP
 
-Status: ARCHITECTURE LOCKED; IMPLEMENTATION BEGINS FROM THE LABORATORY CONSTITUTION.
+Status: **IMPLEMENTATION ACTIVE — local scientific kernel established.**
+
 This roadmap is persistent engineering/scientific memory for future work on this repository.
 
 ## North-star objective
 Build a reusable laboratory in which a mathematical or physical hypothesis can be formalized, executed, simulated, observed, perturbed, compared, reproduced, and investigated WITHOUT requiring the result to agree with established physics.
+
 The lab must be capable of discovering agreement, disagreement, limiting-case agreement, regime changes, stability, instability, oscillation, divergence, convergence, emergent structure, invariants, asymmetry, unexpected correlations, or unresolved behavior.
 
 ## Phase 0 — Architectural reset
@@ -14,74 +16,89 @@ The lab must be capable of discovering agreement, disagreement, limiting-case ag
 - [x] Define reference theories as optional comparison instruments.
 - [x] Define UNKNOWN/UNRESOLVED as valid outcomes.
 - [x] Research mature open-source simulation and analysis infrastructure.
-- [ ] Remove obsolete prototype assumptions from implementation.
-- [ ] Keep the scientific core independent of Vercel, Supabase, Drizzle, and web deployment providers.
-- [ ] Preserve Git history rather than rewriting history destructively.
+- [x] Remove hosted database configuration from the active project.
+- [x] Remove the Node/Drizzle toolchain from the active build path.
+- [x] Replace hosted/Node CI with local scientific Python CI.
+- [x] Pause the linked Vercel project so Git changes no longer deploy as active builds.
+- [x] Establish local SQLite as the first evidence ledger.
+- [ ] Remove the remaining legacy web source tree.
+- [x] Preserve Git history rather than rewriting history destructively.
 
 ## Phase 1 — Scientific kernel
-Create the Python-first laboratory core.
+The active implementation is Python-first and currently begins with:
 ~~~text
-mirror/
-  core/
-    hypothesis.py
-    model.py
-    experiment.py
-    state.py
-    observation.py
-    result.py
-    provenance.py
-  execution/
-    runner.py
-    seeds.py
-    precision.py
-    resources.py
-  analysis/
-    numerical.py
-    stability.py
-    sensitivity.py
-    invariants.py
-    symmetry.py
-    regimes.py
-    anomaly.py
-  comparison/
-    reference.py
-    comparator.py
-  storage/
-    ledger.py
-    artifacts.py
-  adapters/
-    automate.py
-  cli/
+mirror_lab/
+  models.py
+  runner.py
+  analysis.py
+  perturb.py
+  ledger.py
+  examples.py
+  cli.py
 ~~~
-The kernel must work fully offline.
-Core objects: Hypothesis, Model, Experiment, Observation, Result.
-Each must preserve identity, assumptions, inputs, parameters, execution details, observations, and provenance.
+
+Implemented:
+- [x] Hypothesis object.
+- [x] Executable Model object.
+- [x] Experiment object.
+- [x] Observation object.
+- [x] Result object.
+- [x] Deterministic local execution.
+- [x] Controlled initial-state perturbation.
+- [x] Descriptive trajectory analysis.
+- [x] Local SQLite evidence ledger with content hashes.
+- [x] CLI demo.
+- [x] First executable experiment.
+- [x] Python tests.
+
+Next:
+- [ ] Separate model/state/engine interfaces more cleanly.
+- [ ] Add explicit provenance/environment capture.
+- [ ] Add standardized experiment manifests.
+- [ ] Add artifact storage.
+- [ ] Add structured execution diagnostics.
+- [ ] Add reproducible random-seed handling without global RNG state.
 
 ## Phase 2 — Simulation engine layer
 Do NOT build one giant simulator. Build an adapter contract so specialized engines can execute the same experimental lifecycle.
-2A: deterministic discrete systems — first engine for relational laws, recurrence, state machines, and custom rules.
+
+2A: deterministic discrete systems — **in progress / first engine present** for relational laws, recurrence, state machines, and custom rules.
+
 2B: ODE/dynamical systems — use mature numerical solvers; support trajectories, fixed points, oscillation, stability, and parameter sweeps.
+
 2C: PDE/field systems — introduce only when a real experiment requires them; evaluate mature tools rather than reinventing them.
+
 2D: stochastic/Monte Carlo — repeated trials, stochastic trajectories, distributions, and uncertainty.
+
 2E: agent/interaction systems — local rules producing system-level behavior.
+
 2F: graph/network dynamics — relational and topological hypotheses.
+
 2G: symbolic systems — symbolic manipulation and equation formulation.
+
 2H: differentiable/high-performance computation — optional JAX path for autodiff, vectorization, JIT, and accelerators.
 
 ## Phase 3 — Experimental exploration
 Build parameter exploration, sensitivity analysis, perturbation experiments, and property-based exploration.
+
 Parameter exploration: one-dimensional sweeps, multidimensional grids, random sampling, Latin hypercube sampling, then adaptive exploration if justified.
+
 Sensitivity analysis: prefer SALib over reinventing established methods.
+
 Perturbation experiments: vary initial conditions, parameters, precision, timestep, solver, boundary conditions, noise, and model components.
+
 Property-based exploration: use Hypothesis-style testing for declared computational properties and edge-case discovery. Do not turn properties into hidden assumptions about the scientific result.
 
 ## Phase 4 — Observation and discovery engine
 Initial detectors: convergence/divergence, oscillation, periodicity, fixed points, recurrence, monotonicity, extrema, discontinuities, symmetry/asymmetry, invariant quantities, scaling relations, sensitivity, bifurcation candidates, regime changes, clustering, correlations, and anomalies.
+
 Later: attractor reconstruction, Lyapunov-style diagnostics, symbolic invariant discovery, automated conjecture generation, dimensional/scaling law discovery, and hypothesis graphs.
+
 Output observations and candidate structures — never fabricated proof.
 
 ## Phase 5 — Comparison laboratory
 Comparison is a separate subsystem.
+
 ~~~text
 NEW MODEL vs NEW MODEL
 NEW MODEL vs REFERENCE
@@ -89,7 +106,9 @@ NEW MODEL vs LIMITING CASE
 NEW MODEL vs EXPERIMENTAL DATA
 RUN A vs RUN B
 ~~~
+
 Report agreement, approximate agreement, divergence, regime-specific agreement, systematic bias, qualitative similarity, structural similarity, and unexplained difference.
+
 Never collapse all comparison into one accuracy score.
 
 ## Phase 6 — Numerical integrity
@@ -97,15 +116,19 @@ Before interpreting a surprising result: repeat it; change resolution; change ti
 
 ## Phase 7 — Reproducibility and evidence ledger
 Every experiment becomes a durable evidence object recording experiment, hypothesis, model/version, source revision, parameters, initial state, seeds, engine, solver, precision, environment, observations, analyses, comparisons, artifacts, logs, result status, and open questions.
+
 Use local SQLite initially, Git for source provenance, and content hashes for definitions, inputs, outputs, and artifacts. Cloud databases are optional.
 
 ## Phase 8 — Trusted/untrusted execution
 Execution classes: native trusted; adapter; sandboxed candidate; optional remote sandbox.
+
 For untrusted code: isolated filesystem, no network by default, timeout, CPU/memory limits, explicit I/O boundary, captured logs, captured exit status.
+
 Container isolation is not a perfect hostile-code boundary. Public arbitrary-code execution requires stronger isolation than a private local lab.
 
 ## Phase 9 — automate bridge
 The separate Math/Physics suite remains separate.
+
 ~~~text
 Mirror experiment
       |
@@ -118,24 +141,31 @@ canonical calculation
       v
 Mirror observation / analysis
 ~~~
+
 No production formula is copied merely for convenience.
 
 ## Phase 10 — Human-facing laboratory
 Only after the scientific core is sound: CLI, machine-readable experiment files, notebooks/reports, optional API, optional web UI, interactive parameter sweeps, trajectories, phase-space views, comparison plots, experiment browser, and evidence explorer.
+
 The UI is a window into the laboratory, not the laboratory itself.
 
 ## Phase 11 — Advanced discovery
 Future areas: dimensional analysis, symbolic regression, invariant/conservation-law discovery, equation discovery, sparse model discovery, bifurcation analysis, continuation methods, parameter identifiability, uncertainty quantification, Bayesian model comparison where appropriate, surrogate models, active experiment design, GPU/parallel sweeps, distributed execution.
+
 Add these because an experiment needs them, not because they sound sophisticated.
 
 ## Technology policy
 Prefer Python scientific ecosystem, NumPy/SciPy, SymPy, Pint, uncertainties, xarray, SALib, Hypothesis, NetworkX, Mesa, and JAX only when justified.
+
 Optional: Snakemake, Quarto, DVC or similar data-versioning tools, remote execution providers.
+
 Do not make Vercel, Supabase, Drizzle, Next.js, hosted databases, or cloud sandboxes core dependencies.
+
 The scientific core must run on one machine with no cloud account.
 
 ## Definition of done
 THE MIRROR is not done when a web page can submit a formula.
+
 The first meaningful milestone is:
 ~~~text
 hypothesis
@@ -148,6 +178,7 @@ hypothesis
   -> discovery analysis
   -> reproducible evidence package
 ~~~
+
 The lab is mature when it can take a genuinely novel rule and tell us what it does, including when the answer is surprising or unknown.
 
 ## Anti-drift checklist
@@ -160,9 +191,12 @@ Before adding a feature ask:
 6. Is it an instrument rather than a hidden theoretical assumption?
 7. Could an existing open-source project already do this better?
 8. Does this belong in automate instead?
+
 If #8 is yes, keep it out of Mirror.
 
 ## Permanent warning
 **Do not turn THE MIRROR into another calculator that merely rediscovers established physics.**
+
 The Math/Physics suite already provides that foundation.
-THE MIRROR exists to let ideas run.
+
+**THE MIRROR exists to let ideas run.**
