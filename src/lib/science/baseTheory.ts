@@ -1,20 +1,13 @@
-/**
- * Science Lab — theory contract.
- *
- * Mirror does not own the mathematical/physics calculation engine.
- * A trusted theory adapter implements this contract and delegates its
- * calculation to the Math/Physics suite when appropriate.
- */
-
+/** The contract every trusted mathematical/physical theory adapter implements. */
 export type NumericValue = number | number[];
-
 export type TheoryInput = Record<string, unknown>;
 
 export type TheoryCase = {
   id?: string;
+  label?: string;
   input: TheoryInput;
   expected: NumericValue;
-  label?: string;
+  tolerance?: number;
 };
 
 export type TheoryContext = {
