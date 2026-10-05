@@ -2,6 +2,7 @@ import type { NumericValue } from "./baseTheory";
 
 export type CaseMetrics = {
   absoluteDeviation: number;
+  maxComponentDeviation: number;
   squaredError: number;
   relativeError: number | null;
   expectedNorm: number;
@@ -21,9 +22,7 @@ export type AggregateMetrics = {
   finite: boolean;
 };
 
-function flatten(value: NumericValue): number[] {
-  return Array.isArray(value) ? value : [value];
-}
+const flatten = (value: NumericValue) => Array.isArray(value) ? value : [value];
 
 function norm(values: number[]) {
   return Math.sqrt(values.reduce((sum, value) => sum + value * value, 0));
@@ -32,16 +31,19 @@ function norm(values: number[]) {
 export function compareNumeric(expected: NumericValue, predicted: NumericValue): CaseMetrics {
   const e = flatten(expected);
   const p = flatten(predicted);
-  if (e.length !== p.length) throw new Error(\`Shape mismatch: expected \${e.length} value(s), received \${p.length}.\`);
+  if (e.length !== p.length) throw new Error(`Shape mismatch: expected ${e.length} value(s), received ${p.length}.`);
 
-  const errors = e.map((x, i) => Math.abs(x - p[i]));
-  const squared = errors.reduce((sum, x) => sum + x * x, 0) / errors.length;
+  const componentErrors = e.map((x, i) => Math.abs(x - p[i]));
+  const squaredError = componentErrors.reduce((sum, x) => sum + x * x, 0) / componentErrors.length;
   const expectedNorm = norm(e);
   const predictedNorm = norm(p);
-  const absoluteDeviation = errors.reduce((a, b) => a + b, 0) / errors.length;
-  const relativeError = expectedNorm === 0 ? (predictedNorm === 0 ? 0 : null) : norm(e.map((x, i) => x - p[i])) / expectedNorm;
+  const absoluteDeviation = componentErrors.reduce((a, b) => a + b, 0) / componentErrors.length;
+  const maxComponentDeviation = Math.max(...componentErrors);
+  const relativeError = expectedNorm === 0
+    ? (predictedNorm === 0 ? 0 : null)
+    : norm(e.map((x, i) => x - p[i])) / expectedNorm;
 
-  return { absoluteDeviation, squaredError: squared, relativeError, expectedNorm, predictedNorm };
+  return { absoluteDeviation, maxComponentDeviation, squaredError, relativeError, expectedNorm, predictedNorm };
 }
 
 export function aggregateMetrics(cases: Array<CaseMetrics & { runtimeMs: number; failed?: boolean }>): AggregateMetrics {
@@ -58,7 +60,7 @@ export function aggregateMetrics(cases: Array<CaseMetrics & { runtimeMs: number;
     failedCount: cases.length - successful.length,
     rmse,
     meanAbsoluteDeviation,
-    maxAbsoluteDeviation: successful.length ? Math.max(...successful.map((x) => x.absoluteDeviation)) : null,
+    maxAbsoluteDeviation: successful.length ? Math.max(...successful.map((x) => x.maxComponentDeviation)) : null,
     meanRelativeError,
     runtimeMs: runtimes.reduce((a, b) => a + b, 0),
     meanRuntimeMs: runtimes.length ? runtimes.reduce((a, b) => a + b, 0) / runtimes.length : 0,
