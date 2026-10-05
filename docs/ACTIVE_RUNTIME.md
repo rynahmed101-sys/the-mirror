@@ -2,6 +2,8 @@
 
 THE MIRROR's active scientific runtime is the Python laboratory under `mirror_lab/`.
 
+THE MIRROR is **AI-operated**. The Python scientific core is the instrument; an AI/plugin layer is the primary control surface. No human-facing web interface is required for scientific operation.
+
 The old Next.js/Drizzle/hosted-database application is no longer the scientific runtime. Its deployment and database configuration has been decommissioned from this branch.
 
 ## Explicitly disabled
@@ -23,15 +25,33 @@ This is deliberate. The lab must remain useful without an account, cloud service
 
 The first execution path is:
 
-```text
-Hypothesis
-   -> Model
-   -> Experiment
-   -> Local runner
-   -> Observations
-   -> Analysis
-   -> Local evidence ledger
-```
+~~~text
+AI request / hypothesis
+        ->
+model / experiment
+        ->
+local scientific runner
+        ->
+observations
+        ->
+analysis
+        ->
+local evidence ledger
+        ->
+AI interpretation / next experiment
+~~~
+
+The AI-facing orchestration facade is `mirror_lab.operator.LabOperator`.
+
+It is intentionally thin: it coordinates scientific operations but does not decide whether a result is true, false, physical, or novel.
+
+## Machine-first operation
+
+Scientific operations must be available through Python APIs and machine-readable structures.
+
+A future CLI, API, notebook, plugin, or web interface is a control surface over the same local scientific core. It must not duplicate the scientific logic.
+
+The first intended external operator is an AI agent connected through the user's plugin environment. Provider-specific integration belongs outside the scientific kernel.
 
 ## What happens next
 
