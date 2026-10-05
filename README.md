@@ -2,30 +2,60 @@
 
 THE MIRROR is a laboratory for letting mathematical and physical ideas **run**.
 
-It is not a second calculator whose job is to rediscover established physics. The separate Math/Physics suite (automate) owns canonical calculations. Mirror exists to experiment with hypotheses, models, relations, simulations, and unverified ideas — including ideas whose behavior is unknown or unlike established theory.
+It is **AI-operated by design**. You describe what you want to investigate; the AI performs the technical experiment loop. Mirror is not a second calculator whose job is to rediscover established physics. The separate Math/Physics suite (automate) owns canonical calculations.
 
 ## The central question
 > Given these assumptions and this formal system, what happens?
 
 ~~~text
-IDEA / HYPOTHESIS
-       ↓
+QUESTION / IDEA
+      ↓
+AI OPERATOR
+      ↓
+HYPOTHESIS
+      ↓
 FORMALIZATION
-       ↓
+      ↓
 MODEL / RULE SET
-       ↓
+      ↓
+EXPERIMENT
+      ↓
 EXECUTION / SIMULATION
-       ↓
+      ↓
 OBSERVATION
-       ↓
+      ↓
+PERTURB / REPEAT / STRESS
+      ↓
 DISCOVERY / CHARACTERIZATION
-       ↓
+      ↓
 REPRODUCTION + NUMERICAL INTEGRITY
-       ↓
+      ↓
 OPTIONAL COMPARISON
-       ↓
+      ↓
 EVIDENCE
+      ↓
+NEXT EXPERIMENT
 ~~~
+
+## AI is the operator, not the scientific authority
+
+The AI handles technical work such as:
+
+- turning ideas into explicit hypotheses;
+- formalizing models;
+- selecting simulation instruments;
+- constructing experiments;
+- executing runs;
+- perturbing parameters and initial conditions;
+- repeating and stress-testing results;
+- analyzing trajectories and structures;
+- comparing models when useful;
+- recording evidence;
+- proposing follow-up experiments.
+
+The AI does **not** get to replace computation with confidence or narrative. Recorded observations remain distinct from interpretation.
+
+Humans remain responsible for research direction, conceptual constraints, and authorization for consequential actions.
 
 ## What Mirror is NOT
 - It does not require a novel model to reproduce GR, Newton, QM, or any other established theory.
@@ -33,6 +63,7 @@ EVIDENCE
 - It does not reduce scientific behavior to one accuracy score.
 - It does not assume every experiment has a known expected answer.
 - It does not put production calculation logic from automate into the lab.
+- It does not require a web UI or cloud service to perform science.
 
 ## What Mirror investigates
 - What a new rule actually produces.
@@ -61,6 +92,7 @@ Read these before changing the scientific architecture:
 
 - ROADMAP.md — the persistent research and engineering roadmap.
 - docs/LAB_CONSTITUTION.md — the non-negotiable scientific philosophy.
+- docs/AI_OPERATOR.md — how the AI operates the laboratory.
 - docs/SIMULATION_STACK.md — the simulation and analysis instrument strategy.
 
 ## Repository boundary
@@ -73,9 +105,11 @@ Mirror may call automate through an adapter. It must not quietly become automate
 ## Infrastructure rule
 The scientific core must work offline on one machine. Vercel, Supabase, Drizzle, Next.js, hosted databases, and cloud sandboxes are optional infrastructure — never scientific requirements.
 
+The AI operator is also an adapter. The scientific core must not depend on a specific AI provider.
+
 ## First meaningful milestone
 ~~~text
-hypothesis
+AI hypothesis
   -> executable model
   -> controlled experiment
   -> simulation
@@ -84,6 +118,7 @@ hypothesis
   -> numerical diagnostics
   -> discovery analysis
   -> reproducible evidence package
+  -> next experiment
 ~~~
 
 ## Permanent warning
