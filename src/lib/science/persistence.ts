@@ -6,6 +6,10 @@ import * as pgSchema from "@/lib/db/schema.pg";
 const tables: any = isPg ? pgSchema : sqliteSchema;
 const { experiments } = tables;
 
+// Reuse Mirror's canonical control agent so the existing Drizzle foreign-key
+// model remains intact. Science-run identity lives in templateType + variables.
+const SCIENCE_AGENT_ID = "mirror-primary";
+
 export async function saveScienceRun(result: {
   runId: string;
   theory: { id: string; name: string; version: string };
@@ -15,9 +19,9 @@ export async function saveScienceRun(result: {
 }) {
   await db.insert(experiments).values({
     id: result.runId,
-    agentId: "science-lab",
-    title: \`Science Lab — \${result.theory.name}\`,
-    hypothesis: \`Evaluate trusted theory adapter \${result.theory.id} against supplied reference cases.\`,
+    agentId: SCIENCE_AGENT_ID,
+    title: `Science Lab — ${result.theory.name}`,
+    hypothesis: `Evaluate trusted theory adapter ${result.theory.id} against supplied reference cases.`,
     methodology: "BaseTheory -> execution -> RMSE/absolute/relative error -> stability classification.",
     templateType: "SCIENCE_THEORY_RUN",
     variables: JSON.stringify({ theoryId: result.theory.id, theoryVersion: result.theory.version }),
