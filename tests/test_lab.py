@@ -1,8 +1,12 @@
+from pathlib import Path
+
 from mirror_lab.analysis import trajectory_summary
-from mirror_lab.examples import run_demo
+from mirror_lab.examples import demo_model, run_demo
+from mirror_lab.manifest import ExperimentManifest
 from mirror_lab.models import Experiment, Hypothesis, Model
 from mirror_lab.operator import LabOperator
 from mirror_lab.perturb import perturb_initial_state
+from mirror_lab.registry import ModelRegistry
 from mirror_lab.runner import run_experiment
 
 
@@ -52,3 +56,25 @@ def test_ai_operator_summarizes_observations():
     summary = LabOperator.summarize([1, 2, 3])
     assert summary["finite"] is True
     assert summary["range"] == 2
+
+
+def test_manifest_is_declarative_and_hashable(tmp_path: Path):
+    manifest_path = tmp_path / "experiment.json"
+    manifest_path.write_text(
+        Path("examples/first_experiment.json").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    manifest = ExperimentManifest.load(manifest_path)
+    assert manifest.model.id == "scalar-relational-rule"
+    assert len(manifest.content_hash) == 64
+    assert "step" not in manifest.to_dict()
+
+
+def test_operator_executes_manifest_through_registry(tmp_path: Path):
+    manifest = ExperimentManifest.load("examples/first_experiment.json")
+    registry = ModelRegistry()
+    registry.register(demo_model())
+    result = LabOperator(registry=registry).run_manifest(manifest, record=False)
+    assert result.status == "completed"
+    assert result.experiment_id == manifest.id
+    assert result.observations[-1].state > 9.0
