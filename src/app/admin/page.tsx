@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react";
+import { Eye, EyeOff, FlaskConical, LockKeyhole, ShieldCheck } from "lucide-react";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -14,167 +14,73 @@ export default function AdminPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/api/auth/session", { cache: "no-store" })
-      .then((res) => {
-        if (res.ok) router.replace("/");
-      })
-      .catch(() => {});
+    fetch("/api/auth/session", { cache: "no-store" }).then((res) => {
+      if (res.ok) router.replace("/");
+    }).catch(() => {});
   }, [router]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!password.trim()) {
-      setError("Enter the admin password to continue.");
+      setError("Enter the laboratory password.");
       passwordRef.current?.focus();
       return;
     }
-
     setBusy(true);
     setError("");
-
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: username.trim() || "admin", password }),
       });
-
       const data = await res.json().catch(() => ({}));
-
       if (!res.ok) {
-        setError(data.error || "Invalid admin credentials.");
+        setError(data.error || "Invalid credentials.");
         passwordRef.current?.focus();
         return;
       }
-
       router.replace("/");
       router.refresh();
     } catch {
-      setError("Unable to reach the authentication endpoint.");
+      setError("Authentication service is unavailable.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <main className="mirror-auth min-h-dvh px-5 py-8 text-zinc-100">
-      <div className="mirror-auth__glow mirror-auth__glow--top" />
-      <div className="mirror-auth__glow mirror-auth__glow--bottom" />
-
-      <div className="relative z-10 mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-md items-center">
-        <form
-          onSubmit={submit}
-          className="w-full rounded-[26px] border border-white/[0.08] bg-[#09090b]/90 p-7 shadow-[0_30px_100px_rgba(0,0,0,0.5)] backdrop-blur-2xl sm:p-8"
-          aria-label="The Mirror admin sign in"
-        >
-          <div className="mb-8 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="mirror-mark" aria-hidden="true">
-                <span />
-              </div>
-              <div>
-                <div className="text-[15px] font-semibold tracking-[0.22em] text-white">THE MIRROR</div>
-                <div className="mt-1 text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-500">
-                  Research Laboratory
-                </div>
-              </div>
-            </div>
-
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-red-500/15 bg-red-500/[0.06] px-2.5 py-1.5 text-[9px] font-mono uppercase tracking-[0.14em] text-red-300">
-              <Sparkles className="h-3 w-3" />
-              Control
-            </div>
-          </div>
-
-          <div className="mb-7">
-            <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-[28px]">
-              Enter the Mirror.
-            </h1>
-            <p className="mt-2 max-w-sm text-sm leading-6 text-zinc-400">
-              Private researcher access. One quiet door into the laboratory.
-            </p>
-          </div>
-
-          <div className="space-y-5">
+    <main className="min-h-dvh bg-[#050608] px-5 py-8 text-slate-100">
+      <div className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-md items-center">
+        <form onSubmit={submit} className="w-full rounded-2xl border border-slate-800 bg-[#090b10] p-7 shadow-2xl" aria-label="Science Lab sign in">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-3"><FlaskConical className="h-5 w-5 text-cyan-300" /></div>
             <div>
-              <label
-                htmlFor="mirror-username"
-                className="mb-2 block text-[11px] font-mono uppercase tracking-[0.14em] text-zinc-500"
-              >
-                Username
-              </label>
-              <input
-                id="mirror-username"
-                name="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoComplete="username"
-                autoCapitalize="none"
-                spellCheck={false}
-                className="mirror-field"
-              />
+              <div className="text-sm font-semibold tracking-[0.18em]">THE MIRROR</div>
+              <div className="text-[10px] font-mono uppercase tracking-[0.16em] text-slate-500">Math & Physics Science Lab</div>
             </div>
+          </div>
+          <h1 className="mt-8 text-2xl font-semibold">Open the laboratory.</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-400">Private researcher access to theory evaluation, evidence runs, and the isolated sandbox.</p>
 
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <label
-                  htmlFor="mirror-password"
-                  className="block text-[11px] font-mono uppercase tracking-[0.14em] text-zinc-500"
-                >
-                  Password
-                </label>
-                <span className="text-[10px] font-mono text-zinc-600">8h session</span>
+          <div className="mt-7 space-y-4">
+            <label className="block text-[10px] font-mono uppercase tracking-[0.14em] text-slate-500">
+              Researcher
+              <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" className="mt-2 w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-3 text-sm outline-none focus:border-cyan-700" />
+            </label>
+            <label className="block text-[10px] font-mono uppercase tracking-[0.14em] text-slate-500">
+              Password
+              <div className="relative mt-2">
+                <input ref={passwordRef} value={password} onChange={(e) => setPassword(e.target.value)} type={showPassword ? "text" : "password"} autoComplete="current-password" required className="w-full rounded-lg border border-slate-700 bg-black/30 px-3 py-3 pr-11 text-sm outline-none focus:border-cyan-700" />
+                <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-500">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>
               </div>
-
-              <div className="relative">
-                <input
-                  ref={passwordRef}
-                  id="mirror-password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  spellCheck={false}
-                  required
-                  aria-invalid={!!error}
-                  className="mirror-field pr-12"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((value) => !value)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-zinc-500 transition hover:bg-white/[0.05] hover:text-zinc-200"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-
-            {error && (
-              <div
-                role="alert"
-                className="rounded-xl border border-red-500/20 bg-red-500/[0.06] px-3.5 py-3 text-xs leading-5 text-red-200"
-              >
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={busy}
-              className="mirror-enter-button"
-            >
-              <LockKeyhole className="h-4 w-4" />
-              <span>{busy ? "Opening..." : "Enter Mirror"}</span>
-              <span className="mirror-enter-button__arrow">↵</span>
-            </button>
+            </label>
+            {error && <div role="alert" className="rounded-lg border border-rose-900/50 bg-rose-950/20 p-3 text-xs text-rose-200">{error}</div>}
+            <button disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-700 px-4 py-3 text-xs font-bold disabled:opacity-50"><LockKeyhole className="h-4 w-4" />{busy ? "Opening…" : "Enter Science Lab"}</button>
           </div>
 
-          <div className="mt-7 flex items-center gap-2 border-t border-white/[0.06] pt-5 text-[10px] font-mono text-zinc-600">
-            <ShieldCheck className="h-3.5 w-3.5 text-red-400/80" />
-            <span>Admin session • direct laboratory control</span>
+          <div className="mt-6 flex items-center gap-2 border-t border-slate-800 pt-5 text-[10px] font-mono text-slate-600">
+            <ShieldCheck className="h-3.5 w-3.5" /> Controller session · experimental workbench
           </div>
         </form>
       </div>
