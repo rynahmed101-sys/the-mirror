@@ -1,0 +1,26 @@
+{
+  "id": "relational-recurrence-v1",
+  "hypothesis": {
+    "id": "h-relational-001",
+    "statement": "A bounded relational recurrence can produce nontrivial trajectories without being fitted to an established physical law.",
+    "assumptions": [
+      "The recurrence is iterated deterministically.",
+      "The initial state is the only externally supplied state."
+    ],
+    "expected_behavior": "Open-ended; characterize the resulting trajectory rather than assuming a target."
+  },
+  "model": {
+    "id": "relational-recurrence",
+    "version": "1"
+  },
+  "initial_state": 0.5,
+  "parameters": {
+    "alpha": 0.37,
+    "beta": 0.19
+  },
+  "steps": 50,
+  "dt": 1.0,
+  "metadata": {
+    "purpose": "first machine-readable Mirror experiment"
+  }
+}
