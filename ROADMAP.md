@@ -9,6 +9,43 @@ Build a reusable laboratory in which a mathematical or physical hypothesis can b
 
 The lab must be capable of discovering agreement, disagreement, limiting-case agreement, regime changes, stability, instability, oscillation, divergence, convergence, emergent structure, invariants, asymmetry, unexpected correlations, or unresolved behavior.
 
+## Operating model — AI is the laboratory operator
+THE MIRROR is not designed around a human manually operating technical machinery.
+
+The intended workflow is:
+
+~~~text
+human gives question / idea / constraint
+                |
+                v
+        AI operator
+                |
+                +--> formalize hypothesis
+                |
+                +--> construct model
+                |
+                +--> design experiment
+                |
+                +--> execute local engine
+                |
+                +--> perturb / repeat / sweep
+                |
+                +--> analyze observations
+                |
+                +--> compare when useful
+                |
+                +--> record evidence
+                |
+                +--> propose next experiment
+                |
+                v
+          human reviews direction
+~~~
+
+The AI is allowed to perform the repetitive technical work. It is not allowed to replace computation with generated explanation.
+
+The AI provider is replaceable. The scientific core remains local and provider-independent.
+
 ## Phase 0 — Architectural reset
 - [x] Write the laboratory constitution.
 - [x] Reject convergence toward established physics as the primary objective.
@@ -21,6 +58,8 @@ The lab must be capable of discovering agreement, disagreement, limiting-case ag
 - [x] Replace hosted/Node CI with local scientific Python CI.
 - [x] Pause the linked Vercel project so Git changes no longer deploy as active builds.
 - [x] Establish local SQLite as the first evidence ledger.
+- [x] Define AI as the primary laboratory operator.
+- [x] Add an AI-facing operator contract and Python facade.
 - [ ] Remove the remaining legacy web source tree.
 - [x] Preserve Git history rather than rewriting history destructively.
 
@@ -33,6 +72,7 @@ mirror_lab/
   analysis.py
   perturb.py
   ledger.py
+  operator.py
   examples.py
   cli.py
 ~~~
@@ -47,6 +87,7 @@ Implemented:
 - [x] Controlled initial-state perturbation.
 - [x] Descriptive trajectory analysis.
 - [x] Local SQLite evidence ledger with content hashes.
+- [x] AI-facing orchestration facade.
 - [x] CLI demo.
 - [x] First executable experiment.
 - [x] Python tests.
@@ -58,6 +99,7 @@ Next:
 - [ ] Add artifact storage.
 - [ ] Add structured execution diagnostics.
 - [ ] Add reproducible random-seed handling without global RNG state.
+- [ ] Add machine-readable operator commands/results for plugin integration.
 
 ## Phase 2 — Simulation engine layer
 Do NOT build one giant simulator. Build an adapter contract so specialized engines can execute the same experimental lifecycle.
@@ -145,7 +187,9 @@ Mirror observation / analysis
 No production formula is copied merely for convenience.
 
 ## Phase 10 — Human-facing laboratory
-Only after the scientific core is sound: CLI, machine-readable experiment files, notebooks/reports, optional API, optional web UI, interactive parameter sweeps, trajectories, phase-space views, comparison plots, experiment browser, and evidence explorer.
+A human-facing interface is deliberately **not** the next priority.
+
+First make the AI operator capable of performing the complete experimental lifecycle. Only after that should we add CLI ergonomics, notebooks/reports, optional API, optional web UI, interactive parameter sweeps, trajectories, phase-space views, comparison plots, experiment browser, and evidence explorer.
 
 The UI is a window into the laboratory, not the laboratory itself.
 
@@ -168,7 +212,7 @@ THE MIRROR is not done when a web page can submit a formula.
 
 The first meaningful milestone is:
 ~~~text
-hypothesis
+AI hypothesis
   -> executable model
   -> controlled experiment
   -> simulation
@@ -177,13 +221,14 @@ hypothesis
   -> numerical diagnostics
   -> discovery analysis
   -> reproducible evidence package
+  -> AI proposes the next experiment
 ~~~
 
 The lab is mature when it can take a genuinely novel rule and tell us what it does, including when the answer is surprising or unknown.
 
 ## Anti-drift checklist
 Before adding a feature ask:
-1. Does it help perform an experiment?
+1. Does it help the AI perform an experiment?
 2. Does it help observe or characterize behavior?
 3. Does it improve reproducibility?
 4. Does it distinguish numerical artifact from model behavior?
@@ -191,8 +236,10 @@ Before adding a feature ask:
 6. Is it an instrument rather than a hidden theoretical assumption?
 7. Could an existing open-source project already do this better?
 8. Does this belong in automate instead?
+9. Does this require a human to do work the AI can reliably perform?
 
 If #8 is yes, keep it out of Mirror.
+If #9 is yes, prefer an AI-operable interface.
 
 ## Permanent warning
 **Do not turn THE MIRROR into another calculator that merely rediscovers established physics.**
