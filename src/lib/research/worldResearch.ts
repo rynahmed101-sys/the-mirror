@@ -21,6 +21,7 @@ export interface ResearchRequest {
   limit?: number;
   correlationId?: string;
   maxResponseBytes?: number;
+  researchIntent?: { objective?: string; summary?: string; requirements?: string[]; instructions?: string[] };
 }
 
 export interface ResearchSource {
