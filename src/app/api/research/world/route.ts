@@ -37,6 +37,7 @@ export async function POST(req: Request) {
       providers: providers as ResearchProvider[] | undefined,
       limit: Number(body?.limit),
       maxResponseBytes: Number.isFinite(maxResponseBytes) ? maxResponseBytes : undefined,
+      researchIntent: body?.researchIntent,
       correlationId: String(body?.correlationId || "chanfana-research"),
     });
 
