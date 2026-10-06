@@ -1,37 +1,54 @@
 # Automate Evidence Handoff
 
-THE MIRROR is an experimental laboratory, not an authority for Automate capabilities.
+THE MIRROR is an experimental laboratory and a scientific execution compartment of the Verification & Reconciliation Engine. It is not an authority for Automate capabilities.
 
-For a mathematical capability under development, Mirror may receive a research brief from Automate and return a reproducible observation packet. The packet should preserve:
+## Evidence packet
 
-- capability ID
-- action-cycle or experiment ID
-- Automate source revision when known
-- hypothesis or numerical question
-- exact inputs and assumptions
-- experiment/run identifiers
-- raw observations
-- runtime and error measurements
-- stability/convergence classification
-- independent comparison route, when available
-- source code/data fingerprints
-- unresolved limitations
+For a mathematical or physics capability under development, Mirror may receive a bounded experiment request and return a reproducible observation packet containing:
 
-A Mirror observation is evidence, never certification. Automate decides whether the observation supports a capability claim.
+- capability ID;
+- action-cycle/request ID;
+- source revision when known;
+- hypothesis or numerical question;
+- exact inputs and assumptions;
+- experiment/run identifiers;
+- raw observations;
+- runtime and error measurements;
+- stability/convergence classification;
+- independent comparison route when available;
+- source code/data fingerprints;
+- unresolved limitations;
+- provenance/environment metadata.
 
-For convergence-sensitive mathematics such as improper integrals, Mirror should preferentially test families of truncated domains and perturbations rather than merely reproduce one expected answer. Divergence, instability, cutoff sensitivity, and disagreement must remain first-class outcomes.
+## Verification-engine handoff
 
-Permanent boundary:
+The normal path is:
 
-Automate proposal -> bounded execution -> Mirror observation -> independent judgment -> Automate verification -> certification
+```
+Verification Engine
+  → Chanfana bounded job
+  → Mirror laboratory
+  → raw observations + diagnostics + provenance
+  → Chanfana transport/persistence
+  → Verification Engine
+  → verifiable packet
+  → Automate authority decision
+```
 
-No Mirror workflow may silently promote an experimental result into Automate's authoritative registry or capability inventory.
+Mirror performs the experiment. The verifier diagnoses and integrates the evidence. Automate decides.
 
+For convergence-sensitive mathematics such as improper integrals, prefer families of truncations, perturbations, precision/resolution changes, and independent numerical routes rather than reproducing one expected answer.
 
-## Verification Engine handoff
+Divergence, instability, cutoff sensitivity, disagreement, and UNKNOWN/UNRESOLVED remain first-class outcomes.
 
-The Verification & Reconciliation Engine may consume Mirror evidence through Chanfana, cross-check it, and incorporate it into a verifiable packet. The engine cannot turn Mirror evidence into authority. Automate remains the final decision boundary.
+## Backlog phase
 
-During the initial verification-backlog phase, Mirror/external research remains ON HOLD. After activation, the permanent boundary is: Automate frontier/request -> Chanfana -> Mirror experiment/research -> raw observation + provenance -> Verification Engine -> verifiable packet -> Automate decision.
+The current Stage 1A–3A verification backlog remains the first production workload.
 
-No Mirror workflow may silently promote an experimental result into Automate's authoritative registry or capability inventory.
+Autonomous external-world research and open-ended Mirror discovery remain ON HOLD. However, Mirror's existing local laboratory may be used for tightly bounded verification experiments when a backlog item genuinely requires scientific execution.
+
+## Permanent boundary
+
+No Mirror workflow may silently promote an observation into Automate's authoritative registry, capability inventory, ledger, or certification state.
+
+An experiment is evidence. A verifier packet is evidence. Only Automate can make the authoritative decision.
