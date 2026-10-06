@@ -29,6 +29,7 @@ const MUTATING_TOOLS = new Set([
   "log_prediction", "make_prediction", "evaluate_prediction", "resolve_prediction",
   "create_experiment", "update_experiment", "record_observation", "record_discovery",
   "send_agent_message",
+  "run_perturbation_lab", "run_controlled_suite", "run_projection_suite",
 ]);
 
 function parseJson(value: unknown, fallback: unknown = []) {
@@ -158,6 +159,24 @@ export async function executeTool(
           results: resultSet,
           authority: "UNTRUSTED_EXTERNAL_EVIDENCE",
         };
+        break;
+      }
+
+      case "run_perturbation_lab": {
+        const { runPerturbationLab } = await import("./perturbationLab");
+        result = await runPerturbationLab({ agentId, polarIndex: args.polarIndex, azimuthIndex: args.azimuthIndex, epsilon: args.epsilon, maxToolSteps: args.maxToolSteps });
+        break;
+      }
+
+      case "run_controlled_suite": {
+        const { runControlledSuite } = await import("./controlledSuite");
+        result = await runControlledSuite({ agentId, seed: typeof args.seed === "string" ? args.seed : undefined, maxTrials: args.maxTrials, maxToolSteps: args.maxToolSteps });
+        break;
+      }
+
+      case "run_projection_suite": {
+        const { runProjectionSuite } = await import("./simulationProjection");
+        result = await runProjectionSuite({ agentIds: [agentId], seed: typeof args.seed === "string" ? args.seed : undefined, maxTrials: args.maxTrials, maxToolSteps: args.maxToolSteps });
         break;
       }
 
