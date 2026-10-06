@@ -30,6 +30,9 @@ export const AUTOPILOT_TOOLS: ToolDefinition[] = [
       query:{type:"string"}, providers:{type:"array",items:{type:"string",enum:["crossref","openalex","arxiv","github","huggingface"]}}, limit:{type:"number"}, correlationId:{type:"string"}
     }, required:["query"] } },
 
+  { name: "run_perturbation_lab", description: "Run the existing bounded perturbation laboratory when a controlled perturbation can clarify a research question. Produces experimental evidence, never certification.", parameters: { type: "object", properties: { polarIndex:{type:"number"}, azimuthIndex:{type:"number"}, epsilon:{type:"number"}, maxToolSteps:{type:"number"} } } },
+  { name: "run_controlled_suite", description: "Run the existing blinded controlled research suite when independent evidence is needed. Results are observations, not scientific proof.", parameters: { type: "object", properties: { seed:{type:"string"}, maxTrials:{type:"number"}, maxToolSteps:{type:"number"} } } },
+  { name: "run_projection_suite", description: "Run the existing bounded projection/simulation suite when comparative simulation evidence is useful. Preserve the returned run identity.", parameters: { type: "object", properties: { seed:{type:"string"}, maxTrials:{type:"number"}, maxToolSteps:{type:"number"} } } },
   { name: "read_self_model", description: "Read the latest externally stored self-model and its evidence.", parameters: { type: "object", properties: {} } },
   { name: "update_self_model_claim", description: "Add or revise one evidence-backed self-model claim. Supply supporting and counter evidence.", parameters: {
     type: "object", properties: {
@@ -169,7 +172,7 @@ export async function runAutopilot(options: { agentId?: string; objective?: stri
         "AUTOPILOT CYCLE " + (i + 1) + " / " + maxCycles + "\n\n" +
         "Phase: " + phase.name + "\n" + phase.instruction + "\n\n" +
         "Objective: " + objective + "\n\n" +
-        "Choose the next concrete, evidence-preserving action. Use tools when they provide real evidence or create a testable artifact." },
+        "Choose the next concrete, evidence-preserving action. Use tools when they provide real evidence or create a testable artifact. Prefer existing Mirror laboratory instruments when they answer the question; do not invent a new tool for an existing capability. Use external research when outside evidence can clarify an idea, not merely to generate activity. Research and laboratory actions never alter Automate authority or certification." },
     ];
 
     try {
