@@ -20,6 +20,7 @@ export interface ResearchRequest {
   providers?: ResearchProvider[];
   limit?: number;
   correlationId?: string;
+  maxResponseBytes?: number;
 }
 
 export interface ResearchSource {
@@ -51,7 +52,19 @@ function correlationId(input?: string) {
   return input && /^[A-Za-z0-9_.:-]{1,128}$/.test(input) ? input : "mirror_research_" + Date.now().toString(36);
 }
 
-async function fetchJson(url: string): Promise<any> {
+async function fetchText(url: string, maxResponseBytes = MAX_RESPONSE_BYTES): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { signal: controller.signal, headers: { "accept": "application/atom+xml, application/xml, text/xml, application/json", "user-agent": "THE-MIRROR-research-lab/1.1" } });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const text = await response.text();
+    if (new TextEncoder().encode(text).byteLength > maxResponseBytes) throw new Error("response exceeds bounded research payload size");
+    return text;
+  } finally { clearTimeout(timer); }
+}
+
+async function fetchJson(url: string, maxResponseBytes = MAX_RESPONSE_BYTES): Promise<any> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
@@ -64,7 +77,7 @@ async function fetchJson(url: string): Promise<any> {
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > MAX_RESPONSE_BYTES) {
+    if (new TextEncoder().encode(text).byteLength > maxResponseBytes) {
       throw new Error("response exceeds bounded research payload size");
     }
     return JSON.parse(text);
@@ -111,8 +124,7 @@ async function openalex(query: string, limit: number) {
 }
 
 async function arxiv(query: string, limit: number) {
-  const data = await fetchJson("https://export.arxiv.org/api/query?search_query=all:" + encodeURIComponent(query) + "&start=0&max_results=" + limit);
-  const xml = String(data);
+  const xml = await fetchText("https://export.arxiv.org/api/query?search_query=all:" + encodeURIComponent(query) + "&start=0&max_results=" + limit);
   const entries = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].slice(0, limit);
   return entries.map((m) => {
     const body = m[1];
@@ -149,8 +161,14 @@ const adapters: Record<ResearchProvider, (q: string, l: number) => Promise<Resea
 export async function researchWorld(request: ResearchRequest): Promise<ResearchResult[]> {
   const query = clampQuery(request.query);
   const limit = clampLimit(request.limit);
-  const providers = request.providers?.length ? request.providers : ["crossref", "openalex", "arxiv", "github", "huggingface"];
+  const maxResponseBytes = Number.isFinite(Number(request.maxResponseBytes)) ? Math.min(MAX_RESPONSE_BYTES, Math.max(64 * 1024, Math.floor(Number(request.maxResponseBytes)))) : MAX_RESPONSE_BYTES;
+  const allowed = new Set<ResearchProvider>(["crossref", "openalex", "arxiv", "github", "huggingface"]);
+  const requested = request.providers;
+  if (requested && requested.length === 0) throw new Error("providers must contain at least one supported provider when supplied");
+  const providers = requested?.length ? requested.filter((p) => allowed.has(p)) : [...allowed];
+  if (requested?.length && providers.length !== requested.length) throw new Error("providers contains an unsupported provider");
   const cid = correlationId(request.correlationId);
+  if (maxResponseBytes < 64 * 1024) throw new Error("maxResponseBytes is below the minimum safe research budget");
   const results: ResearchResult[] = [];
 
   for (const provider of providers.slice(0, 5)) {
