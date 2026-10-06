@@ -24,7 +24,7 @@ _SAFE_CONSTS = {"pi": mp.pi, "e": mp.e}
 
 _ALLOWED = (ast.Expression, ast.BinOp, ast.UnaryOp, ast.Add, ast.Sub, ast.Mult,
             ast.Div, ast.Pow, ast.Mod, ast.USub, ast.UAdd, ast.Call,
-            ast.Name, ast.Constant)
+            ast.Name, ast.Constant, ast.Load)
 
 def _compile_expression(expression: str):
     tree = ast.parse(expression, mode="eval")
