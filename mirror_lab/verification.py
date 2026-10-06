@@ -111,6 +111,21 @@ def run_integral_experiment(request: VerificationExperimentRequest) -> dict[str,
     route_disagreements: list[mp.mpf] = []
 
     with mp.workdps(request.max_precision):
+        # Probe canonical interior singularity candidates before integrating a
+        # two-sided infinite interval. A symmetric quadrature result at a pole
+        # is not evidence of ordinary convergence.
+        interior_poles: list[str] = []
+        if lower == -mp.inf and upper == mp.inf:
+            for candidate in (mp.mpf("0"), mp.mpf("1"), mp.mpf("-1")):
+                try:
+                    _ = fn(candidate)
+                except (ValueError, ZeroDivisionError, OverflowError):
+                    interior_poles.append(mp.nstr(candidate, 20))
+        if interior_poles:
+            for pole in interior_poles:
+                observations.append(VerificationObservation(
+                    0, "interior-pole:" + pole, "point-probe", None, None, "singularity_detected"
+                ))
         for precision in precisions:
             mp.mp.dps = precision
             try:
@@ -197,8 +212,9 @@ def run_integral_experiment(request: VerificationExperimentRequest) -> dict[str,
 
     stable = len(route_disagreements) > 0 and max(route_disagreements) < mp.mpf("1e-10")
     tail_unresolved = any(o.status in {"unresolved", "divergent_or_unresolved"} for o in observations)
-    status = "REPRODUCED" if stable and not tail_unresolved else "UNRESOLVED"
-    if lower == -mp.inf and upper == mp.inf and tail_unresolved:
+    singularity_detected = any(o.status == "singularity_detected" for o in observations)
+    status = "REPRODUCED" if stable and not tail_unresolved and not singularity_detected else "UNRESOLVED"
+    if lower == -mp.inf and upper == mp.inf and (tail_unresolved or singularity_detected):
         status = "CONTRADICTED_OR_DIVERGENT"
 
     runtime_ms = int((time.monotonic() - started) * 1000)
