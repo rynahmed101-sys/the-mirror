@@ -26,6 +26,10 @@ const bounded = (value: unknown, min: number, max: number, fallback: number) => 
 };
 
 export const AUTOPILOT_TOOLS: ToolDefinition[] = [
+  { name: "research_world", description: "Search bounded public scientific/software/model sources. Results are evidence leads with provenance, never proof or certification.", parameters: { type: "object", properties: {
+      query:{type:"string"}, providers:{type:"array",items:{type:"string",enum:["crossref","openalex","arxiv","github","huggingface"]}}, limit:{type:"number"}, correlationId:{type:"string"}
+    }, required:["query"] } },
+
   { name: "read_self_model", description: "Read the latest externally stored self-model and its evidence.", parameters: { type: "object", properties: {} } },
   { name: "update_self_model_claim", description: "Add or revise one evidence-backed self-model claim. Supply supporting and counter evidence.", parameters: {
     type: "object", properties: {
