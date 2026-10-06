@@ -35,3 +35,12 @@ Automate authority
 A proposal never changes the Automate ledger. Established physics may be used
 as a comparison instrument, but disagreement with it is recorded as an
 investigative result rather than a rejection criterion.
+
+
+## Discovery proposal endpoint
+
+The discovery proposal endpoint is intentionally gated by `MIRROR_DISCOVERY_ENABLED=1` and a dedicated `MIRROR_DISCOVERY_JOB_TOKEN`. It does not certify or promote a candidate. The route only packages an AI/operator-supplied candidate and evidence references into `mirror.research_proposal.v1`.
+
+The intended bridge is:
+
+Mirror research/experiment → candidate capability → Chanfana durable handoff → Automate discovery memory → Verification → normal capability implementation/promotion.
