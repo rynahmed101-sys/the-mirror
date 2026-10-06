@@ -13,6 +13,7 @@ import { processRawObservationToLayer1 } from "./analysisEngine";
 import { canAgentAccessExperimentConfigAsync, filterExperimentForAgent } from "./blindIsolation";
 import { and, eq, or, desc, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { researchWorld } from "../research/worldResearch";
 
 const tables: any = isPg ? pgSchema : sqliteSchema;
 const {
@@ -140,6 +141,26 @@ export async function executeTool(
 
   try {
     switch (canonicalTool) {
+      case "research_world": {
+        const query = String(args.query || "").trim();
+        if (!query) throw new Error("research_world requires a query");
+        const providers = Array.isArray(args.providers) ? args.providers.map(String) : undefined;
+        const resultSet = await researchWorld({
+          query,
+          providers: providers as any,
+          limit: Number(args.limit),
+          correlationId: requestId,
+        });
+        result = {
+          status: "EVIDENCE_ACQUIRED",
+          requestId,
+          correlationId: requestId,
+          results: resultSet,
+          authority: "UNTRUSTED_EXTERNAL_EVIDENCE",
+        };
+        break;
+      }
+
       case "get_self_model": {
         const models = await db.select().from(selfModels).where(eq(selfModels.agentId, agentId)).orderBy(desc(selfModels.version)).limit(1);
         if (!models.length) { result = { version: 0, claims: [], message: "No self-model established." }; break; }

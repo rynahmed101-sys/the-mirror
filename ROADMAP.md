@@ -160,6 +160,10 @@ Never collapse all comparison into one accuracy score.
 Before interpreting a surprising result: repeat it; change resolution; change timestep; change precision; perturb initial conditions; use another solver where possible; check invariant/residual drift; repeat with an independent implementation if important.
 
 ## Phase 7 — Reproducibility and evidence ledger
+- [x] Add a provider-neutral external research acquisition boundary.
+- [x] Preserve provider/source/timestamp/revision/fingerprint/limitation metadata.
+- [x] Keep external research explicitly untrusted and separate from scientific interpretation.
+
 Every experiment becomes a durable evidence object recording experiment, hypothesis, model/version, source revision, parameters, initial state, seeds, engine, solver, precision, environment, observations, analyses, comparisons, artifacts, logs, result status, and open questions.
 
 Use local SQLite initially, Git for source provenance, and content hashes for definitions, inputs, outputs, and artifacts. Cloud databases are optional.

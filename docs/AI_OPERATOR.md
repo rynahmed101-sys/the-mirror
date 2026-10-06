@@ -161,3 +161,36 @@ question
 The objective is not autonomous storytelling.
 
 The objective is **autonomous experimental iteration grounded in recorded computation**.
+
+
+## External researcher mode
+
+THE MIRROR also supports a distinct **external researcher** role. This role is intentionally broader than the Automate implementation worker: it is allowed to acquire public research material and investigate the open world through bounded provider adapters.
+
+The external researcher may:
+- search scholarly metadata through Crossref and OpenAlex;
+- search arXiv records;
+- inspect public GitHub repositories;
+- inspect public Hugging Face model metadata;
+- compare independent sources;
+- preserve contradictory or incomplete findings;
+- propose experiments based on external evidence.
+
+External research output is always tagged as **UNTRUSTED_EXTERNAL_EVIDENCE**. A source result is an observation about what a provider returned, not proof of the provider's claims.
+
+The external researcher must preserve:
+- query;
+- provider;
+- source identifier;
+- source URL;
+- retrieval timestamp;
+- revision/version where available;
+- content or metadata fingerprint where available;
+- limitations;
+- correlation/request identity.
+
+The researcher does not receive authority to alter Automate's ledger, capability inventory, rule registry, or certification state.
+
+The world-facing boundary is deliberately provider-neutral. Adding a new provider must not require changing the scientific evidence model.
+
+This is the laboratory's "look outward" capability. It is not the laboratory's "believe what you found" capability.
