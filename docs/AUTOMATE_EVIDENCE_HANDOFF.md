@@ -26,3 +26,12 @@ Permanent boundary:
 Automate proposal -> bounded execution -> Mirror observation -> independent judgment -> Automate verification -> certification
 
 No Mirror workflow may silently promote an experimental result into Automate's authoritative registry or capability inventory.
+
+
+## Verification Engine handoff
+
+The Verification & Reconciliation Engine may consume Mirror evidence through Chanfana, cross-check it, and incorporate it into a verifiable packet. The engine cannot turn Mirror evidence into authority. Automate remains the final decision boundary.
+
+During the initial verification-backlog phase, Mirror/external research remains ON HOLD. After activation, the permanent boundary is: Automate frontier/request -> Chanfana -> Mirror experiment/research -> raw observation + provenance -> Verification Engine -> verifiable packet -> Automate decision.
+
+No Mirror workflow may silently promote an experimental result into Automate's authoritative registry or capability inventory.
