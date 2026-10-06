@@ -1,93 +1,127 @@
-# THE MIRROR — Math & Physics Science Lab
+# THE MIRROR — Experimental Mathematics & Physics Laboratory
 
-THE MIRROR is an experimental laboratory for testing mathematical ideas, physical models, formulas, numerical methods, and unverified code.
+THE MIRROR is a laboratory for letting mathematical and physical ideas **run**.
 
-## What Mirror does
+It is **AI-operated by design**. You describe what you want to investigate; the AI performs the technical experiment loop. Mirror is not a second calculator whose job is to rediscover established physics. The separate Math/Physics suite (automate) owns canonical calculations.
 
-Mirror is the **laboratory**, not the production calculation engine.
+## The central question
+> Given these assumptions and this formal system, what happens?
 
-```
-IDEA / HYPOTHESIS
-       ↓
-UNVERIFIED SANDBOX
-       ↓
-TRUSTED THEORY ADAPTER
-       ↓
-REFERENCE CASES
-       ↓
-NUMERICAL EVALUATION
-       ↓
-ERROR + RUNTIME ANALYSIS
-       ↓
-STABILITY CLASSIFICATION
-       ↓
-EVIDENCE LEDGER
-```
+~~~text
+QUESTION / IDEA
+      ↓
+AI OPERATOR
+      ↓
+HYPOTHESIS
+      ↓
+FORMALIZATION
+      ↓
+MODEL / RULE SET
+      ↓
+EXPERIMENT
+      ↓
+EXECUTION / SIMULATION
+      ↓
+OBSERVATION
+      ↓
+PERTURB / REPEAT / STRESS
+      ↓
+DISCOVERY / CHARACTERIZATION
+      ↓
+REPRODUCTION + NUMERICAL INTEGRITY
+      ↓
+OPTIONAL COMPARISON
+      ↓
+EVIDENCE
+      ↓
+NEXT EXPERIMENT
+~~~
 
-The separate Math/Physics suite remains the owner of canonical formulas, numerical algorithms, symbolic derivations, physical constants, units, and production calculations. Mirror consumes trusted adapters when a theory is ready to be tested.
+## AI is the operator, not the scientific authority
 
-## Laboratory capabilities
+The AI handles technical work such as:
 
-- Standard `BaseTheory` contract for mathematical and physical theories.
-- Scalar and vector numerical outputs.
-- Reference-case testing with shape validation.
-- Absolute error, RMSE, relative error, maximum deviation, and runtime metrics.
-- Automatic stability classification:
-  - **Gold Standard Tier-1**
-  - **Silver Standard Tier-2**
-  - **Experimental Tier-3**
-  - **Unstable**
-  - **Failed**
-- Persistent run evidence through the existing Drizzle experiment ledger.
-- Isolated Vercel Sandbox execution for unverified JavaScript.
-- Network-denied ephemeral execution; sandbox code is never promoted automatically.
-- Admin-protected browser laboratory and machine-readable API.
+- turning ideas into explicit hypotheses;
+- formalizing models;
+- selecting simulation instruments;
+- constructing experiments;
+- executing runs;
+- perturbing parameters and initial conditions;
+- repeating and stress-testing results;
+- analyzing trajectories and structures;
+- comparing models when useful;
+- recording evidence;
+- proposing follow-up experiments.
 
-## Scientific meaning of a tier
+The AI does **not** get to replace computation with confidence or narrative. Recorded observations remain distinct from interpretation.
 
-A tier is an **implementation agreement with supplied reference cases**, not proof that a theory is true.
+Humans remain responsible for research direction, conceptual constraints, and authorization for consequential actions.
 
-A Tier-1 result means the implementation produced effectively zero numerical error against the supplied cases under the laboratory thresholds. It does not establish the correctness of the underlying hypothesis outside those cases.
+## What Mirror is NOT
+- It does not require a novel model to reproduce GR, Newton, QM, or any other established theory.
+- It does not treat disagreement with established physics as automatic failure.
+- It does not reduce scientific behavior to one accuracy score.
+- It does not assume every experiment has a known expected answer.
+- It does not put production calculation logic from automate into the lab.
+- It does not require a web UI or cloud service to perform science.
 
-## Adding a theory
+## What Mirror investigates
+- What a new rule actually produces.
+- Whether behavior is stable, unstable, oscillatory, divergent, convergent, periodic, chaotic, or regime-dependent.
+- Whether invariants, symmetries, scaling relations, or emergent structures appear.
+- Whether an observed phenomenon survives perturbation, precision changes, resolution changes, and independent implementations.
+- Where a new model agrees with, differs from, or becomes equivalent to a reference model.
+- What remains unknown.
 
-Implement `BaseTheory` in `src/lib/science/registry.ts` or split adapters into their own module.
+## Simulation is plural
+Mirror will use the appropriate instrument for the experiment rather than forcing every problem into one simulator.
+- deterministic discrete systems
+- ODE and dynamical systems
+- PDE and field systems when required
+- stochastic and Monte Carlo systems
+- agent-based interaction models
+- graph/network dynamics
+- symbolic mathematics
+- parameter sweeps and sensitivity analysis
+- differentiable/high-performance computation when justified
 
-Each adapter supplies:
+Where mature open-source scientific tools already exist, Mirror should use them rather than reinvent them.
 
-- stable theory id
-- human-readable name
-- domain
-- version
-- description
-- source
-- input validation
-- deterministic or controlled evaluation
+## Architecture memory
+Read these before changing the scientific architecture:
 
-For production mathematics/physics, use `source: "automate-adapter"` and keep the actual calculation logic in the separate Math/Physics suite.
+- ROADMAP.md — the persistent research and engineering roadmap.
+- docs/LAB_CONSTITUTION.md — the non-negotiable scientific philosophy.
+- docs/AI_OPERATOR.md — how the AI operates the laboratory.
+- docs/SIMULATION_STACK.md — the simulation and analysis instrument strategy.
 
-## API
+## Repository boundary
+THE MIRROR owns experimental orchestration, simulation adapters, observations, discovery analysis, comparisons, provenance, reproducibility, and evidence.
 
-- `GET /api/science-lab/theories`
-- `POST /api/science-lab/run`
-- `GET /api/science-lab/sandbox`
-- `POST /api/science-lab/sandbox`
+automate owns canonical formulas, constants, units, symbolic derivations, numerical algorithms, and production calculations.
 
-All laboratory endpoints require the controller session or control credential.
+Mirror may call automate through an adapter. It must not quietly become automate.
 
-## Local development
+## Infrastructure rule
+The scientific core must work offline on one machine. Vercel, Supabase, Drizzle, Next.js, hosted databases, and cloud sandboxes are optional infrastructure — never scientific requirements.
 
-```bash
-npm install
-npm run dev
-```
+The AI operator is also an adapter. The scientific core must not depend on a specific AI provider.
 
-Set `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and `JWT_SECRET` for protected access. SQLite is used locally by default; the existing PostgreSQL/Drizzle configuration remains available for deployment.
+## First meaningful milestone
+~~~text
+AI hypothesis
+  -> executable model
+  -> controlled experiment
+  -> simulation
+  -> raw observations
+  -> perturbation
+  -> numerical diagnostics
+  -> discovery analysis
+  -> reproducible evidence package
+  -> next experiment
+~~~
 
-## Separation rule
+## Permanent warning
+**THE MIRROR exists to let ideas run. Do not turn it into another system that only converges on what we already believe.**
 
-Do not put production scientific calculation logic into Mirror merely to make an experiment convenient. Mirror exists to **challenge, measure, compare, record, and reject/promote ideas**.
-
-## License
-
-MIT
+License: MIT

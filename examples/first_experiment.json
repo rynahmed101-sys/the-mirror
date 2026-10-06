@@ -1,0 +1,25 @@
+{
+  "id": "demo-relational-run-manifest",
+  "hypothesis": {
+    "id": "demo-relational-rule",
+    "statement": "Repeated application of a relational rule may produce a stable state.",
+    "assumptions": [
+      "The rule is applied repeatedly."
+    ],
+    "expected_behavior": "Unknown until executed."
+  },
+  "model": {
+    "id": "scalar-relational-rule",
+    "version": "0.1"
+  },
+  "initial_state": 0.0,
+  "parameters": {
+    "gain": 0.35,
+    "offset": 10.0
+  },
+  "steps": 20,
+  "dt": 1.0,
+  "metadata": {
+    "purpose": "first machine-readable Mirror experiment"
+  }
+}

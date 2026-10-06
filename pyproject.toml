@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "the-mirror-lab"
+version = "0.1.0"
+description = "AI-operated exploratory mathematical and physical laboratory"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = [
+  "numpy>=2.0",
+  "scipy>=1.14",
+  "sympy>=1.13",
+  "pint>=0.24",
+  "uncertainties>=3.2"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8"
+]
+discovery = [
+  "xarray>=2024.10",
+  "SALib>=1.5",
+  "hypothesis>=6.100",
+  "networkx>=3.3"
+]
+agents = ["mesa>=3.0"]
+high_performance = ["jax>=0.4"]
+
+[project.scripts]
+mirror = "mirror_lab.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["mirror_lab*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
