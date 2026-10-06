@@ -105,8 +105,8 @@ function source(provider: ResearchProvider, sourceId: string, title: string, url
   };
 }
 
-async function crossref(query: string, limit: number) {
-  const data = await fetchJson("https://api.crossref.org/works?query.bibliographic=" + encodeURIComponent(query) + "&rows=" + limit);
+async function crossref(query: string, limit: number, maxResponseBytes: number) {
+  const data = await fetchJson("https://api.crossref.org/works?query.bibliographic=" + encodeURIComponent(query) + "&rows=" + limit, maxResponseBytes);
   return (data.message?.items || []).slice(0, limit).map((x: any) => source(
     "crossref", String(x.DOI || x.URL || x.title?.[0] || "unknown"),
     String(x.title?.[0] || "Untitled"), String(x.URL || (x.DOI ? "https://doi.org/" + x.DOI : "")),
@@ -114,8 +114,8 @@ async function crossref(query: string, limit: number) {
   ));
 }
 
-async function openalex(query: string, limit: number) {
-  const data = await fetchJson("https://api.openalex.org/works?search=" + encodeURIComponent(query) + "&per-page=" + limit);
+async function openalex(query: string, limit: number, maxResponseBytes: number) {
+  const data = await fetchJson("https://api.openalex.org/works?search=" + encodeURIComponent(query) + "&per-page=" + limit, maxResponseBytes);
   return (data.results || []).slice(0, limit).map((x: any) => source(
     "openalex", String(x.id || x.doi || x.display_name),
     String(x.display_name || "Untitled"), String(x.primary_location?.landing_page_url || x.doi || x.id || ""),
@@ -123,8 +123,8 @@ async function openalex(query: string, limit: number) {
   ));
 }
 
-async function arxiv(query: string, limit: number) {
-  const xml = await fetchText("https://export.arxiv.org/api/query?search_query=all:" + encodeURIComponent(query) + "&start=0&max_results=" + limit);
+async function arxiv(query: string, limit: number, maxResponseBytes: number) {
+  const xml = await fetchText("https://export.arxiv.org/api/query?search_query=all:" + encodeURIComponent(query) + "&start=0&max_results=" + limit, maxResponseBytes);
   const entries = [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].slice(0, limit);
   return entries.map((m) => {
     const body = m[1];
@@ -138,16 +138,16 @@ async function arxiv(query: string, limit: number) {
   });
 }
 
-async function github(query: string, limit: number) {
-  const data = await fetchJson("https://api.github.com/search/repositories?q=" + encodeURIComponent(query) + "&per_page=" + limit);
+async function github(query: string, limit: number, maxResponseBytes: number) {
+  const data = await fetchJson("https://api.github.com/search/repositories?q=" + encodeURIComponent(query) + "&per_page=" + limit, maxResponseBytes);
   return (data.items || []).slice(0, limit).map((x: any) => source(
     "github", String(x.full_name), String(x.full_name), String(x.html_url),
     { revision: x.pushed_at || null, metadata: { stars: x.stargazers_count, forks: x.forks_count, language: x.language, license: x.license?.spdx_id || null } }
   ));
 }
 
-async function huggingface(query: string, limit: number) {
-  const data = await fetchJson("https://huggingface.co/api/models?search=" + encodeURIComponent(query) + "&limit=" + limit);
+async function huggingface(query: string, limit: number, maxResponseBytes: number) {
+  const data = await fetchJson("https://huggingface.co/api/models?search=" + encodeURIComponent(query) + "&limit=" + limit, maxResponseBytes);
   return (data || []).slice(0, limit).map((x: any) => source(
     "huggingface", String(x.id), String(x.id), "https://huggingface.co/" + x.id,
     { revision: x.lastModified || null, metadata: { downloads: x.downloads, likes: x.likes, pipelineTag: x.pipeline_tag } }
@@ -175,7 +175,7 @@ export async function researchWorld(request: ResearchRequest): Promise<ResearchR
     const adapter = adapters[provider];
     if (!adapter) continue;
     try {
-      const sources = await adapter(query, limit);
+      const sources = await adapter(query, limit, maxResponseBytes);
       results.push({ correlationId: cid, query, provider, sources, limitations: ["Public-provider result; not scientific proof.", "Provider ranking/relevance is not independently validated."] });
     } catch (error) {
       results.push({ correlationId: cid, query, provider, sources: [], limitations: [String(error instanceof Error ? error.message : error), "Provider unavailable or query failed; no substitution was performed."] });
