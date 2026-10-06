@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+
+concurrency:
+  group: the-mirror-engine-ci
+  cancel-in-progress: true
+
 jobs:
   scientific:
     runs-on: ubuntu-latest
