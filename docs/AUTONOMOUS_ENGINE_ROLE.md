@@ -1,3 +1,5 @@
+> **System authority:** The complete cross-repository architecture and infrastructure plan is maintained in Automate at `docs/AUTONOMOUS_SYSTEM_MASTER_PLAN.md`. This repository-local document defines only this repository's role and must not override that master plan.
+
 # Engine role
 
 THE MIRROR is the experimental mathematics and physics laboratory for the autonomous engine.
