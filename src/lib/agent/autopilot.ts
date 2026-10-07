@@ -82,6 +82,7 @@ export async function runToolLoop(options: {
   messages: ChatMessage[];
   maxToolSteps?: number;
   requestSource?: "AGENT" | "SYSTEM" | "RESEARCHER" | "SCHEDULED" | "OTHER_AGENT";
+  discoveryGrant?: Record<string, unknown>;
   onToolCall?: (call: ToolCall, step: number) => Promise<void> | void;
   onToolResult?: (call: ToolCall, result: unknown, step: number) => Promise<void> | void;
 }) {
@@ -120,7 +121,20 @@ export async function runToolLoop(options: {
 
     for (const call of response.toolCalls) {
       await options.onToolCall?.(call, steps);
-      const result = await executeTool(call.name, call.arguments || {}, options.agentId, options.sessionId, options.requestSource || "AGENT");
+      const toolArguments = call.name === "propose_new_capability" && options.discoveryGrant
+        ? {
+            ...(call.arguments || {}),
+            discoveryGrant: options.discoveryGrant,
+            correlationId: String(options.discoveryGrant.correlation_id || ""),
+          }
+        : (call.arguments || {});
+      const result = await executeTool(
+        call.name,
+        toolArguments,
+        options.agentId,
+        options.sessionId,
+        options.requestSource || "AGENT",
+      );
       trace.push({ callId: call.id, tool: call.name, arguments: call.arguments || {}, result });
       await options.onToolResult?.(call, result, steps);
       messages.push({
@@ -149,7 +163,15 @@ const DISCOVERY_PHASES = [
   { name:"PROPOSE", instruction:"When evidence justifies it, create at most one CANDIDATE capability proposal with explicit prerequisites, dependencies, evidence, risks, and limitations." },
 ] as const;
 
-export async function runAutopilot(options: { agentId?: string; objective?: string; maxCycles?: number; maxToolSteps?: number; requestSource?: "AGENT" | "SCHEDULED"; mode?: "SELF_OBSERVATION" | "DISCOVERY" }) {
+export async function runAutopilot(options: {
+  agentId?: string;
+  objective?: string;
+  maxCycles?: number;
+  maxToolSteps?: number;
+  requestSource?: "AGENT" | "SCHEDULED";
+  mode?: "SELF_OBSERVATION" | "DISCOVERY";
+  discoveryGrant?: Record<string, unknown>;
+}) {
   const agentId = options.agentId || "mirror-primary";
   const mode = options.mode || "SELF_OBSERVATION";
   const objective = options.objective || (
@@ -164,8 +186,13 @@ export async function runAutopilot(options: { agentId?: string; objective?: stri
   if (!agentRows.length || !agentRows[0].isActive) throw new Error("Agent not found or inactive: " + agentId);
 
   const systemPrompt = await getSystemPrompt(agentId);
-  if (mode === "DISCOVERY" && process.env.MIRROR_AUTONOMOUS_DISCOVERY_ENABLED !== "1") {
-    throw new Error("Mirror autonomous capability discovery is disabled");
+  let discoveryGrant = options.discoveryGrant;
+  if (mode === "DISCOVERY") {
+    if (process.env.MIRROR_AUTONOMOUS_DISCOVERY_ENABLED !== "1") {
+      throw new Error("Mirror autonomous capability discovery is disabled");
+    }
+    const { validateDiscoveryGrant } = await import("../research/discoveryGrant");
+    discoveryGrant = validateDiscoveryGrant(discoveryGrant);
   }
   const results: any[] = [];
 
@@ -203,7 +230,12 @@ export async function runAutopilot(options: { agentId?: string; objective?: stri
 
     try {
       const run = await runToolLoop({
-        agentId, sessionId: session.id, messages, maxToolSteps, requestSource: options.requestSource,
+        agentId,
+        sessionId: session.id,
+        messages,
+        maxToolSteps,
+        requestSource: options.requestSource,
+        discoveryGrant,
       });
 
       await db.insert(rawMessages).values({ agentId, sessionId: session.id, role:"AGENT", content: run.output || "", source:"AGENT" });
