@@ -108,6 +108,15 @@ class FrontierOperator:
         action = str(decision.get("action", ""))
         if action not in self.ACTIONS:
             raise ValueError(f"Unsupported frontier action: {action}")
+        allowed_by_priority = {
+            Priority.REPAIR: {"repair", "defer"},
+            Priority.CURRENT_WORK: {"implement", "repair", "defer"},
+            Priority.LEDGER: {"implement", "research", "experiment", "defer"},
+            Priority.AUTOMATE_REQUEST: {"implement", "repair", "research", "experiment", "defer"},
+            Priority.DISCOVERY: {"research", "experiment", "create_capability_candidate", "defer"},
+        }[mission.priority]
+        if action not in allowed_by_priority:
+            raise ValueError(f"Action {action} violates mission priority {mission.focus}")
         if action in {"implement", "create_capability_candidate"} and mission.priority != Priority.REPAIR and not context.get("reference_grounded", False):
             raise ValueError("Established/reference grounding is required before frontier implementation.")
         if mission.priority != Priority.DISCOVERY and action == "create_capability_candidate":
