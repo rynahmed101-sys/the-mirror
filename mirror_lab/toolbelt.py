@@ -36,6 +36,11 @@ def build_tool_registry(
     research = research or ResearchTool()
     git = git or GitTool(workspace.root)
     tools: dict[str, FunctionTool] = {
+        "research.fetch": FunctionTool(
+            "research.fetch",
+            "Fetch a bounded HTTPS research source and preserve its content hash.",
+            lambda a: research.fetch(str(a["locator"]), max_bytes=int(a.get("max_bytes", 2_000_000))),
+        ),
         "research.search": FunctionTool(
             "research.search",
             "Search bounded scholarly/code sources, reference-first.",
