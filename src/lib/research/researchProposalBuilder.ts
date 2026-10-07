@@ -26,13 +26,6 @@ function stableProposalId(input: ResearchProposalInput): string {
   return "proposal_" + createHash("sha256").update(canonical, "utf8").digest("hex").slice(0, 32);
 }
 
-/**
- * Build a candidate capability proposal from Mirror observations.
- *
- * This function is intentionally only a packaging step. It does not decide
- * whether the proposed capability is correct, useful, novel, or authoritative.
- * Those decisions belong downstream to verification and Automate.
- */
 export function buildResearchProposal(input: ResearchProposalInput): ResearchProposalType {
   return ResearchProposal.parse({
     schema_version: "mirror.research_proposal.v1",

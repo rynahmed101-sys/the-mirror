@@ -17,7 +17,6 @@ export async function POST(req: Request) {
       { status: 403 },
     );
   }
-
   try {
     const body = await req.json();
     const proposal = buildResearchProposal({
@@ -30,10 +29,7 @@ export async function POST(req: Request) {
       risks: Array.isArray(body?.risks) ? body.risks.map(String) : [],
       limitations: Array.isArray(body?.limitations) ? body.limitations.map(String) : [],
     });
-
-    return NextResponse.json(proposal, {
-      headers: { "Cache-Control": "no-store" },
-    });
+    return NextResponse.json(proposal, { headers: { "Cache-Control": "no-store" } });
   } catch (error: any) {
     return NextResponse.json(
       { error: error?.message || String(error) },

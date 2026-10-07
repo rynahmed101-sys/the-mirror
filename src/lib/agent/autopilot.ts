@@ -57,6 +57,12 @@ export const AUTOPILOT_TOOLS: ToolDefinition[] = [
   { name: "resolve_prediction", description: "Compare a prior prediction with the actual outcome and record error/surprise.", parameters: { type:"object", properties:{ predictionId:{type:"string"},actualOutcome:{type:"string"},predictionAccurate:{type:"boolean"},errorMagnitude:{type:"number"},errorAnalysis:{type:"string"},surpriseLevel:{type:"number"} }, required:["predictionId","actualOutcome","predictionAccurate"] } },
   { name: "record_observation", description: "Persist a factual behavioral observation and clearly separate interpretation.", parameters: { type:"object", properties:{ observationType:{type:"string"},dataPoint:{type:"string"},statisticalContext:{type:"string"},interpretation:{type:"string"},interpretationConfidence:{type:"number"},epistemicStatus:{type:"string"},experimentId:{type:"string"},tags:{type:"array",items:{type:"string"}} }, required:["observationType","dataPoint","epistemicStatus"] } },
   { name: "record_discovery", description: "Persist a novel hypothesis only when supported by a concrete observation and alternative explanation.", parameters: { type:"object", properties:{ title:{type:"string"},discovery:{type:"string"},evidence:{type:"string"},previousBelief:{type:"string"},newObservation:{type:"string"},whyUnexpected:{type:"string"},alternativeExplanation:{type:"string"},confidence:{type:"number"},relatedExperiments:{type:"array",items:{type:"string"}} }, required:["title","discovery","evidence","newObservation","confidence"] } },
+  { name: "propose_new_capability", description: "In gated idle discovery mode, package one research-backed candidate capability for Automate and optionally hand it to Chanfana. Candidate only; no certification or authority changes.", parameters: { type:"object", properties:{
+      requestId:{type:"string"}, capabilityId:{type:"string"}, sourceRevision:{type:"string"}, correlationId:{type:"string"}, discoveryGrant:{type:"object"}, candidateCapability:{type:"object",properties:{
+        id:{type:"string"}, name:{type:"string"}, summary:{type:"string"}, prerequisites:{type:"array",items:{type:"string"}}, dependencies:{type:"array",items:{type:"string"}}
+      },required:["id","name","summary","prerequisites","dependencies"]},
+      evidenceRefs:{type:"array",items:{type:"string"}}, assumptions:{type:"array",items:{type:"string"}}, risks:{type:"array",items:{type:"string"}}, limitations:{type:"array",items:{type:"string"}}
+    }, required:["requestId","capabilityId","candidateCapability","evidenceRefs","assumptions","risks","limitations"] } },
   { name: "send_agent_message", description: "Send a bounded research challenge or independent-review request to another agent.", parameters: { type:"object", properties:{ toAgentId:{type:"string"},content:{type:"string"},requestType:{type:"string"},subject:{type:"string"},experimentId:{type:"string"},isolatedFrom:{type:"array",items:{type:"string"}} }, required:["toAgentId","content","requestType"] } },
   { name: "read_agent_messages", description: "Read recent inter-agent research messages.", parameters: { type:"object", properties:{ agentId:{type:"string"},limit:{type:"number"} } } },
   { name: "get_time", description: "Read the authoritative environment clock.", parameters: { type:"object", properties:{format:{type:"string"}} } },
@@ -136,9 +142,21 @@ const PHASES = [
   { name:"AUDIT", instruction:"Compare the action with prior evidence. Record an observation, resolve a prediction when possible, revise only evidence-backed claims, and leave unresolved questions explicitly unresolved." },
 ] as const;
 
-export async function runAutopilot(options: { agentId?: string; objective?: string; maxCycles?: number; maxToolSteps?: number; requestSource?: "AGENT" | "SCHEDULED" }) {
+const DISCOVERY_PHASES = [
+  { name:"OBSERVE", instruction:"Inspect existing research notes, experiments, discoveries, and timeline before choosing a direction." },
+  { name:"RESEARCH", instruction:"Choose one bounded mathematical or physical question. Research established and competing approaches without treating disagreement as disqualifying." },
+  { name:"CHALLENGE", instruction:"Search for counterexamples, instability, hidden assumptions, and alternative explanations before calling an idea novel." },
+  { name:"PROPOSE", instruction:"When evidence justifies it, create at most one CANDIDATE capability proposal with explicit prerequisites, dependencies, evidence, risks, and limitations." },
+] as const;
+
+export async function runAutopilot(options: { agentId?: string; objective?: string; maxCycles?: number; maxToolSteps?: number; requestSource?: "AGENT" | "SCHEDULED"; mode?: "SELF_OBSERVATION" | "DISCOVERY" }) {
   const agentId = options.agentId || "mirror-primary";
-  const objective = options.objective || "Advance the active self-observation program using the evidence already stored in THE MIRROR. Choose one bounded, testable next action.";
+  const mode = options.mode || "SELF_OBSERVATION";
+  const objective = options.objective || (
+    mode === "DISCOVERY"
+      ? "In idle discovery mode, investigate one promising mathematical or physical idea, challenge it with evidence, and propose at most one new capability candidate when justified."
+      : "Advance the active self-observation program using the evidence already stored in THE MIRROR. Choose one bounded, testable next action."
+  );
   const maxCycles = bounded(options.maxCycles, 1, 20, 1);
   const maxToolSteps = bounded(options.maxToolSteps, 1, 8, 6);
 
@@ -146,6 +164,9 @@ export async function runAutopilot(options: { agentId?: string; objective?: stri
   if (!agentRows.length || !agentRows[0].isActive) throw new Error("Agent not found or inactive: " + agentId);
 
   const systemPrompt = await getSystemPrompt(agentId);
+  if (mode === "DISCOVERY" && process.env.MIRROR_AUTONOMOUS_DISCOVERY_ENABLED !== "1") {
+    throw new Error("Mirror autonomous capability discovery is disabled");
+  }
   const results: any[] = [];
 
   // One autopilot run is one persistent agent session.
@@ -154,7 +175,8 @@ export async function runAutopilot(options: { agentId?: string; objective?: stri
   const [session] = await db.insert(agentSessions).values({ agentId, status: "ACTIVE" }).returning();
 
   for (let i = 0; i < maxCycles; i += 1) {
-    const phase = PHASES[i % PHASES.length];
+    const phases = mode === "DISCOVERY" ? DISCOVERY_PHASES : PHASES;
+    const phase = phases[i % phases.length];
     const cycleStartedAt = Date.now();
 
     const messages: ChatMessage[] = [
@@ -167,7 +189,11 @@ export async function runAutopilot(options: { agentId?: string; objective?: stri
         "- Prefer one bounded action per cycle.\n" +
         "- Read before mutating; never invent a tool result.\n" +
         "- Blind experiment contents are unavailable until the environment explicitly reveals them.\n" +
-        "- Leave contradictions and uncertainty visible instead of smoothing them away." },
+        "- Leave contradictions and uncertainty visible instead of smoothing them away.\n" +
+        (mode === "DISCOVERY"
+          ? "- In discovery mode, a disagreement with established models is an investigation trigger, not an automatic rejection.\n" +
+            "- Only propose candidate capabilities through the gated proposal tool; never edit canonical authority.\n"
+          : "") +" },
       { role:"user", content:
         "AUTOPILOT CYCLE " + (i + 1) + " / " + maxCycles + "\n\n" +
         "Phase: " + phase.name + "\n" + phase.instruction + "\n\n" +

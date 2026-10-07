@@ -14,6 +14,9 @@ import { canAgentAccessExperimentConfigAsync, filterExperimentForAgent } from ".
 import { and, eq, or, desc, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { researchWorld } from "../research/worldResearch";
+import { buildResearchProposal } from "../research/researchProposalBuilder";
+import { submitProposalLearningHandoff } from "../research/learningHandoff";
+import { validateDiscoveryGrant } from "../research/discoveryGrant";
 
 const tables: any = isPg ? pgSchema : sqliteSchema;
 const {
@@ -30,6 +33,7 @@ const MUTATING_TOOLS = new Set([
   "create_experiment", "update_experiment", "record_observation", "record_discovery",
   "send_agent_message",
   "run_perturbation_lab", "run_controlled_suite", "run_projection_suite",
+  "propose_new_capability",
 ]);
 
 function parseJson(value: unknown, fallback: unknown = []) {
@@ -326,6 +330,67 @@ export async function executeTool(
           description: String(args.dataPoint || ""), metrics: JSON.stringify({ statisticalContext: args.statisticalContext || null, interpretation: args.interpretation || null, interpretationConfidence: args.interpretationConfidence ?? null, epistemicStatus: args.epistemicStatus || "DATA", tags: args.tags || [] }),
         }).returning();
         result = { success: true, observation: obs };
+        break;
+      }
+
+      case "propose_new_capability": {
+        if (requestSource !== "SYSTEM" && requestSource !== "SCHEDULED") {
+          throw new Error("Capability discovery proposals require a scheduled/controller request.");
+        }
+        if (process.env.MIRROR_AUTONOMOUS_DISCOVERY_ENABLED !== "1") {
+          throw new Error("Mirror autonomous capability discovery is disabled");
+        }
+        if (process.env.MIRROR_DISCOVERY_ACTIVATION_MODE !== "IDLE") {
+          throw new Error("Mirror capability discovery is not in IDLE activation mode");
+        }
+        const grant = validateDiscoveryGrant(args.discoveryGrant);
+        const grantCorrelation = String(args.correlationId || "");
+        if (grantCorrelation !== grant.correlation_id) {
+          throw new Error("discovery grant correlation_id does not match the controller request");
+        }
+        const priorProposalLogs = await db
+          .select({ arguments: toolLogs.arguments })
+          .from(toolLogs)
+          .where(and(
+            eq(toolLogs.agentId, agentId),
+            eq(toolLogs.toolName, "propose_new_capability"),
+          ))
+          .limit(200);
+        const grantAlreadyUsed = priorProposalLogs.some((row: any) => {
+          const logged = parseJson(row.arguments, {});
+          return logged?.discoveryGrant?.grant_id === grant.grant_id;
+        });
+        if (grantAlreadyUsed) {
+          throw new Error("discovery grant has already been consumed by a prior capability proposal");
+        }
+        const requestId = String(args.requestId || "");
+        const capabilityId = String(args.capabilityId || "discovery.idle");
+        const candidate = args.candidateCapability;
+        if (!requestId || !candidate || typeof candidate !== "object") {
+          throw new Error("requestId and candidateCapability are required");
+        }
+        const proposal = buildResearchProposal({
+          requestId,
+          capabilityId,
+          sourceRevision: typeof args.sourceRevision === "string" ? args.sourceRevision : null,
+          candidateCapability: candidate,
+          evidenceRefs: Array.isArray(args.evidenceRefs) ? args.evidenceRefs.map(String) : [],
+          assumptions: Array.isArray(args.assumptions) ? args.assumptions.map(String) : [],
+          risks: Array.isArray(args.risks) ? args.risks.map(String) : [],
+          limitations: Array.isArray(args.limitations) ? args.limitations.map(String) : [],
+        });
+        let handoff: unknown = { status: "NOT_SUBMITTED", reason: "Mirror discovery handoff is disabled" };
+        if (process.env.MIRROR_DISCOVERY_HANDOFF_ENABLED === "1") {
+          handoff = await submitProposalLearningHandoff(proposal, requestId);
+        }
+        result = {
+          success: true,
+          status: "CANDIDATE",
+          proposal,
+          handoff,
+          grantId: grant.grant_id,
+          authority: "UNTRUSTED_RESEARCH_PROPOSAL",
+        };
         break;
       }
 
