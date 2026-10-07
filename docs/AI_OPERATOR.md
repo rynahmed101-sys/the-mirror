@@ -256,3 +256,6 @@ Automate independent verification
 promotion or rejection
 
 Repair takes precedence over all other work. Discovery is disabled unless Automate explicitly grants it.
+
+
+Development proposals targeting `engine` are subject to Mirror Engine CI before reconciliation; merged `main` remains the certification surface.
