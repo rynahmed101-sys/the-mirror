@@ -163,34 +163,96 @@ The objective is not autonomous storytelling.
 The objective is **autonomous experimental iteration grounded in recorded computation**.
 
 
-## External researcher mode
+## Frontier mode and work priority
 
-THE MIRROR also supports a distinct **external researcher** role. This role is intentionally broader than the Automate implementation worker: it is allowed to acquire public research material and investigate the open world through bounded provider adapters.
+The mature operator is not a passive experiment launcher. It is a frontier AI worker that can research public sources, inspect repository code, write bounded code, repair failed capability implementations, design experiments, and propose genuinely new mathematical or physical capabilities.
 
-The external researcher may:
-- search scholarly metadata through Crossref and OpenAlex;
-- search arXiv records;
-- inspect public GitHub repositories;
-- inspect public Hugging Face model metadata;
-- compare independent sources;
-- preserve contradictory or incomplete findings;
-- propose experiments based on external evidence.
+Its work queue is strictly prioritized:
 
-External research output is always tagged as **UNTRUSTED_EXTERNAL_EVIDENCE**. A source result is an observation about what a provider returned, not proof of the provider's claims.
+1. repair a failed capability or requested correction;
+2. current Automate backlog item;
+3. the next capability required by the canonical ledger frontier;
+4. explicit Automate verification/research requests;
+5. discovery.
 
-The external researcher must preserve:
-- query;
-- provider;
-- source identifier;
-- source URL;
-- retrieval timestamp;
-- revision/version where available;
-- content or metadata fingerprint where available;
-- limitations;
-- correlation/request identity.
+Discovery is deliberately last. If Automate needs Mirror to repair or implement something, the operator holds discovery work rather than competing with the canonical objective.
 
-The researcher does not receive authority to alter Automate's ledger, capability inventory, rule registry, or certification state.
+Automate supplies the current mission context, including capability ID, backlog, ledger frontier, request state, and ledger fingerprint. Mirror must not invent a duplicate capability when an existing capability ID is present.
 
-The world-facing boundary is deliberately provider-neutral. Adding a new provider must not require changing the scientific evidence model.
+### Capability creation
 
-This is the laboratory's "look outward" capability. It is not the laboratory's "believe what you found" capability.
+Mirror may discover and implement a candidate capability when discovery is the active priority. A candidate contains its proposed identity, scientific rationale, implementation changes, tests, provenance, and unresolved uncertainty. It is never written directly into Automate's canonical ledger or inventory.
+
+Automate decides whether the candidate becomes a canonical capability.
+
+### Capability repair
+
+When a capability implementation fails verification, Mirror receives the failed implementation, changed paths, failed-job evidence, and diagnosis context. It may inspect the code, identify a root cause, modify the capability implementation, add regression tests, and produce a new repair proposal.
+
+Quarantine is therefore only containment. The actual correction happens in Mirror's frontier operator.
+
+### Tool authority
+
+The frontier operator may use web/search, public scientific sources, repository inspection, local scientific engines, and bounded code-writing tools. These are instruments, not authorities.
+
+Code changes must remain within the mission's declared workspace. Network access is explicit rather than implicit. Secrets and credentials are never treated as scientific evidence.
+
+The operator may surprise us. It may produce a result that conflicts with established theory. That result is preserved and investigated. Automate independently decides whether any resulting code or claim can be promoted.
+
+
+## Concrete frontier toolbelt
+
+The frontier operator is backed by bounded instruments rather than prompt-only promises:
+
+- research.search: OpenAlex, Crossref, INSPIRE-HEP, Semantic Scholar, arXiv, GitHub, Hugging Face.
+- workspace.read / workspace.write: mission-workspace-only code inspection and modification.
+- workspace.run: bounded local test/experiment execution.
+- git.status / git.diff / git.branch / git.commit: isolated proposal preparation.
+- experiment.run_manifest: execution through the existing scientific kernel.
+- experiment.summarize: descriptive trajectory analysis.
+
+Remote Git mutation and canonical Automate mutation are unavailable to the Mirror toolbelt.
+
+## Research order
+
+For capability work, research is reference-first:
+
+1. canonical/established mathematics and physics where applicable;
+2. mature scholarly literature and known methods;
+3. independent open-source implementations;
+4. primary literature and broader scholarly indexing;
+5. frontier/preprint proposals;
+6. genuinely novel hypotheses.
+
+The first four are grounding and control instruments, not hidden acceptance tests. A novel result may disagree with an established theory and remain worth investigating. What changes is the evidence burden: surprising claims receive more reproduction, numerical-integrity, perturbation, and independent-route checks rather than automatic rejection.
+
+A provider being reputable does not make every returned paper established physics. Research records distinguish trusted scholarly-source grounding from actual established/reference status.
+
+## Frontier mission loop
+
+Automate mission + ledger frontier
+        |
+        v
+Chanfana durable frontier job
+        |
+        v
+Mirror AI decision
+        |
+        +--> reference research / code inspection / experiment
+        |
+        v
+bounded implementation or repair
+        |
+        v
+tests + evidence + provenance
+        |
+        v
+proposal result
+        |
+        v
+Automate independent verification
+        |
+        v
+promotion or rejection
+
+Repair takes precedence over all other work. Discovery is disabled unless Automate explicitly grants it.
