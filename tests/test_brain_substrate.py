@@ -70,15 +70,17 @@ def test_goal_bias_and_bounded_priority(tmp_path: Path):
 def test_consolidation_and_non_destructive_unlearn(tmp_path: Path):
     brain = MirrorBrain(tmp_path / "brain.sqlite3")
     first = brain.observe("same observation", kind=MemoryKind.EPISODIC)
-    brain.observe("same observation", kind=MemoryKind.EPISODIC)
+    second = brain.observe("same observation", kind=MemoryKind.EPISODIC)
 
     assert brain.consolidate() == 1
     semantic = brain.recall("same observation", kinds=[MemoryKind.SEMANTIC])
     assert len(semantic) == 1
 
     brain.unlearn(first.id, reason="superseded by verified correction")
-    assert not brain.memory(first.id).tombstoned is False
-    assert not brain.recall("same observation", kinds=[MemoryKind.EPISODIC])
+    assert brain.memory(first.id).tombstoned is True
+    remaining = brain.recall("same observation", kinds=[MemoryKind.EPISODIC])
+    assert len(remaining) == 1
+    assert remaining[0].memory.id == second.id
     assert any(e["event_type"] == "memory_unlearned" for e in brain.self_audit())
     brain.close()
 

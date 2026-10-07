@@ -11,6 +11,17 @@ from pathlib import Path
 from typing import Iterable
 
 from .brain import Belief, Decision, Goal, MemoryKind, MirrorBrain, Recall
+from .reasoning import (
+    ActionProposal,
+    ConstraintKind,
+    Evidence,
+    EvidenceDisposition,
+    Hypothesis,
+    MissionState,
+    ReasoningEngine,
+    SpecialistName,
+    VerificationPlan,
+)
 
 
 @dataclass(frozen=True)
@@ -26,6 +37,7 @@ class MirrorAI:
         cfg = config or MirrorAIConfig()
         self.name = cfg.name
         self.brain = MirrorBrain(cfg.state_dir / "brain.sqlite3")
+        self.reasoning = ReasoningEngine(self.brain)
 
     def close(self) -> None:
         self.brain.close()
@@ -82,3 +94,69 @@ class MirrorAI:
 
     def snapshot(self) -> dict[str, int]:
         return self.brain.snapshot()
+
+    def start_mission(
+        self,
+        mission: str,
+        objective: str,
+        *,
+        blockers: Iterable[str] = (),
+        assumptions: Iterable[str] = (),
+    ) -> MissionState:
+        return self.reasoning.start_mission(
+            mission, objective, blockers=blockers, assumptions=assumptions
+        )
+
+    def resume_mission(self) -> MissionState | None:
+        return self.reasoning.resume_last_mission()
+
+    def decompose(self, steps: Iterable[str]):
+        return self.reasoning.decompose(steps)
+
+    def add_evidence(
+        self,
+        content: str,
+        *,
+        source: str,
+        classification: str = "OBSERVED",
+        confidence: float = 1.0,
+    ) -> Evidence:
+        return self.reasoning.add_evidence(
+            content,
+            source=source,
+            classification=classification,
+            confidence=confidence,
+        )
+
+    def add_hypothesis(
+        self,
+        statement: str,
+        *,
+        assumptions: Iterable[str] = (),
+    ) -> Hypothesis:
+        return self.reasoning.add_hypothesis(statement, assumptions=assumptions)
+
+    def evaluate_hypothesis(
+        self,
+        hypothesis_id: str,
+        evidence_id: str,
+        disposition: EvidenceDisposition,
+    ) -> Hypothesis:
+        return self.reasoning.evaluate_hypothesis(
+            hypothesis_id, evidence_id, disposition
+        )
+
+    def route_specialist(self, objective: str) -> SpecialistName:
+        return self.reasoning.route_specialist(objective)
+
+    def plan_verification(self, claim: str, *, scientific: bool = True) -> VerificationPlan:
+        return self.reasoning.plan_verification(claim, scientific=scientific)
+
+    def propose_action(self, objective: str, *, available_tools: Iterable[str] = ()) -> ActionProposal:
+        return self.reasoning.propose_action(objective, available_tools=available_tools)
+
+    def add_constraint(self, name: str, statement: str, *, kind: ConstraintKind = ConstraintKind.HARD):
+        return self.reasoning.add_constraint(name, statement, kind=kind)
+
+    def refuse_self_certification(self) -> None:
+        self.reasoning.refuse_self_certification()

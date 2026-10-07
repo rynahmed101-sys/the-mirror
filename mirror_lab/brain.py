@@ -48,6 +48,11 @@ class MemoryKind(str, Enum):
     GOAL = "goal"
     BELIEF = "belief"
     SELF = "self"
+    EVIDENCE = "evidence"
+    RESEARCH = "research"
+    PROJECT = "project"
+    FAILURE = "failure"
+    STRATEGY = "strategy"
 
 
 @dataclass(frozen=True)
@@ -62,6 +67,7 @@ class Memory:
     valid_to: str | None
     supersedes: int | None
     tombstoned: bool
+    content_hash: str
 
 
 @dataclass(frozen=True)
@@ -233,6 +239,7 @@ class MirrorBrain:
             confidence=row["confidence"], created_at=row["created_at"],
             valid_from=row["valid_from"], valid_to=row["valid_to"],
             supersedes=row["supersedes"], tombstoned=bool(row["tombstoned"]),
+            content_hash=row["content_hash"],
         )
 
     def recall(self, cue: str, *, limit: int = 8, kinds: Iterable[MemoryKind] | None = None) -> list[Recall]:
@@ -434,8 +441,16 @@ class MirrorBrain:
     def unlearn(self, memory_id: int, *, reason: str) -> None:
         if not reason.strip():
             raise ValueError("unlearn requires a reason")
+        self.memory(memory_id)
         self._conn.execute("UPDATE memories SET tombstoned=1 WHERE id=?", (memory_id,))
         self._event("memory_unlearned", {"memory_id": memory_id, "reason": reason})
+        self._conn.commit()
+
+    def record_event(self, event_type: str, payload: dict[str, Any]) -> None:
+        """Record a machine-readable append-only reasoning event."""
+        if not event_type.strip():
+            raise ValueError("event type must not be empty")
+        self._event(event_type, payload)
         self._conn.commit()
 
     def self_audit(self, *, limit: int = 50) -> list[dict[str, Any]]:
