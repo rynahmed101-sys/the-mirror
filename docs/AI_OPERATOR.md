@@ -194,3 +194,50 @@ The researcher does not receive authority to alter Automate's ledger, capability
 The world-facing boundary is deliberately provider-neutral. Adding a new provider must not require changing the scientific evidence model.
 
 This is the laboratory's "look outward" capability. It is not the laboratory's "believe what you found" capability.
+
+
+## Permanent AI runtime
+
+THE MIRROR has a canonical open-weight AI identity. The selected model is **OpenAI gpt-oss-120b** from Hugging Face.
+
+Model identity:
+- model: openai/gpt-oss-120b
+- license: Apache-2.0
+- native context: 131,072 tokens
+- runtime: Hugging Face Transformers
+- deployment target: self-hosted GPU inference
+- operational role: permanent Mirror operator, maintainer, scientist, and controller
+- scientific authority: none; generated claims and proposed changes remain verification inputs
+
+The choice is deliberate. The model is open-weight, self-hostable, supports configurable reasoning, function calling, structured outputs, and agentic workflows. Its MXFP4 deployment target is a single 80 GB GPU-class machine. There is no hosted-provider token quota in the local deployment path. Physical limits still exist: context length, GPU memory, throughput, and generation limits are engineering constraints, not API subscription limits.
+
+The runtime is lazy-loaded so the scientific kernel can still run without GPU dependencies. Installing the ai extra installs Transformers, PyTorch, Accelerate, and the required kernel support.
+
+The permanent AI is not a replacement for verification. It is the actor that proposes, investigates, repairs, maintains, and controls execution. Verification remains an external boundary precisely because a capable agent must not be allowed to certify its own claims.
+
+The intended loop is:
+
+PERMANENT MIRROR AI
+  - maintenance
+  - diagnosis
+  - repair
+  - scientific investigation
+  - experiment design/execution
+  - external research
+  - system control
+          |
+          v
+evidence / code / experiment artifacts
+          |
+          v
+AUTOMATE verification
+          |
+          v
+promotion or rejection
+          |
+          v
+feedback to MIRROR AI
+
+The model revision must be pinned before production certification. A moving model alias is not acceptable evidence.
+
+The first real execution test is intentionally separate from unit tests: it must load the selected checkpoint, generate a response, exercise a tool call, execute a bounded tool, and feed the tool result back into the model. A green Python test suite alone is not an AI runtime test.
