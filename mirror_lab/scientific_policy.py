@@ -39,7 +39,7 @@ def build_work_order(objective: str, *, capability_id: str | None = None) -> Sci
 
 def rank_evidence(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     def rank(record: dict[str, Any]) -> tuple[int, float]:
-        if record.get("established_reference"):
+        if record.get("established_reference") or record.get("reference_candidate"):
             priority = EvidencePriority.ESTABLISHED_REFERENCE
         elif record.get("kind") == "repository":
             priority = EvidencePriority.INDEPENDENT_IMPLEMENTATION
@@ -54,7 +54,7 @@ def rank_evidence(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def require_reference_pass(records: list[dict[str, Any]]) -> None:
     """Fail closed when a reference-first work order was requested but no references were found."""
-    if not any(r.get("established_reference") for r in records):
+    if not any(r.get("established_reference") or r.get("reference_candidate") for r in records):
         raise ValueError(
             "No established/reference evidence found. Do not promote a frontier claim; "
             "either retry research with broader sources or explicitly record UNKNOWN."
