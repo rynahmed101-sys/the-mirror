@@ -13,6 +13,8 @@
  * to the world" does not become "let an AI turn the server into an SSRF toy."
  */
 
+import { createHash } from "node:crypto";
+
 export type ResearchProvider = "crossref" | "openalex" | "arxiv" | "github" | "huggingface";
 
 export interface ResearchRequest {
@@ -49,8 +51,26 @@ const MAX_LIMIT = 10;
 const MAX_RESPONSE_BYTES = 1_500_000;
 const REQUEST_TIMEOUT_MS = 12_000;
 
-function correlationId(input?: string) {
-  return input && /^[A-Za-z0-9_.:-]{1,128}$/.test(input) ? input : "mirror_research_" + Date.now().toString(36);
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return "[" + value.map(canonicalJson).join(",") + "]";
+  if (value && typeof value === "object") {
+    return "{" + Object.keys(value as Record<string, unknown>).sort()
+      .map((key) => JSON.stringify(key) + ":" + canonicalJson((value as Record<string, unknown>)[key]))
+      .join(",") + "}";
+  }
+  return JSON.stringify(value);
+}
+
+function deterministicHash(value: unknown): string {
+  return createHash("sha256").update(canonicalJson(value)).digest("hex");
+}
+
+function correlationId(
+  input?: string,
+  context?: { query: string; providers: ResearchProvider[]; limit: number; maxResponseBytes: number },
+) {
+  if (input && /^[A-Za-z0-9_.:-]{1,128}$/.test(input)) return input;
+  return "mirror_research_" + deterministicHash(context ?? { scope: "mirror_research" }).slice(0, 32);
 }
 
 async function fetchText(url: string, maxResponseBytes = MAX_RESPONSE_BYTES): Promise<string> {
@@ -99,10 +119,15 @@ function clampLimit(limit?: number) {
 }
 
 function source(provider: ResearchProvider, sourceId: string, title: string, url: string, extra: Partial<ResearchSource> = {}): ResearchSource {
+  const revision = extra.revision ?? null;
+  const excerpt = extra.excerpt ?? null;
+  const metadata = extra.metadata ?? {};
+  const fingerprint = extra.fingerprint ?? deterministicHash({
+    provider, sourceId, title, url, revision, excerpt, metadata,
+  });
   return {
     provider, sourceId, title, url, retrievedAt: new Date().toISOString(),
-    revision: extra.revision ?? null, fingerprint: extra.fingerprint ?? null,
-    excerpt: extra.excerpt ?? null, metadata: extra.metadata ?? {},
+    revision, fingerprint, excerpt, metadata,
   };
 }
 
@@ -168,7 +193,12 @@ export async function researchWorld(request: ResearchRequest): Promise<ResearchR
   if (requested && requested.length === 0) throw new Error("providers must contain at least one supported provider when supplied");
   const providers = requested?.length ? requested.filter((p) => allowed.has(p)) : [...allowed];
   if (requested?.length && providers.length !== requested.length) throw new Error("providers contains an unsupported provider");
-  const cid = correlationId(request.correlationId);
+  const cid = correlationId(request.correlationId, {
+    query,
+    providers,
+    limit,
+    maxResponseBytes,
+  });
   if (maxResponseBytes < 64 * 1024) throw new Error("maxResponseBytes is below the minimum safe research budget");
   const results: ResearchResult[] = [];
 
