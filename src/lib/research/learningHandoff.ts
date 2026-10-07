@@ -46,8 +46,7 @@ export async function submitProposalLearningHandoff(
   if (!endpoint || !token) {
     throw new Error("Mirror learning handoff endpoint/token are required");
   }
-
-  const response = await fetch(endpoint + "/jobs", {
+  const response = await fetch(endpoint + "/learning", {
     method: "POST",
     headers: {
       Authorization: "Bearer " + token,
