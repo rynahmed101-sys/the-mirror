@@ -1,196 +1,50 @@
-# AI Operator Architecture
+# Mirror AI Operator
 
-## Purpose
+Mirror AI is the permanent intelligent system living in THE MIRROR. Its
+identity is separate from any future language or reasoning model.
 
-THE MIRROR is designed to be operated by AI rather than by a human manually performing technical simulation work.
+The current implementation deliberately has **no model dependency**. Its
+cognitive substrate is a persistent, inspectable state machine built from
+memory, goals, beliefs, procedures, provenance, self-audit, consolidation,
+and bounded decision-making.
 
-The user can say what they want to investigate. The AI should be able to turn that request into a sequence of concrete scientific operations without requiring the user to manipulate equations, solver settings, files, databases, or dashboards by hand.
+A future model can be attached as an expression/reasoning component. It must
+not become the owner of identity or scientific authority.
 
-This is analogous to a scientist using an instrument: the scientist asks a question; the instrument performs the technical procedure and returns observations.
+## Operating order
 
-## Important distinction
+Mirror AI always considers work in this order:
 
-**AI-operated does not mean AI-decided truth.**
+1. repair
+2. current backlog
+3. earliest canonical ledger frontier
+4. explicit Automate request
+5. discovery, only when allowed
 
-The AI operates the machinery. It does not become the authority for whether a hypothesis is true.
+When nothing is permitted, the brain waits. It does not manufacture work to
+look busy.
 
-The laboratory records:
+## Boundary
 
-- what was proposed;
-- what was formalized;
-- what was executed;
-- what inputs were used;
-- what happened;
-- how numerically reliable the result appears;
-- what patterns were detected;
-- what comparisons were made;
-- what remains unexplained.
+Mirror AI may:
 
-Interpretation and conjecture must remain distinguishable from raw observation.
+- remember observations and evidence;
+- retrieve relevant memories;
+- maintain goals and confidence-bearing beliefs;
+- record procedures and their outcomes;
+- consolidate repeated observations;
+- unlearn information non-destructively;
+- choose a bounded operational action;
+- maintain an auditable history.
 
-## Primary operator capabilities
+Mirror AI may not:
 
-The operator should eventually have first-class operations for:
+- certify its own science;
+- declare a capability promoted;
+- mutate Automate's canonical ledger;
+- treat a memory, belief, model output, experiment, or research result as
+  authoritative merely because it is present;
+- bypass external verification.
 
-- define_hypothesis
-- formalize_model
-- design_experiment
-- run_experiment
-- repeat_experiment
-- perturb_initial_conditions
-- sweep_parameters
-- change_solver
-- change_precision
-- change_resolution
-- analyze_trajectory
-- detect_structure
-- compare_runs
-- compare_models
-- compare_reference
-- record_evidence
-- inspect_provenance
-- propose_next_experiment
-
-These are orchestration capabilities, not scientific verdicts.
-
-## Current operator boundary
-
-The first Python implementation exposes a programmatic LabOperator facade over the scientific kernel.
-
-The facade exists so future AI/plugin integrations can operate the lab through a stable interface instead of reaching into implementation details.
-
-The operator should remain thin. Scientific algorithms belong in the relevant engine/analysis modules.
-
-## Conversation-to-experiment translation
-
-A natural-language request should become an explicit experiment record before execution.
-
-For example:
-
-~~~text
-User:
-"What happens if this relation is iterated from these initial values?"
-
-AI:
-1. identify the proposed relation;
-2. state assumptions;
-3. construct the model;
-4. choose initial state and parameters;
-5. choose a finite execution horizon;
-6. execute;
-7. preserve the complete trajectory;
-8. analyze basic structure;
-9. perturb relevant inputs;
-10. determine which observations survive;
-11. record the evidence;
-12. propose the next useful experiment.
-~~~
-
-The AI should not skip directly from a prompt to a conclusion.
-
-## Discovery behavior
-
-When an experiment produces an unexpected result, the default response is:
-
-~~~text
-unexpected result
-      ↓
-check implementation
-      ↓
-check numerical integrity
-      ↓
-repeat
-      ↓
-perturb
-      ↓
-characterize
-      ↓
-compare if useful
-      ↓
-preserve if still present
-~~~
-
-Not:
-
-~~~text
-unexpected result → discard
-~~~
-
-## Human role
-
-Humans remain important, but they should not be forced to perform repetitive technical operations.
-
-Humans provide:
-
-- research direction;
-- ideas and hypotheses;
-- conceptual constraints;
-- authorization for consequential actions;
-- judgment about what questions are worth pursuing.
-
-The AI performs the mechanical and computational research loop.
-
-## Provider independence
-
-The operator interface must not assume a specific AI provider.
-
-The following are replaceable adapters:
-
-- ChatGPT/plugin integration;
-- GitHub agent integration;
-- local model integration;
-- future external agent;
-- future multi-agent orchestration.
-
-The Python scientific core remains the stable center.
-
-## Long-term direction
-
-The mature Mirror should feel like an AI scientist's laboratory:
-
-~~~text
-question
-  → experiment
-  → observation
-  → follow-up experiment
-  → deeper experiment
-  → evidence graph
-  → new question
-~~~
-
-The objective is not autonomous storytelling.
-
-The objective is **autonomous experimental iteration grounded in recorded computation**.
-
-
-## External researcher mode
-
-THE MIRROR also supports a distinct **external researcher** role. This role is intentionally broader than the Automate implementation worker: it is allowed to acquire public research material and investigate the open world through bounded provider adapters.
-
-The external researcher may:
-- search scholarly metadata through Crossref and OpenAlex;
-- search arXiv records;
-- inspect public GitHub repositories;
-- inspect public Hugging Face model metadata;
-- compare independent sources;
-- preserve contradictory or incomplete findings;
-- propose experiments based on external evidence.
-
-External research output is always tagged as **UNTRUSTED_EXTERNAL_EVIDENCE**. A source result is an observation about what a provider returned, not proof of the provider's claims.
-
-The external researcher must preserve:
-- query;
-- provider;
-- source identifier;
-- source URL;
-- retrieval timestamp;
-- revision/version where available;
-- content or metadata fingerprint where available;
-- limitations;
-- correlation/request identity.
-
-The researcher does not receive authority to alter Automate's ledger, capability inventory, rule registry, or certification state.
-
-The world-facing boundary is deliberately provider-neutral. Adding a new provider must not require changing the scientific evidence model.
-
-This is the laboratory's "look outward" capability. It is not the laboratory's "believe what you found" capability.
+The brain is therefore useful without pretending to be omniscient. Humanity
+has enough omniscient software already.
