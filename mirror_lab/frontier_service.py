@@ -13,6 +13,7 @@ from .operator import FrontierOperator, MissionContext
 from .provider import OpenAICompatibleProvider
 from .research import ResearchTool
 from .toolbelt import build_tool_registry
+from .git_tools import GitTool
 from .workspace import WorkspaceTool
 
 
@@ -51,4 +52,15 @@ def execute_frontier_job(
             "canonical_mutation": False,
         },
     }
-    return agent.run(mission, context)
+    result = agent.run(mission, context)
+    git = GitTool(workspace.root)
+    status = git.status()
+    diff = git.diff()
+    return {
+        **result,
+        "schema_version": "mirror.frontier_result.v1",
+        "capability_id": capability["id"],
+        "base_revision": capability["base_revision"],
+        "proposal": {"status": status, "diff": diff},
+        "authority": "UNTRUSTED_MIRROR_PROPOSAL",
+    }
