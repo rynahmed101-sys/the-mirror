@@ -564,11 +564,24 @@ class ReasoningEngine:
         return AttentionContext(cue=cue, memories=memories)
 
     def route_specialist(self, objective: str) -> SpecialistName:
+        """Route by explicit task context, then lexical evidence.
+
+        Repository/GitHub work is deliberately treated as an external-state
+        operation: when the objective names GitHub/repository/branch/PR/SHA/CI
+        semantics, the GitHub specialist owns the first routing decision even
+        when the same sentence also contains coding or repair language.
+        Diagnostic routing remains the default for failures that are not
+        explicitly repository-scoped.
+        """
         tokens = _tokens(objective)
+        repository_cues = {"github", "repository", "repo", "branch", "pr", "pull", "commit", "sha", "ci", "merge"}
+        if tokens & repository_cues:
+            return SpecialistName.GITHUB
+
         scores = {name: 0 for name in SpecialistName}
         keywords: dict[SpecialistName, set[str]] = {
             SpecialistName.CODING: {"code", "coding", "implement", "patch", "test", "pytest", "bug", "debug"},
-            SpecialistName.GITHUB: {"github", "branch", "pr", "pull", "commit", "sha", "ci", "merge"},
+            SpecialistName.GITHUB: repository_cues,
             SpecialistName.RESEARCH: {"research", "paper", "literature", "source", "citation", "arxiv", "study"},
             SpecialistName.SCIENTIFIC: {"math", "physics", "equation", "derive", "calculus", "tensor", "proof"},
             SpecialistName.DIAGNOSTIC: {"failure", "failed", "error", "timeout", "broken", "regression", "repair"},
