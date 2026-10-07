@@ -97,3 +97,47 @@ def test_frontier_client_rejects_mismatched_request_id():
     )
     with pytest.raises(FrontierTransportError):
         client.submit(_request())
+
+
+def test_frontier_tool_is_authorized_and_source_revision_bound(monkeypatch):
+    from mirror_lab.frontier import frontier_tool_spec
+    from mirror_lab.tooling import ToolContext
+    from mirror_lab.reasoning import SpecialistName
+
+    class FakeClient:
+        def submit(self, request):
+            return {
+                "success": True,
+                "jobId": "job-2",
+                "state": "queued",
+                "requestId": request.request_id,
+            }
+
+    spec = frontier_tool_spec(FakeClient())
+    request = _request()
+    denied = spec.handler if False else None
+    client_result = spec.handler(
+        request,
+        ToolContext(
+            cycle_id="cycle_test_12345678",
+            mission_id="mission_test_12345678",
+            objective="submit frontier mission",
+            specialist=SpecialistName.REASONING,
+            source_revision="a" * 40,
+            authorization_granted=True,
+        ),
+    )
+    assert client_result["authority"] == "UNTRUSTED_TRANSPORT_ACK"
+
+    with pytest.raises(__import__("mirror_lab.frontier", fromlist=["FrontierTransportError"]).FrontierTransportError):
+        spec.handler(
+            request,
+            ToolContext(
+                cycle_id="cycle_test_12345678",
+                mission_id="mission_test_12345678",
+                objective="submit frontier mission",
+                specialist=SpecialistName.REASONING,
+                source_revision="b" * 40,
+                authorization_granted=True,
+            ),
+        )
