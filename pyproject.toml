@@ -20,6 +20,12 @@ dependencies = [
 dev = [
   "pytest>=8"
 ]
+ai = [
+  "transformers>=4.55",
+  "torch>=2.7",
+  "accelerate>=1.0",
+  "kernels>=0.9"
+]
 discovery = [
   "xarray>=2024.10",
   "SALib>=1.5",
