@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Iterable
 
 from .brain import Belief, Decision, Goal, MemoryKind, MirrorBrain, Recall
+from .cycle import CognitiveCycle, CycleResult
+from .tooling import ToolRegistry, ToolSpec
 from .reasoning import (
     ActionProposal,
     ConstraintKind,
@@ -38,6 +40,8 @@ class MirrorAI:
         self.name = cfg.name
         self.brain = MirrorBrain(cfg.state_dir / "brain.sqlite3")
         self.reasoning = ReasoningEngine(self.brain)
+        self.tools = ToolRegistry()
+        self.cycle = CognitiveCycle(self.brain, self.reasoning, self.tools)
 
     def close(self) -> None:
         self.brain.close()
@@ -94,6 +98,33 @@ class MirrorAI:
 
     def snapshot(self) -> dict[str, int]:
         return self.brain.snapshot()
+
+    def register_tool(self, spec: ToolSpec) -> None:
+        self.tools.register(spec)
+
+    def tool_manifest(self):
+        return self.tools.manifest()
+
+    def run_cycle(
+        self,
+        objective: str,
+        *,
+        mission: str | None = None,
+        capability_id: str | None = None,
+        available_tools: Iterable[str] = (),
+        input_value=None,
+        authorization_granted: bool = False,
+        source_revision: str | None = None,
+    ) -> CycleResult:
+        return self.cycle.run_once(
+            objective,
+            mission=mission,
+            capability_id=capability_id,
+            available_tools=available_tools,
+            input_value=input_value,
+            authorization_granted=authorization_granted,
+            source_revision=source_revision,
+        )
 
     def start_mission(
         self,
