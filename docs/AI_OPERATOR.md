@@ -209,7 +209,7 @@ Model identity:
 - operational role: permanent Mirror operator, maintainer, scientist, and controller
 - scientific authority: none; generated claims and proposed changes remain verification inputs
 
-The choice is deliberate. The model card reports improvements in logical reasoning, mathematics, science, coding and tool usage, with 30.5B total parameters and 3.3B active parameters and native 256K context. The Apache-2.0 license and self-hosted weights avoid a hosted-provider token quota or provider lock-in. citeturn7search0turn7search1
+The choice is deliberate. The model card reports improvements in logical reasoning, mathematics, science, coding and tool usage, with 30.5B total parameters and 3.3B active parameters and native 256K context. The Apache-2.0 license and self-hosted weights avoid a hosted-provider token quota or provider lock-in.
 
 There are still physical limits. No honest architecture can promise literally infinite tokens or infinite compute. The design target is instead to remove API subscription limits from the permanent operating path, keep model weights under our control, and make context, memory, compute and generation budgets explicit engineering resources.
 
