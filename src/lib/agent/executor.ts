@@ -11,7 +11,7 @@ import * as pgSchema from "../db/schema.pg";
 import { appendRawEventLedger } from "./eventLedger";
 import { processRawObservationToLayer1 } from "./analysisEngine";
 import { canAgentAccessExperimentConfigAsync, filterExperimentForAgent } from "./blindIsolation";
-import { and, eq, or, desc, inArray } from "drizzle-orm";
+import { and, eq, or, desc, inArray, like } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { researchWorld } from "../research/worldResearch";
 import { buildResearchProposal } from "../research/researchProposalBuilder";
@@ -348,18 +348,16 @@ export async function executeTool(
         if (grantCorrelation !== grant.correlation_id) {
           throw new Error("discovery grant correlation_id does not match the controller request");
         }
-        const priorProposalLogs = await db
-          .select({ arguments: toolLogs.arguments })
-          .from(toolLogs)
+        const priorGrantEvents = await db
+          .select({ id: rawEventLedger.id })
+          .from(rawEventLedger)
           .where(and(
-            eq(toolLogs.agentId, agentId),
-            eq(toolLogs.toolName, "propose_new_capability"),
-          ))
-          .limit(200);
-        const grantAlreadyUsed = priorProposalLogs.some((row: any) => {
-          const logged = parseJson(row.arguments, {});
-          return logged?.discoveryGrant?.grant_id === grant.grant_id;
-        });
+            eq(rawEventLedger.agentId, agentId),
+            eq(rawEventLedger.eventType, "TOOL_EXECUTED"),
+            like(rawEventLedger.payload, "%propose_new_capability%"),
+            like(rawEventLedger.payload, "%" + grant.grant_id + "%"),
+          ));
+        const grantAlreadyUsed = priorGrantEvents.length > 0;
         if (grantAlreadyUsed) {
           throw new Error("discovery grant has already been consumed by a prior capability proposal");
         }
