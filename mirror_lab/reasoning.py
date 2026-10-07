@@ -704,7 +704,10 @@ class ReasoningEngine:
         ):
             if failure_classification.lower() in recall.memory.content.lower():
                 repeated += 1
-        if repeated >= 2:
+        # A second occurrence means one prior matching failure already exists;
+        # change strategy before recording the new failure to avoid repeating the
+        # same tactic a third time.
+        if repeated >= 1:
             strategy = Strategy(
                 "change_strategy",
                 "Repeated failure is present; do not repeat the same tactic.",
