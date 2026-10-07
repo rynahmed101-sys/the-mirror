@@ -16,6 +16,7 @@ import { nanoid } from "nanoid";
 import { researchWorld } from "../research/worldResearch";
 import { buildResearchProposal } from "../research/researchProposalBuilder";
 import { submitProposalLearningHandoff } from "../research/learningHandoff";
+import { validateDiscoveryGrant } from "../research/discoveryGrant";
 
 const tables: any = isPg ? pgSchema : sqliteSchema;
 const {
@@ -342,6 +343,26 @@ export async function executeTool(
         if (process.env.MIRROR_DISCOVERY_ACTIVATION_MODE !== "IDLE") {
           throw new Error("Mirror capability discovery is not in IDLE activation mode");
         }
+        const grant = validateDiscoveryGrant(args.discoveryGrant);
+        const grantCorrelation = String(args.correlationId || "");
+        if (grantCorrelation !== grant.correlation_id) {
+          throw new Error("discovery grant correlation_id does not match the controller request");
+        }
+        const priorProposalLogs = await db
+          .select({ arguments: toolLogs.arguments })
+          .from(toolLogs)
+          .where(and(
+            eq(toolLogs.agentId, agentId),
+            eq(toolLogs.toolName, "propose_new_capability"),
+          ))
+          .limit(200);
+        const grantAlreadyUsed = priorProposalLogs.some((row: any) => {
+          const logged = parseJson(row.arguments, {});
+          return logged?.discoveryGrant?.grant_id === grant.grant_id;
+        });
+        if (grantAlreadyUsed) {
+          throw new Error("discovery grant has already been consumed by a prior capability proposal");
+        }
         const requestId = String(args.requestId || "");
         const capabilityId = String(args.capabilityId || "discovery.idle");
         const candidate = args.candidateCapability;
@@ -367,6 +388,7 @@ export async function executeTool(
           status: "CANDIDATE",
           proposal,
           handoff,
+          grantId: grant.grant_id,
           authority: "UNTRUSTED_RESEARCH_PROPOSAL",
         };
         break;
