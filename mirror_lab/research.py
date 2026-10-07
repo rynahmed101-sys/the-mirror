@@ -313,7 +313,7 @@ class ResearchTool:
                 errors.append({"provider": provider.name, "error": "provider exceeded 15s per-provider budget"})
         records.sort(
             key=lambda r: (
-                not r.established_reference,
+                not (r.established_reference or r.reference_candidate),
                 -(r.score or 0.0),
                 r.provider,
                 r.title.lower(),
