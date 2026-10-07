@@ -161,3 +161,40 @@ question
 The objective is not autonomous storytelling.
 
 The objective is **autonomous experimental iteration grounded in recorded computation**.
+
+
+## Frontier mode and work priority
+
+The mature operator is not a passive experiment launcher. It is a frontier AI worker that can research public sources, inspect repository code, write bounded code, repair failed capability implementations, design experiments, and propose genuinely new mathematical or physical capabilities.
+
+Its work queue is strictly prioritized:
+
+1. repair a failed capability or requested correction;
+2. current Automate backlog item;
+3. the next capability required by the canonical ledger frontier;
+4. explicit Automate verification/research requests;
+5. discovery.
+
+Discovery is deliberately last. If Automate needs Mirror to repair or implement something, the operator holds discovery work rather than competing with the canonical objective.
+
+Automate supplies the current mission context, including capability ID, backlog, ledger frontier, request state, and ledger fingerprint. Mirror must not invent a duplicate capability when an existing capability ID is present.
+
+### Capability creation
+
+Mirror may discover and implement a candidate capability when discovery is the active priority. A candidate contains its proposed identity, scientific rationale, implementation changes, tests, provenance, and unresolved uncertainty. It is never written directly into Automate's canonical ledger or inventory.
+
+Automate decides whether the candidate becomes a canonical capability.
+
+### Capability repair
+
+When a capability implementation fails verification, Mirror receives the failed implementation, changed paths, failed-job evidence, and diagnosis context. It may inspect the code, identify a root cause, modify the capability implementation, add regression tests, and produce a new repair proposal.
+
+Quarantine is therefore only containment. The actual correction happens in Mirror's frontier operator.
+
+### Tool authority
+
+The frontier operator may use web/search, public scientific sources, repository inspection, local scientific engines, and bounded code-writing tools. These are instruments, not authorities.
+
+Code changes must remain within the mission's declared workspace. Network access is explicit rather than implicit. Secrets and credentials are never treated as scientific evidence.
+
+The operator may surprise us. It may produce a result that conflicts with established theory. That result is preserved and investigated. Automate independently decides whether any resulting code or claim can be promoted.
