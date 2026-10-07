@@ -256,11 +256,13 @@ class ReasoningEngine:
         return self.state
 
     def resume_last_mission(self) -> MissionState | None:
+        # Replay the newest event carrying a complete mission state. Event names
+        # are labels, not replay authority: recovery checkpoints can be attached
+        # to evidence, contradiction, or failure events.
         for event in reversed(self.brain.self_audit(limit=500)):
-            if event["event_type"] == "mission_checkpoint":
-                return self._state_from_payload(event["payload"]["state"])
-            if event["event_type"] == "mission_started":
-                return self._state_from_payload(event["payload"]["state"])
+            payload = event.get("payload")
+            if isinstance(payload, Mapping) and isinstance(payload.get("state"), Mapping):
+                return self._state_from_payload(payload["state"])
         return None
 
     def _checkpoint(self, event_type: str = "mission_checkpoint") -> None:
