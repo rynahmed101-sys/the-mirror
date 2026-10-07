@@ -97,7 +97,7 @@ class FrontierOperator:
             "Never mutate Automate's ledger, inventory, certification records, or Git history "
             "directly. Work priority is strict: repair, current backlog, ledger frontier, "
             "Automate request, then discovery. If higher-priority work exists, discovery waits. "
-            "Never duplicate an existing capability_id. A new capability is a candidate proposal "
+            "Never duplicate an existing capability_id. Before implementing a non-repair capability, establish a reference baseline from mature/established mathematics, physics, literature, or implementation evidence and record that grounding in context. A new capability is a candidate proposal "
             "until Automate evaluates and promotes it. Inspect relevant code/tests before edits, "
             "run focused verification after edits, preserve failure evidence, and report uncertainty."
         )
@@ -108,6 +108,8 @@ class FrontierOperator:
         action = str(decision.get("action", ""))
         if action not in self.ACTIONS:
             raise ValueError(f"Unsupported frontier action: {action}")
+        if action in {"implement", "create_capability_candidate"} and mission.priority != Priority.REPAIR and not context.get("reference_grounded", False):
+            raise ValueError("Established/reference grounding is required before frontier implementation.")
         if mission.priority != Priority.DISCOVERY and action == "create_capability_candidate":
             raise ValueError("Discovery is blocked while higher-priority work exists.")
         return decision
