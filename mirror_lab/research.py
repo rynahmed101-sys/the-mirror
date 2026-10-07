@@ -27,6 +27,7 @@ class ResearchRecord:
     authors: tuple[str, ...] = ()
     score: float | None = None
     established_reference: bool = False
+    reference_candidate: bool = False
     raw: dict[str, Any] | None = None
 
     @property
@@ -83,7 +84,8 @@ class OpenAlexProvider:
                     if a.get("author", {}).get("display_name")
                 ),
                 score=float(x.get("relevance_score", 0.0)),
-                established_reference=True,
+                established_reference=False,
+                reference_candidate=True,
                 raw=x,
             )
             for x in payload.get("results", [])
@@ -110,7 +112,8 @@ class CrossrefProvider:
                     for a in x.get("author", [])[:10]
                 ),
                 score=None,
-                established_reference=True,
+                established_reference=False,
+                reference_candidate=True,
                 raw=x,
             )
             for x in payload.get("message", {}).get("items", [])
@@ -141,7 +144,8 @@ class InspireHEPProvider:
                         for a in meta.get("authors", [])[:10]
                         if a.get("full_name")
                     ),
-                    established_reference=True,
+                    established_reference=False,
+                    reference_candidate=True,
                     raw=hit,
                 )
             )
@@ -175,7 +179,8 @@ class SemanticScholarProvider:
                 abstract=x.get("abstract"),
                 authors=tuple(str(a.get("name")) for a in x.get("authors", [])[:10] if a.get("name")),
                 score=float(x.get("citationCount") or 0),
-                established_reference=True,
+                established_reference=False,
+                reference_candidate=True,
                 raw=x,
             )
             for x in payload.get("data", [])
