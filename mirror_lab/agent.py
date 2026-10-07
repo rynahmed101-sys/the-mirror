@@ -49,6 +49,9 @@ class FrontierAgent:
     def run(self, mission: MissionContext, context: dict[str, Any]) -> dict[str, Any]:
         history: list[AgentStep] = []
         current = dict(context)
+        current["available_tools"] = [
+            {"name": name, "description": tool.description} for name, tool in self.tools.tools.items()
+        ]
         for _ in range(self.max_steps):
             decision = self.operator.decide(mission, {**current, "history": [h.__dict__ for h in history]})
             action = str(decision.get("action", "defer"))
