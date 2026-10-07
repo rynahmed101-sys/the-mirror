@@ -11,6 +11,9 @@ import os
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Mapping
+
+from .reasoning import SpecialistName
+from .tooling import ToolContext, ToolSpec
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -184,3 +187,31 @@ class ChanfanaFrontierClient:
             "request_id": job.get("request_id"),
             "job_id": job.get("id"),
         }
+
+
+def frontier_tool_spec(client: ChanfanaFrontierClient) -> ToolSpec:
+    """Expose frontier submission through the single Mirror ToolRegistry."""
+    def handle(value: Any, context: ToolContext) -> dict[str, Any]:
+        if not isinstance(value, FrontierRequest):
+            raise TypeError("frontier tool input must be a FrontierRequest")
+        if context.source_revision and value.base_revision != context.source_revision:
+            raise FrontierTransportError(
+                "frontier request base_revision does not match tool source_revision"
+            )
+        queued = client.submit(value)
+        return {
+            "authority": "UNTRUSTED_TRANSPORT_ACK",
+            "queued": queued,
+            "mission_id": context.mission_id,
+            "cycle_id": context.cycle_id,
+        }
+
+    return ToolSpec(
+        name="automate.frontier.submit",
+        specialist=SpecialistName.REASONING,
+        handler=handle,
+        description="Queue a bounded Mirror frontier mission through Chanfana.",
+        timeout_seconds=30.0,
+        authorization_required=True,
+        mutating=True,
+    )
