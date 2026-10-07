@@ -198,3 +198,61 @@ The frontier operator may use web/search, public scientific sources, repository 
 Code changes must remain within the mission's declared workspace. Network access is explicit rather than implicit. Secrets and credentials are never treated as scientific evidence.
 
 The operator may surprise us. It may produce a result that conflicts with established theory. That result is preserved and investigated. Automate independently decides whether any resulting code or claim can be promoted.
+
+
+## Concrete frontier toolbelt
+
+The frontier operator is backed by bounded instruments rather than prompt-only promises:
+
+- research.search: OpenAlex, Crossref, INSPIRE-HEP, Semantic Scholar, arXiv, GitHub, Hugging Face.
+- workspace.read / workspace.write: mission-workspace-only code inspection and modification.
+- workspace.run: bounded local test/experiment execution.
+- git.status / git.diff / git.branch / git.commit: isolated proposal preparation.
+- experiment.run_manifest: execution through the existing scientific kernel.
+- experiment.summarize: descriptive trajectory analysis.
+
+Remote Git mutation and canonical Automate mutation are unavailable to the Mirror toolbelt.
+
+## Research order
+
+For capability work, research is reference-first:
+
+1. canonical/established mathematics and physics where applicable;
+2. mature scholarly literature and known methods;
+3. independent open-source implementations;
+4. primary literature and broader scholarly indexing;
+5. frontier/preprint proposals;
+6. genuinely novel hypotheses.
+
+The first four are grounding and control instruments, not hidden acceptance tests. A novel result may disagree with an established theory and remain worth investigating. What changes is the evidence burden: surprising claims receive more reproduction, numerical-integrity, perturbation, and independent-route checks rather than automatic rejection.
+
+A provider being reputable does not make every returned paper established physics. Research records distinguish trusted scholarly-source grounding from actual established/reference status.
+
+## Frontier mission loop
+
+Automate mission + ledger frontier
+        |
+        v
+Chanfana durable frontier job
+        |
+        v
+Mirror AI decision
+        |
+        +--> reference research / code inspection / experiment
+        |
+        v
+bounded implementation or repair
+        |
+        v
+tests + evidence + provenance
+        |
+        v
+proposal result
+        |
+        v
+Automate independent verification
+        |
+        v
+promotion or rejection
+
+Repair takes precedence over all other work. Discovery is disabled unless Automate explicitly grants it.
