@@ -266,6 +266,35 @@ class HuggingFaceProvider:
             if x.get("id")
         ]
 
+    def fetch(self, locator: str, *, max_bytes: int = 2_000_000) -> dict[str, Any]:
+        """Fetch a bounded source and preserve its content hash.
+
+        Only HTTPS sources are accepted. The optional MIRROR_ALLOWED_RESEARCH_DOMAINS
+        variable can narrow access further.
+        """
+        parsed = urllib.parse.urlparse(locator)
+        if parsed.scheme != "https" or not parsed.netloc:
+            raise ValueError("research fetch requires an HTTPS URL")
+        allowed = os.getenv("MIRROR_ALLOWED_RESEARCH_DOMAINS", "").strip()
+        if allowed:
+            domains = {x.strip().lower() for x in allowed.split(",") if x.strip()}
+            if parsed.hostname.lower() not in domains:
+                raise ValueError("research source domain is not allowlisted")
+        max_bytes = min(max(max_bytes, 1_024), 2_000_000)
+        req = urllib.request.Request(locator, headers={"User-Agent": "the-mirror-lab/0.1"})
+        with urllib.request.urlopen(req, timeout=20) as response:
+            data = response.read(max_bytes + 1)
+            if len(data) > max_bytes:
+                raise ValueError("research source exceeds bounded fetch size")
+            content_type = response.headers.get("content-type", "")
+        return {
+            "locator": locator,
+            "content_type": content_type,
+            "bytes": len(data),
+            "content_sha256": hashlib.sha256(data).hexdigest(),
+            "content": data.decode("utf-8", "replace"),
+        }
+
 
 DEFAULT_PROVIDERS: tuple[ResearchProvider, ...] = (
     OpenAlexProvider(),
