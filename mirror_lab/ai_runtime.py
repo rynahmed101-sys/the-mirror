@@ -8,7 +8,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-DEFAULT_MODEL_ID = "openai/gpt-oss-120b"
+DEFAULT_MODEL_ID = "Qwen/Qwen3-30B-A3B-Instruct-2507"
 
 class ChatRuntime(Protocol):
     def generate(self, messages: list[dict[str, Any]], *, max_new_tokens: int = 2048) -> Any:
