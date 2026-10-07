@@ -198,22 +198,24 @@ This is the laboratory's "look outward" capability. It is not the laboratory's "
 
 ## Permanent AI runtime
 
-THE MIRROR has a canonical open-weight AI identity. The selected model is **OpenAI gpt-oss-120b** from Hugging Face.
+THE MIRROR has a canonical open-weight AI identity. The selected model is **Qwen3-30B-A3B-Instruct-2507** from Hugging Face.
 
 Model identity:
-- model: openai/gpt-oss-120b
+- model: Qwen/Qwen3-30B-A3B-Instruct-2507
 - license: Apache-2.0
-- native context: 131,072 tokens
+- native context: 262,144 tokens
 - runtime: Hugging Face Transformers
 - deployment target: self-hosted GPU inference
 - operational role: permanent Mirror operator, maintainer, scientist, and controller
 - scientific authority: none; generated claims and proposed changes remain verification inputs
 
-The choice is deliberate. The model is open-weight, self-hostable, supports configurable reasoning, function calling, structured outputs, and agentic workflows. Its MXFP4 deployment target is a single 80 GB GPU-class machine. There is no hosted-provider token quota in the local deployment path. Physical limits still exist: context length, GPU memory, throughput, and generation limits are engineering constraints, not API subscription limits.
+The choice is deliberate. The model card reports improvements in logical reasoning, mathematics, science, coding and tool usage, with 30.5B total parameters and 3.3B active parameters and native 256K context. The Apache-2.0 license and self-hosted weights avoid a hosted-provider token quota or provider lock-in. citeturn7search0turn7search1
 
-The runtime is lazy-loaded so the scientific kernel can still run without GPU dependencies. Installing the ai extra installs Transformers, PyTorch, Accelerate, and the required kernel support.
+There are still physical limits. No honest architecture can promise literally infinite tokens or infinite compute. The design target is instead to remove API subscription limits from the permanent operating path, keep model weights under our control, and make context, memory, compute and generation budgets explicit engineering resources.
 
-The permanent AI is not a replacement for verification. It is the actor that proposes, investigates, repairs, maintains, and controls execution. Verification remains an external boundary precisely because a capable agent must not be allowed to certify its own claims.
+The runtime is lazy-loaded so the scientific kernel can still run without GPU dependencies. Installing the ai extra installs Transformers, PyTorch, Accelerate, and kernel support.
+
+The permanent AI is the actor that proposes, investigates, repairs, maintains, researches, experiments and controls execution. Verification remains external. The model must never certify its own scientific claims, its own code, or its own promotion.
 
 The intended loop is:
 
