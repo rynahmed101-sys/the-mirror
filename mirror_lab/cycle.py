@@ -83,13 +83,19 @@ class CognitiveCycle:
         *,
         mission: str | None = None,
         capability_id: str | None = None,
-        available_tools: Iterable[str] = (),
+        available_tools: Iterable[str] | None = None,
         input_value: Any = None,
         authorization_granted: bool = False,
         source_revision: str | None = None,
     ) -> CycleResult:
         if not objective.strip():
             raise ValueError("objective is required")
+
+        available_tool_list = (
+            tuple(self.tools.names())
+            if available_tools is None
+            else tuple(dict.fromkeys(tool for tool in available_tools if tool))
+        )
 
         current = self.reasoning.state
         cycle_id = _id(
@@ -112,8 +118,8 @@ class CognitiveCycle:
         specialist = self.reasoning.route_specialist(objective)
         self._transition(cycle_id, CyclePhase.SELECT_SPECIALIST, specialist=specialist.value)
 
-        tool_name = self.reasoning.select_tool(specialist, available_tools)
-        action = self.reasoning.propose_action(objective, available_tools=available_tools)
+        tool_name = self.reasoning.select_tool(specialist, available_tool_list)
+        action = self.reasoning.propose_action(objective, available_tools=available_tool_list)
         if tool_name is not None and action.tool is None:
             action = ActionProposal(
                 specialist=action.specialist,
