@@ -48,6 +48,11 @@ jobs:
           PY
       - name: Execute bounded Mirror mission
         run: python -m mirror_lab.cli run-mission mission.json > mission-result.json
+      - name: Expose bounded result in workflow logs
+        run: |
+          echo "MIRROR_RESULT_BEGIN"
+          cat mission-result.json
+          echo "MIRROR_RESULT_END"
       - name: Upload untrusted mission result
         uses: actions/upload-artifact@v4
         with:
