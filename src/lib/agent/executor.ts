@@ -11,8 +11,13 @@ import * as pgSchema from "../db/schema.pg";
 import { appendRawEventLedger } from "./eventLedger";
 import { processRawObservationToLayer1 } from "./analysisEngine";
 import { canAgentAccessExperimentConfigAsync, filterExperimentForAgent } from "./blindIsolation";
-import { and, eq, or, desc, inArray } from "drizzle-orm";
+import { and, eq, or, desc, inArray, like } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { researchWorld } from "../research/worldResearch";
+import { buildResearchProposal } from "../research/researchProposalBuilder";
+import { submitProposalLearningHandoff } from "../research/learningHandoff";
+import { validateDiscoveryGrant } from "../research/discoveryGrant";
+import { runAutomatePatchProbe } from "./frontierSandbox";
 
 const tables: any = isPg ? pgSchema : sqliteSchema;
 const {
@@ -28,6 +33,9 @@ const MUTATING_TOOLS = new Set([
   "log_prediction", "make_prediction", "evaluate_prediction", "resolve_prediction",
   "create_experiment", "update_experiment", "record_observation", "record_discovery",
   "send_agent_message",
+  "run_perturbation_lab", "run_controlled_suite", "run_projection_suite",
+  "propose_new_capability",
+  "implement_automate_change",
 ]);
 
 function parseJson(value: unknown, fallback: unknown = []) {
@@ -140,6 +148,66 @@ export async function executeTool(
 
   try {
     switch (canonicalTool) {
+      case "implement_automate_change": {
+        const context = args.__frontierContext;
+        if (!context || typeof context !== "object") throw new Error("frontier context is required");
+        if (String(context.repository) !== "rynahmed101-sys/automate") throw new Error("frontier tool is restricted to the canonical Automate repository");
+        if (!/^[0-9a-f]{40}$/.test(String(context.baseRevision || ""))) throw new Error("frontier base revision must be an exact Git SHA");
+        const tests = Array.isArray(args.tests) ? args.tests.map(String).slice(0, 4) : [];
+        const probe = await runAutomatePatchProbe({
+          baseRevision: String(context.baseRevision),
+          patch: String(args.patch || ""),
+          tests,
+        });
+        result = {
+          status: probe.status,
+          authority: "UNTRUSTED_MIRROR_PROPOSAL",
+          capability_id: String(context.capabilityId),
+          base_revision: String(context.baseRevision),
+          task: String(context.task || ""),
+          probe,
+        };
+        break;
+      }
+
+      case "research_world": {
+        const query = String(args.query || "").trim();
+        if (!query) throw new Error("research_world requires a query");
+        const providers = Array.isArray(args.providers) ? args.providers.map(String) : undefined;
+        const resultSet = await researchWorld({
+          query,
+          providers: providers as any,
+          limit: Number(args.limit),
+          correlationId: requestId,
+        });
+        result = {
+          status: "EVIDENCE_ACQUIRED",
+          requestId,
+          correlationId: requestId,
+          results: resultSet,
+          authority: "UNTRUSTED_EXTERNAL_EVIDENCE",
+        };
+        break;
+      }
+
+      case "run_perturbation_lab": {
+        const { runPerturbationLab } = await import("./perturbationLab");
+        result = await runPerturbationLab({ agentId, polarIndex: args.polarIndex, azimuthIndex: args.azimuthIndex, epsilon: args.epsilon, maxToolSteps: args.maxToolSteps });
+        break;
+      }
+
+      case "run_controlled_suite": {
+        const { runControlledSuite } = await import("./controlledSuite");
+        result = await runControlledSuite({ agentId, seed: typeof args.seed === "string" ? args.seed : undefined, maxTrials: args.maxTrials, maxToolSteps: args.maxToolSteps });
+        break;
+      }
+
+      case "run_projection_suite": {
+        const { runProjectionSuite } = await import("./simulationProjection");
+        result = await runProjectionSuite({ agentIds: [agentId], seed: typeof args.seed === "string" ? args.seed : undefined, maxTrials: args.maxTrials, maxToolSteps: args.maxToolSteps });
+        break;
+      }
+
       case "get_self_model": {
         const models = await db.select().from(selfModels).where(eq(selfModels.agentId, agentId)).orderBy(desc(selfModels.version)).limit(1);
         if (!models.length) { result = { version: 0, claims: [], message: "No self-model established." }; break; }
@@ -286,6 +354,65 @@ export async function executeTool(
           description: String(args.dataPoint || ""), metrics: JSON.stringify({ statisticalContext: args.statisticalContext || null, interpretation: args.interpretation || null, interpretationConfidence: args.interpretationConfidence ?? null, epistemicStatus: args.epistemicStatus || "DATA", tags: args.tags || [] }),
         }).returning();
         result = { success: true, observation: obs };
+        break;
+      }
+
+      case "propose_new_capability": {
+        if (requestSource !== "SYSTEM" && requestSource !== "SCHEDULED") {
+          throw new Error("Capability discovery proposals require a scheduled/controller request.");
+        }
+        if (process.env.MIRROR_AUTONOMOUS_DISCOVERY_ENABLED !== "1") {
+          throw new Error("Mirror autonomous capability discovery is disabled");
+        }
+        if (process.env.MIRROR_DISCOVERY_ACTIVATION_MODE !== "IDLE") {
+          throw new Error("Mirror capability discovery is not in IDLE activation mode");
+        }
+        const grant = validateDiscoveryGrant(args.discoveryGrant);
+        const grantCorrelation = String(args.correlationId || "");
+        if (grantCorrelation !== grant.correlation_id) {
+          throw new Error("discovery grant correlation_id does not match the controller request");
+        }
+        const priorGrantEvents = await db
+          .select({ id: rawEventLedger.id })
+          .from(rawEventLedger)
+          .where(and(
+            eq(rawEventLedger.agentId, agentId),
+            eq(rawEventLedger.eventType, "TOOL_EXECUTED"),
+            like(rawEventLedger.payload, "%propose_new_capability%"),
+            like(rawEventLedger.payload, "%" + grant.grant_id + "%"),
+          ));
+        const grantAlreadyUsed = priorGrantEvents.length > 0;
+        if (grantAlreadyUsed) {
+          throw new Error("discovery grant has already been consumed by a prior capability proposal");
+        }
+        const requestId = String(args.requestId || "");
+        const capabilityId = String(args.capabilityId || "discovery.idle");
+        const candidate = args.candidateCapability;
+        if (!requestId || !candidate || typeof candidate !== "object") {
+          throw new Error("requestId and candidateCapability are required");
+        }
+        const proposal = buildResearchProposal({
+          requestId,
+          capabilityId,
+          sourceRevision: typeof args.sourceRevision === "string" ? args.sourceRevision : null,
+          candidateCapability: candidate,
+          evidenceRefs: Array.isArray(args.evidenceRefs) ? args.evidenceRefs.map(String) : [],
+          assumptions: Array.isArray(args.assumptions) ? args.assumptions.map(String) : [],
+          risks: Array.isArray(args.risks) ? args.risks.map(String) : [],
+          limitations: Array.isArray(args.limitations) ? args.limitations.map(String) : [],
+        });
+        let handoff: unknown = { status: "NOT_SUBMITTED", reason: "Mirror discovery handoff is disabled" };
+        if (process.env.MIRROR_DISCOVERY_HANDOFF_ENABLED === "1") {
+          handoff = await submitProposalLearningHandoff(proposal, requestId);
+        }
+        result = {
+          success: true,
+          status: "CANDIDATE",
+          proposal,
+          handoff,
+          grantId: grant.grant_id,
+          authority: "UNTRUSTED_RESEARCH_PROPOSAL",
+        };
         break;
       }
 

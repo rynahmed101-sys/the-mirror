@@ -160,6 +160,10 @@ Never collapse all comparison into one accuracy score.
 Before interpreting a surprising result: repeat it; change resolution; change timestep; change precision; perturb initial conditions; use another solver where possible; check invariant/residual drift; repeat with an independent implementation if important.
 
 ## Phase 7 — Reproducibility and evidence ledger
+- [x] Add a provider-neutral external research acquisition boundary.
+- [x] Preserve provider/source/timestamp/revision/fingerprint/limitation metadata.
+- [x] Keep external research explicitly untrusted and separate from scientific interpretation.
+
 Every experiment becomes a durable evidence object recording experiment, hypothesis, model/version, source revision, parameters, initial state, seeds, engine, solver, precision, environment, observations, analyses, comparisons, artifacts, logs, result status, and open questions.
 
 Use local SQLite initially, Git for source provenance, and content hashes for definitions, inputs, outputs, and artifacts. Cloud databases are optional.
@@ -250,3 +254,30 @@ If #9 is yes, prefer an AI-operable interface.
 The Math/Physics suite already provides that foundation.
 
 **THE MIRROR exists to let ideas run.**
+
+
+## Architecture reconciliation — Verification & Reconciliation Engine
+
+THE MIRROR is not merely a passive source of evidence. Its existing laboratory machinery is one of the scientific execution compartments available to the cross-repository Verification & Reconciliation Engine.
+
+Chanfana owns durable cross-repository execution and transport. Mirror owns scientific execution. Automate owns canonical mathematics/physics semantics and final authority.
+
+During the current Stage 1A–3A backlog phase, Mirror may be commissioned for tightly bounded verification work when a claim needs simulation, perturbation, numerical diagnostics, convergence/stability investigation, independent solver routes, or counterexample search.
+
+This is distinct from autonomous open-ended discovery. External-world research and uncontrolled discovery remain ON HOLD until the system's activation policy permits them.
+
+The intended path is:
+
+```
+Verifier
+  -> Chanfana durable request
+  -> Mirror laboratory
+  -> raw observations + diagnostics + provenance
+  -> Chanfana transport/persistence
+  -> verifier diagnosis/evidence assembly
+  -> Automate authority decision
+```
+
+Mirror must preserve surprising, contradictory, or unresolved observations rather than normalizing them into pass/fail. The verifier is responsible for diagnosing whether an anomaly is an implementation problem, numerical artifact, assumption mismatch, or unresolved behavior.
+
+Mirror must never mutate Automate's ledger, capability inventory, rule registry, certification state, or authoritative Git history.

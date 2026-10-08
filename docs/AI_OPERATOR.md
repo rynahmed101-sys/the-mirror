@@ -1,163 +1,71 @@
-# AI Operator Architecture
+# Mirror AI Operator
 
-## Purpose
+Mirror AI is the persistent intelligent engineering system living in THE MIRROR. Its identity is separate from any future language or reasoning model.
 
-THE MIRROR is designed to be operated by AI rather than by a human manually performing technical simulation work.
+The scientific and engineering core should remain provider-neutral. The current runtime uses a deterministic cognitive substrate, while future neural providers may improve reasoning and code-generation quality without becoming the owner of identity or authority.
 
-The user can say what they want to investigate. The AI should be able to turn that request into a sequence of concrete scientific operations without requiring the user to manipulate equations, solver settings, files, databases, or dashboards by hand.
+## Operating order
 
-This is analogous to a scientist using an instrument: the scientist asks a question; the instrument performs the technical procedure and returns observations.
+Mirror AI considers work in this order:
 
-## Important distinction
+1. repair active failures and blocked work;
+2. inspect the current Automate/three-repository state;
+3. advance the earliest permitted canonical capability;
+4. execute explicit Automate verification, research, coding, or repair requests;
+5. perform bounded discovery when the current operating mode grants it;
+6. record the outcome in durable memory.
 
-**AI-operated does not mean AI-decided truth.**
+The operator should prefer useful completion over generating activity for its own sake.
 
-The AI operates the machinery. It does not become the authority for whether a hypothesis is true.
+## Engineering abilities
 
-The laboratory records:
+Mirror AI may:
 
-- what was proposed;
-- what was formalized;
-- what was executed;
-- what inputs were used;
-- what happened;
-- how numerically reliable the result appears;
-- what patterns were detected;
-- what comparisons were made;
-- what remains unexplained.
+- research scientific literature, documentation, repositories, and implementations;
+- inspect repository state and relevant history;
+- design capability slices and test matrices;
+- write and modify code in its bounded workspace;
+- create reviewable Git changes and implementation proposals;
+- run focused experiments and simulations;
+- diagnose failures;
+- propose and implement bounded repairs;
+- perform numerical and scientific cross-checks;
+- search for counterexamples and hidden assumptions;
+- package observations, code changes, evidence, and provenance;
+- learn from prior attempts through the shared memory layer.
 
-Interpretation and conjecture must remain distinguishable from raw observation.
+## Authority boundary
 
-## Primary operator capabilities
+Mirror AI may participate in capability generation, repair, and verification, but it may not:
 
-The operator should eventually have first-class operations for:
+- certify its own scientific claims;
+- unilaterally declare an Automate capability authoritative;
+- bypass required CI, security, verification, or promotion gates;
+- directly rewrite Automate's canonical ledger, inventory, certification state, or acceptance rules;
+- convert model confidence, memory, or research results into authority.
 
-- define_hypothesis
-- formalize_model
-- design_experiment
-- run_experiment
-- repeat_experiment
-- perturb_initial_conditions
-- sweep_parameters
-- change_solver
-- change_precision
-- change_resolution
-- analyze_trajectory
-- detect_structure
-- compare_runs
-- compare_models
-- compare_reference
-- record_evidence
-- inspect_provenance
-- propose_next_experiment
+A useful rule is:
 
-These are orchestration capabilities, not scientific verdicts.
+**Mirror can do the work. Automate decides whether the work counts.**
 
-## Current operator boundary
+## Cross-repository work
 
-The first Python implementation exposes a programmatic LabOperator facade over the scientific kernel.
+For Automate work, preserve:
 
-The facade exists so future AI/plugin integrations can operate the lab through a stable interface instead of reaching into implementation details.
+- capability ID;
+- request/action-cycle ID;
+- source revision;
+- branch/PR identity;
+- experiment and evidence IDs;
+- provenance;
+- unresolved limitations.
 
-The operator should remain thin. Scientific algorithms belong in the relevant engine/analysis modules.
+Use Chanfana for durable cross-repository transport and persistence where available.
 
-## Conversation-to-experiment translation
+## Learning behavior
 
-A natural-language request should become an explicit experiment record before execution.
+Mirror records successful and failed procedures, diagnostics, observations, and engineering lessons. Learning changes future strategy selection, not the truth of a scientific claim.
 
-For example:
+Repeated failure should produce better diagnosis, narrower repair attempts, or escalation to another verification route rather than silent weakening of acceptance criteria.
 
-~~~text
-User:
-"What happens if this relation is iterated from these initial values?"
-
-AI:
-1. identify the proposed relation;
-2. state assumptions;
-3. construct the model;
-4. choose initial state and parameters;
-5. choose a finite execution horizon;
-6. execute;
-7. preserve the complete trajectory;
-8. analyze basic structure;
-9. perturb relevant inputs;
-10. determine which observations survive;
-11. record the evidence;
-12. propose the next useful experiment.
-~~~
-
-The AI should not skip directly from a prompt to a conclusion.
-
-## Discovery behavior
-
-When an experiment produces an unexpected result, the default response is:
-
-~~~text
-unexpected result
-      ↓
-check implementation
-      ↓
-check numerical integrity
-      ↓
-repeat
-      ↓
-perturb
-      ↓
-characterize
-      ↓
-compare if useful
-      ↓
-preserve if still present
-~~~
-
-Not:
-
-~~~text
-unexpected result → discard
-~~~
-
-## Human role
-
-Humans remain important, but they should not be forced to perform repetitive technical operations.
-
-Humans provide:
-
-- research direction;
-- ideas and hypotheses;
-- conceptual constraints;
-- authorization for consequential actions;
-- judgment about what questions are worth pursuing.
-
-The AI performs the mechanical and computational research loop.
-
-## Provider independence
-
-The operator interface must not assume a specific AI provider.
-
-The following are replaceable adapters:
-
-- ChatGPT/plugin integration;
-- GitHub agent integration;
-- local model integration;
-- future external agent;
-- future multi-agent orchestration.
-
-The Python scientific core remains the stable center.
-
-## Long-term direction
-
-The mature Mirror should feel like an AI scientist's laboratory:
-
-~~~text
-question
-  → experiment
-  → observation
-  → follow-up experiment
-  → deeper experiment
-  → evidence graph
-  → new question
-~~~
-
-The objective is not autonomous storytelling.
-
-The objective is **autonomous experimental iteration grounded in recorded computation**.
+The AI provider is replaceable. The engineering identity, memory, provenance, and laboratory contracts are not.

@@ -144,12 +144,7 @@ export async function getProvenanceTrace(
           )
           .get(experimentId);
       }
-      if (!actionRecord) {
-        actionRecord = sqlite
-          .prepare(`SELECT * FROM tool_logs ORDER BY created_at DESC LIMIT 1`)
-          .get();
-      }
-
+      // Never substitute an unrelated action for missing lineage. Provenance is fail-closed.\n
       // Resolve Raw Event (AUTHORITATIVE Layer 0)
       if (actionRecord?.request_id) {
         rawEventRecord = sqlite
@@ -171,19 +166,9 @@ export async function getProvenanceTrace(
           )
           .get(experimentId);
       }
-      if (!rawEventRecord) {
-        rawEventRecord = sqlite
-          .prepare(`SELECT * FROM raw_event_ledger ORDER BY sequence_number ASC LIMIT 1`)
-          .get();
-      }
-
+      // No global raw-event fallback: unrelated evidence must never support this trace.\n
       // Resolve Derived Analysis
-      if (rawEventRecord) {
-        analysisRecord = sqlite
-          .prepare(`SELECT * FROM derived_analysis ORDER BY created_at DESC LIMIT 1`)
-          .get();
-      }
-    } else {
+      if (rawEventRecord) {\n        analysisRecord = sqlite\n          .prepare(`SELECT * FROM derived_analysis WHERE raw_event_id = ? ORDER BY created_at DESC LIMIT 1`)\n          .get(rawEventRecord.id);\n      }\n    } else {
       // PostgreSQL query path
       const claims = await db
         .select()
@@ -286,15 +271,7 @@ export async function getProvenanceTrace(
           actionRecord = tLogs[0] || null;
         }
       }
-      if (!actionRecord) {
-        const tLogs = await db
-          .select()
-          .from(schemaPg.toolLogs)
-          .orderBy(desc(schemaPg.toolLogs.createdAt))
-          .limit(1);
-        actionRecord = tLogs[0] || null;
-      }
-
+      // Never substitute an unrelated action for missing lineage. Provenance is fail-closed.\n
       const reqId = actionRecord?.requestId || actionRecord?.request_id;
       if (reqId) {
         const rList = await db
@@ -305,33 +282,7 @@ export async function getProvenanceTrace(
           .limit(1);
         rawEventRecord = rList[0] || null;
       }
-      if (!rawEventRecord && experimentId) {
-        const rList = await db
-          .select()
-          .from(schemaPg.rawEventLedger)
-          .where(eq(schemaPg.rawEventLedger.experimentId, experimentId))
-          .orderBy(asc(schemaPg.rawEventLedger.sequenceNumber))
-          .limit(1);
-        rawEventRecord = rList[0] || null;
-      }
-      if (!rawEventRecord) {
-        const rList = await db
-          .select()
-          .from(schemaPg.rawEventLedger)
-          .orderBy(asc(schemaPg.rawEventLedger.sequenceNumber))
-          .limit(1);
-        rawEventRecord = rList[0] || null;
-      }
-
-      if (rawEventRecord) {
-        const aList = await db
-          .select()
-          .from(schemaPg.derivedAnalysis)
-          .orderBy(desc(schemaPg.derivedAnalysis.createdAt))
-          .limit(1);
-        analysisRecord = aList[0] || null;
-      }
-    }
+      if (!rawEventRecord && experimentId) {\n        const rList = await db\n          .select()\n          .from(schemaPg.rawEventLedger)\n          .where(eq(schemaPg.rawEventLedger.experimentId, experimentId))\n          .orderBy(asc(schemaPg.rawEventLedger.sequenceNumber))\n          .limit(1);\n        rawEventRecord = rList[0] || null;\n      }\n\n      if (rawEventRecord) {\n        const aList = await db\n          .select()\n          .from(schemaPg.derivedAnalysis)\n          .where(eq(schemaPg.derivedAnalysis.rawEventId, rawEventRecord.id))\n          .orderBy(desc(schemaPg.derivedAnalysis.createdAt))\n          .limit(1);\n        analysisRecord = aList[0] || null;\n      }\n    }
 
     // Normalize DB naming differences so provenance never crashes while rendering a trace.
     const rawEventHash = rawEventRecord?.eventHash ?? rawEventRecord?.event_hash ?? null;
