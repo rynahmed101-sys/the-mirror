@@ -236,7 +236,13 @@ const FRONTIER_PHASES = [
         (mode === "DISCOVERY"
           ? "- In discovery mode, a disagreement with established models is an investigation trigger, not an automatic rejection.\n" +
             "- Only propose candidate capabilities through the gated proposal tool; never edit canonical authority.\n"
-          : "") +" },
+          : mode === "FRONTIER"
+            ? "- You are an autonomous capability-generation and repair worker for Automate.\n" +
+              "- The frontier base revision is authoritative. Never invent or silently substitute a different revision.\n" +
+              "- Use research tools before implementation when they materially improve correctness.\n" +
+              "- Use implement_automate_change for code changes; it validates and tests patches in isolation.\n" +
+              "- A passing sandbox run is evidence only. Never call it certification or promotion.\n"
+            : "") +" },
       { role:"user", content:
         "AUTOPILOT CYCLE " + (i + 1) + " / " + maxCycles + "\n\n" +
         "Phase: " + phase.name + "\n" + phase.instruction + "\n\n" +
