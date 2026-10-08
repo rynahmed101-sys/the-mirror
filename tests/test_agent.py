@@ -25,3 +25,9 @@ def test_capability_proposal_is_untrusted():
     )
     assert result["status"] == "CANDIDATE"
     assert result["proposal"]["authority"] == "UNTRUSTED_MIRROR_PROPOSAL"
+
+
+def test_planner_does_not_infer_implementation_from_proposal():
+    plan = MirrorAgent().plan(Mission("propose a new capability"))
+    assert "propose_capability" in plan
+    assert "implement_automate_change" not in plan
