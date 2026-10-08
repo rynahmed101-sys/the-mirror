@@ -18,6 +18,7 @@ from typing import Any, Iterable, Mapping
 
 from .brain import MemoryKind, MirrorBrain
 from .reasoning import ReasoningEngine, SpecialistName
+from .knowledge import search as search_knowledge
 
 
 @dataclass(frozen=True)
@@ -166,13 +167,14 @@ class InferenceEngine:
 
     def infer(self, context: InferenceContext, available_tools: Iterable[str]) -> InferencePlan:
         tokens = _tokens(context.objective + " " + " ".join(map(str, context.task.values())))
+        knowledge = search_knowledge(context.objective + " " + " ".join(map(str, context.task.values())))
         matched = [
             rule for rule in self.rules
             if tokens.intersection(rule.triggers)
         ]
         matched.sort(key=lambda rule: (-rule.priority, rule.name))
 
-        conclusions: list[str] = []
+        conclusions: list[str] = [item.rule for item in knowledge]
         step_names: list[str] = []
         for rule in matched:
             conclusions.extend(x for x in rule.conclusions if x not in conclusions)
@@ -218,6 +220,11 @@ class InferenceEngine:
             + min(0.25, len(context.memories) * 0.02)
             + (0.15 if context.task else 0),
         )
+        for item in knowledge:
+            for procedure in item.procedure:
+                if procedure not in step_names:
+                    step_names.append(procedure)
+
         plan = InferencePlan(
             plan_id="infer-" + hashlib.sha256(
                 (context.objective + "|" + str(context.capability_id) + "|" + str(context.source_revision)).encode()
