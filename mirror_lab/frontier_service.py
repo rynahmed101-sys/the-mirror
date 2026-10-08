@@ -343,7 +343,11 @@ def run_frontier_job(job: Mapping[str, Any]) -> dict[str, Any]:
 
         mirror = MirrorAI(MirrorAIConfig(state_dir=state_dir, workspace_root=workdir))
         registry = build_default_tool_registry(workspace_root=workdir)
+        # The worker returns a reviewable diff, so local Git history mutation is
+        # deliberately unavailable even inside the temporary checkout.
         registry.unregister("workspace.run")
+        registry.unregister("git.branch")
+        registry.unregister("git.commit")
         registry.register(_safe_workspace_runner(workdir))
         if not bool(permissions.get("workspace_write", False)):
             registry.unregister("workspace.write")
