@@ -105,24 +105,6 @@ class MirrorAgent:
             lambda _a: github.repo_state(),
         ))
         self.tools.register(Tool(
-            "github_push_branch",
-            "Push only a mirror/* branch after explicit mission authorization.",
-            lambda a: github.push_branch(str(a.get("branch", ""))),
-            mutating=True,
-        ))
-        self.tools.register(Tool(
-            "github_create_pr",
-            "Open a reviewable PR from a mirror/* branch; never merge.",
-            lambda a: github.create_pr(str(a.get("branch", "")), str(a.get("title", "")), str(a.get("body", ""))),
-            mutating=True,
-        ))
-        self.tools.register(Tool(
-            "github_publish_automate_patch",
-            "Apply, verify, commit, push, and open a PR from an exact Automate revision; never merge.",
-            lambda a: self._publish_automate_change(a),
-            mutating=True,
-        ))
-        self.tools.register(Tool(
             "github_ci",
             "Read CI state for an exact Git revision.",
             lambda a: github.ci(str(a.get("revision", ""))),
@@ -147,6 +129,7 @@ class MirrorAgent:
                     objective=str(a.get("objective") or ""),
                     prompt=str(a.get("prompt") or ""),
                 ),
+                mutating=True,
             ))
         if free.available().get("opencode"):
             self.tools.register(Tool(
@@ -157,6 +140,7 @@ class MirrorAgent:
                     objective=str(a.get("objective") or ""),
                     prompt=str(a.get("prompt") or ""),
                 ),
+                mutating=True,
             ))
         self.tools.register(Tool(
             "research_world",
@@ -418,6 +402,13 @@ class MirrorAgent:
             name = str(call.get("tool", ""))
             if name.startswith("github_") and name in {"github_push_branch", "github_create_pr"} and not mission.authorization_granted:
                 results.append({"tool": name, "result": {"status": "AUTHORIZATION_DENIED", "error": "mission did not grant GitHub mutation authorization"}})
+                continue
+            tool = self.tools._tools.get(name)
+            if tool is None:
+                results.append({"tool": name, "result": {"status": "TOOL_NOT_FOUND", "error": "unknown Mirror tool"}})
+                continue
+            if tool.mutating and not mission.authorization_granted:
+                results.append({"tool": name, "result": {"status": "AUTHORIZATION_DENIED", "error": "mission did not grant mutation authorization"}})
                 continue
             args = dict(call.get("arguments", {}))
             if name in {"implement_automate_change", "repair_automate_change"}:
