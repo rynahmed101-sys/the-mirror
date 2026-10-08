@@ -11,8 +11,8 @@ on:
     types: [mirror-mission]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
+  pull-requests: read
   actions: read
 
 concurrency:
@@ -52,7 +52,8 @@ jobs:
           PY
       - name: Execute bounded Mirror mission
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ""
+          GH_TOKEN: ""
         run: python -m mirror_lab.cli run-mission mission.json > mission-result.json
       - name: Expose bounded result in workflow logs
         run: |
