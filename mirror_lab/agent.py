@@ -26,6 +26,7 @@ from .operator import LabOperator
 from .research import ResearchTool
 from .reasoning import ReasoningEngine
 from .inference import InferenceEngine
+from .github_tools import GitHubTool
 
 
 @dataclass(frozen=True)
@@ -72,6 +73,7 @@ class Mission:
     capability_id: str | None = None
     automate_revision: str | None = None
     task: dict[str, Any] = field(default_factory=dict)
+    authorization_granted: bool = False
 
 
 class MirrorAgent:
@@ -94,6 +96,29 @@ class MirrorAgent:
         self._register_default_tools()
 
     def _register_default_tools(self) -> None:
+        github = GitHubTool(Path.cwd())
+        self.tools.register(Tool(
+            "github_repo_state",
+            "Inspect bounded remote GitHub repository state.",
+            lambda _a: github.repo_state(),
+        ))
+        self.tools.register(Tool(
+            "github_push_branch",
+            "Push only a mirror/* branch after explicit mission authorization.",
+            lambda a: github.push_branch(str(a.get("branch", ""))),
+            mutating=True,
+        ))
+        self.tools.register(Tool(
+            "github_create_pr",
+            "Open a reviewable PR from a mirror/* branch; never merge.",
+            lambda a: github.create_pr(str(a.get("branch", "")), str(a.get("title", "")), str(a.get("body", ""))),
+            mutating=True,
+        ))
+        self.tools.register(Tool(
+            "github_ci",
+            "Read CI state for an exact Git revision.",
+            lambda a: github.ci(str(a.get("revision", ""))),
+        ))
         self.tools.register(Tool(
             "research_world",
             "Search bounded scientific/software/model sources with provenance.",
@@ -280,6 +305,9 @@ class MirrorAgent:
         results = []
         for call in calls:
             name = str(call.get("tool", ""))
+            if name.startswith("github_") and name in {"github_push_branch", "github_create_pr"} and not mission.authorization_granted:
+                results.append({"tool": name, "result": {"status": "AUTHORIZATION_DENIED", "error": "mission did not grant GitHub mutation authorization"}})
+                continue
             args = dict(call.get("arguments", {}))
             if name in {"implement_automate_change", "repair_automate_change"}:
                 args.setdefault("base_revision", mission.automate_revision)
