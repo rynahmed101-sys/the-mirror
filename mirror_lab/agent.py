@@ -25,6 +25,7 @@ from .brain import MirrorBrain
 from .operator import LabOperator
 from .research import ResearchTool
 from .reasoning import ReasoningEngine
+from .inference import InferenceEngine
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,7 @@ class MirrorAgent:
         self.research = research or ResearchTool()
         self.brain = brain or MirrorBrain(Path(os.environ.get("MIRROR_BRAIN_PATH", ".mirror/brain.sqlite3")))
         self.reasoning = ReasoningEngine(self.brain)
+        self.inference = InferenceEngine(self.brain, self.reasoning)
         self.tools = registry or ToolRegistry()
         self._register_default_tools()
 
@@ -244,6 +246,20 @@ class MirrorAgent:
         )
         plan: list[str] = ["list_tools"]
         specialist = self.reasoning.route_specialist(mission.objective)
+        context = self.inference.build_context(
+            mission.objective,
+            capability_id=mission.capability_id,
+            source_revision=mission.automate_revision,
+            task=mission.task,
+        )
+        inferred = self.inference.infer(context, self.tools.names())
+        self.brain.record_event(
+            "inference_attached_to_plan",
+            {"plan_id": inferred.plan_id, "confidence": inferred.confidence, "unresolved": list(inferred.unresolved)},
+        )
+        for step in inferred.steps:
+            if step.tool and step.tool in self.tools.names() and step.tool not in plan:
+                plan.append(step.tool)
         self.brain.record_event(
             "planner_route",
             {"specialist": specialist.value, "objective": mission.objective},
