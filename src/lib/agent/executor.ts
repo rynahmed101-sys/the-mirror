@@ -17,6 +17,7 @@ import { researchWorld } from "../research/worldResearch";
 import { buildResearchProposal } from "../research/researchProposalBuilder";
 import { submitProposalLearningHandoff } from "../research/learningHandoff";
 import { validateDiscoveryGrant } from "../research/discoveryGrant";
+import { runAutomatePatchProbe } from "./frontierSandbox";
 
 const tables: any = isPg ? pgSchema : sqliteSchema;
 const {
@@ -34,6 +35,7 @@ const MUTATING_TOOLS = new Set([
   "send_agent_message",
   "run_perturbation_lab", "run_controlled_suite", "run_projection_suite",
   "propose_new_capability",
+  "implement_automate_change",
 ]);
 
 function parseJson(value: unknown, fallback: unknown = []) {
@@ -146,6 +148,28 @@ export async function executeTool(
 
   try {
     switch (canonicalTool) {
+      case "implement_automate_change": {
+        const context = args.__frontierContext;
+        if (!context || typeof context !== "object") throw new Error("frontier context is required");
+        if (String(context.repository) !== "rynahmed101-sys/automate") throw new Error("frontier tool is restricted to the canonical Automate repository");
+        if (!/^[0-9a-f]{40}$/.test(String(context.baseRevision || ""))) throw new Error("frontier base revision must be an exact Git SHA");
+        const tests = Array.isArray(args.tests) ? args.tests.map(String).slice(0, 4) : [];
+        const probe = await runAutomatePatchProbe({
+          baseRevision: String(context.baseRevision),
+          patch: String(args.patch || ""),
+          tests,
+        });
+        result = {
+          status: probe.status,
+          authority: "UNTRUSTED_MIRROR_PROPOSAL",
+          capability_id: String(context.capabilityId),
+          base_revision: String(context.baseRevision),
+          task: String(context.task || ""),
+          probe,
+        };
+        break;
+      }
+
       case "research_world": {
         const query = String(args.query || "").trim();
         if (!query) throw new Error("research_world requires a query");

@@ -26,6 +26,8 @@ const bounded = (value: unknown, min: number, max: number, fallback: number) => 
 };
 
 export const AUTOPILOT_TOOLS: ToolDefinition[] = [
+  { name: "implement_automate_change", description: "Prepare a bounded change against the exact Automate frontier revision. The patch is applied and tested only inside an isolated sandbox. Return the proposed diff and test evidence; never push or certify.", parameters: { type:"object", properties:{ patch:{type:"string"}, tests:{type:"array",items:{type:"string"}} }, required:["patch"] } },
+
   { name: "research_world", description: "Search bounded public scientific/software/model sources. Results are evidence leads with provenance, never proof or certification.", parameters: { type: "object", properties: {
       query:{type:"string"}, providers:{type:"array",items:{type:"string",enum:["crossref","openalex","arxiv","github","huggingface"]}}, limit:{type:"number"}, correlationId:{type:"string"}
     }, required:["query"] } },
@@ -83,6 +85,7 @@ export async function runToolLoop(options: {
   maxToolSteps?: number;
   requestSource?: "AGENT" | "SYSTEM" | "RESEARCHER" | "SCHEDULED" | "OTHER_AGENT";
   discoveryGrant?: Record<string, unknown>;
+  frontierContext?: { repository: string; baseRevision: string; capabilityId: string; task: string };
   onToolCall?: (call: ToolCall, step: number) => Promise<void> | void;
   onToolResult?: (call: ToolCall, result: unknown, step: number) => Promise<void> | void;
 }) {
@@ -127,7 +130,12 @@ export async function runToolLoop(options: {
             discoveryGrant: options.discoveryGrant,
             correlationId: String(options.discoveryGrant.correlation_id || ""),
           }
-        : (call.arguments || {});
+        : call.name === "implement_automate_change" && options.frontierContext
+          ? {
+              ...(call.arguments || {}),
+              __frontierContext: options.frontierContext,
+            }
+          : (call.arguments || {});
       const result = await executeTool(
         call.name,
         toolArguments,
@@ -169,8 +177,9 @@ export async function runAutopilot(options: {
   maxCycles?: number;
   maxToolSteps?: number;
   requestSource?: "AGENT" | "SCHEDULED";
-  mode?: "SELF_OBSERVATION" | "DISCOVERY";
+  mode?: "SELF_OBSERVATION" | "DISCOVERY" | "FRONTIER";
   discoveryGrant?: Record<string, unknown>;
+  frontierContext?: { repository: string; baseRevision: string; capabilityId: string; task: string };
 }) {
   const agentId = options.agentId || "mirror-primary";
   const mode = options.mode || "SELF_OBSERVATION";
@@ -194,6 +203,13 @@ export async function runAutopilot(options: {
     const { validateDiscoveryGrant } = await import("../research/discoveryGrant");
     discoveryGrant = validateDiscoveryGrant(discoveryGrant);
   }
+const FRONTIER_PHASES = [
+  { name:"OBSERVE", instruction:"Inspect the supplied capability mission and use repository/research tools to understand the exact target revision, current implementation, prerequisites, and likely failure modes. Do not invent repository facts." },
+  { name:"RESEARCH", instruction:"Research established approaches and mature implementations relevant to the capability. Preserve disagreement and edge cases. Use this to improve the implementation plan." },
+  { name:"IMPLEMENT", instruction:"Produce the smallest useful Automate change as a unified diff against the supplied exact base revision. Use implement_automate_change so the diff is mechanically checked and bounded in an isolated sandbox." },
+  { name:"VERIFY", instruction:"Review sandbox test evidence, challenge assumptions, inspect failures, and repair the patch when needed. Do not declare certification." },
+] as const;
+
   const results: any[] = [];
 
   // One autopilot run is one persistent agent session.
@@ -202,7 +218,7 @@ export async function runAutopilot(options: {
   const [session] = await db.insert(agentSessions).values({ agentId, status: "ACTIVE" }).returning();
 
   for (let i = 0; i < maxCycles; i += 1) {
-    const phases = mode === "DISCOVERY" ? DISCOVERY_PHASES : PHASES;
+    const phases = mode === "DISCOVERY" ? DISCOVERY_PHASES : mode === "FRONTIER" ? FRONTIER_PHASES : PHASES;
     const phase = phases[i % phases.length];
     const cycleStartedAt = Date.now();
 
@@ -220,7 +236,13 @@ export async function runAutopilot(options: {
         (mode === "DISCOVERY"
           ? "- In discovery mode, a disagreement with established models is an investigation trigger, not an automatic rejection.\n" +
             "- Only propose candidate capabilities through the gated proposal tool; never edit canonical authority.\n"
-          : "") +" },
+          : mode === "FRONTIER"
+            ? "- You are an autonomous capability-generation and repair worker for Automate.\n" +
+              "- The frontier base revision is authoritative. Never invent or silently substitute a different revision.\n" +
+              "- Use research tools before implementation when they materially improve correctness.\n" +
+              "- Use implement_automate_change for code changes; it validates and tests patches in isolation.\n" +
+              "- A passing sandbox run is evidence only. Never call it certification or promotion.\n"
+            : "") +" },
       { role:"user", content:
         "AUTOPILOT CYCLE " + (i + 1) + " / " + maxCycles + "\n\n" +
         "Phase: " + phase.name + "\n" + phase.instruction + "\n\n" +
@@ -236,6 +258,7 @@ export async function runAutopilot(options: {
         maxToolSteps,
         requestSource: options.requestSource,
         discoveryGrant,
+        frontierContext: options.frontierContext,
       });
 
       await db.insert(rawMessages).values({ agentId, sessionId: session.id, role:"AGENT", content: run.output || "", source:"AGENT" });
