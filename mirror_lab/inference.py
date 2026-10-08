@@ -84,6 +84,13 @@ DEFAULT_KNOWLEDGE: tuple[KnowledgeRule, ...] = (
         90,
     ),
     KnowledgeRule(
+        "capability-proposal",
+        ("propose", "proposal"),
+        ("a capability proposal is not an implementation request",),
+        ("prepare_capability_proposal",),
+        70,
+    ),
+    KnowledgeRule(
         "research-first",
         ("research", "literature", "paper", "approach", "reference", "unknown"),
         ("existing evidence should be consulted before reinvention"),
@@ -138,17 +145,14 @@ class InferenceEngine:
             }
             for item in self.brain.recall(objective, limit=12)
         )
+        failure_recalls = self.brain.recall("failure repair regression", limit=8, kinds=[MemoryKind.FAILURE])
         failures = tuple(
             {
                 "id": item.memory.id,
                 "content": item.memory.content,
                 "confidence": item.memory.confidence,
             }
-            for item in self.brain.recall(
-                objective,
-                limit=8,
-                kinds=[MemoryKind.FAILURE],
-            )
+            for item in failure_recalls
         )
         return InferenceContext(
             objective=objective,
@@ -260,6 +264,7 @@ class InferenceEngine:
             "synthesize_change": ("implement_automate_change", "workspace.write"),
             "synthesize_repair": ("repair_automate_change", "workspace.write"),
             "prepare_proposal": ("propose_capability", "github.pr"),
+            "prepare_capability_proposal": ("propose_capability", "github.pr"),
             "run_manifest": ("run_manifest", "experiment.run"),
         }
         candidates = aliases.get(action, ())
