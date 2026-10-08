@@ -1,5 +1,6 @@
 """THE MIRROR exploratory mathematics and physics laboratory."""
 
+from .builtin_tools import build_default_tool_registry
 from .cycle import CognitiveCycle, CyclePhase, CycleResult
 from .manifest import ExperimentManifest, ModelRef
 from .models import Experiment, Hypothesis, Model, Observation, Result
@@ -10,6 +11,7 @@ from .registry import ModelRegistry
 from .runner import run_experiment
 
 __all__ = [
+    "build_default_tool_registry",
     "CognitiveCycle",
     "CyclePhase",
     "CycleResult",
