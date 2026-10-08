@@ -29,6 +29,7 @@ KNOWLEDGE = (
     Knowledge("repair.fail-closed", "repair", ("failure", "repair", "ci", "broken"), "A failed strategy is evidence against repeating that strategy.", ("capture-failure", "recall-failures", "change-strategy", "retest")),
     Knowledge("science.assumptions", "science", ("math", "physics", "derive", "proof", "simulation"), "Scientific output must expose assumptions and boundary conditions.", ("formalize", "derive", "counterexample", "independent-check")),
     Knowledge("research.provenance", "research", ("research", "paper", "reference", "evidence"), "External evidence remains untrusted until independently checked.", ("retrieve", "record-provenance", "compare", "verify")),
+    Knowledge("free.tooling", "agent", ("agent", "coding", "internet", "free", "opencode", "agent-reach", "research"), "Use capable open/free specialists when available; keep their outputs untrusted and route them through the same verification boundary.", ("probe-tools", "select-specialist", "bounded-execution", "verify-output")),
 )
 
 
