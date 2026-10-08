@@ -1,20 +1,28 @@
-/** THE MIRROR — single provider registry.
+/** THE MIRROR provider registry.
  *
- * The scientific architecture remains useful with zero neural-model inference.
+ * The scientific architecture remains provider-neutral. With no endpoint
+ * configured, the deterministic cognitive substrate remains the safe baseline.
+ * A vendor-neutral remote inference service can be enabled by deployment policy.
  */
 import { DeterministicProvider } from "./deterministic";
+import { RemoteHttpProvider } from "./remote";
 import type { AIProvider, ModelInfo, ProviderHealth } from "./provider";
 
-export type ProviderName = "model-independent";
+export type ProviderName = "model-independent" | "remote-http";
+
 interface ProviderRegistry {
   "model-independent": AIProvider;
+  "remote-http": AIProvider;
 }
 
 let registry: ProviderRegistry | null = null;
-const ACTIVE_MODEL = "deterministic-cognitive-substrate";
+const ACTIVE_DETERMINISTIC_MODEL = "deterministic-cognitive-substrate";
 
 function buildRegistry(): ProviderRegistry {
-  return { "model-independent": new DeterministicProvider() };
+  return {
+    "model-independent": new DeterministicProvider(),
+    "remote-http": new RemoteHttpProvider(),
+  };
 }
 
 function getRegistry(): ProviderRegistry {
@@ -26,78 +34,86 @@ export function invalidateRegistry(): void {
   registry = null;
 }
 
-export function getProvider(name: ProviderName = "model-independent"): AIProvider {
-  if (name !== "model-independent") {
-    throw new Error("[THE MIRROR] Neural/cloud providers are disabled by architecture policy.");
-  }
-  return getRegistry()["model-independent"];
+export function getActiveProviderName(): ProviderName {
+  return process.env.MIRROR_AI_ENDPOINT?.trim() ? "remote-http" : "model-independent";
 }
 
-export function getActiveProviderName(): ProviderName {
-  return "model-independent";
+export function getProvider(name: ProviderName = getActiveProviderName()): AIProvider {
+  return getRegistry()[name];
 }
 
 export function getActiveModel(): string {
-  return ACTIVE_MODEL;
+  return getActiveProviderName() === "remote-http"
+    ? (process.env.MIRROR_AI_MODEL?.trim() || "mirror-frontier")
+    : ACTIVE_DETERMINISTIC_MODEL;
 }
 
 export function setActiveProvider(name: ProviderName, model?: string): void {
-  if (name !== "model-independent") {
-    throw new Error("[THE MIRROR] Neural/cloud providers are disabled by architecture policy.");
+  if (name === "remote-http") {
+    if (!process.env.MIRROR_AI_ENDPOINT?.trim()) {
+      throw new Error("[THE MIRROR] remote-http provider requires MIRROR_AI_ENDPOINT.");
+    }
+    if (model && model !== getActiveModel()) {
+      throw new Error("[THE MIRROR] remote-http model is deployment-configured: " + getActiveModel());
+    }
+    return;
   }
-  if (model && model !== ACTIVE_MODEL) {
+  if (model && model !== ACTIVE_DETERMINISTIC_MODEL) {
     throw new Error("[THE MIRROR] Unknown model-independent model: " + model);
   }
 }
 
 export function setActiveModel(model: string): void {
-  if (model !== ACTIVE_MODEL) {
-    throw new Error("[THE MIRROR] Neural/cloud models are not enabled.");
+  if (model !== getActiveModel()) {
+    throw new Error("[THE MIRROR] Model selection is deployment-configured: " + getActiveModel());
   }
 }
 
 export interface ProviderStatus {
-  name: "model-independent";
-  isLocal: true;
-  requiresApiKey: false;
-  isActive: true;
+  name: ProviderName;
+  isLocal: boolean;
+  requiresApiKey: boolean;
+  isActive: boolean;
   health: ProviderHealth;
 }
 
 export async function listProviders(): Promise<ProviderStatus[]> {
-  const provider = getRegistry()["model-independent"];
-  return [{
-    name: "model-independent",
-    isLocal: true,
-    requiresApiKey: false,
-    isActive: true,
-    health: await provider.healthCheck(),
-  }];
+  const active = getActiveProviderName();
+  const providers: ProviderStatus[] = [];
+  for (const name of ["model-independent", "remote-http"] as const) {
+    const provider = getRegistry()[name];
+    providers.push({
+      name,
+      isLocal: provider.isLocal,
+      requiresApiKey: provider.requiresApiKey(),
+      isActive: name === active,
+      health: await provider.healthCheck(),
+    });
+  }
+  return providers;
 }
 
 export async function listAllModels(): Promise<ModelInfo[]> {
-  return getRegistry()["model-independent"].listModels();
+  return getProvider().listModels();
 }
 
 export const aiRegistry = {
   getProvider,
-  getActiveProvider: () => getProvider("model-independent"),
+  getActiveProvider: () => getProvider(),
   getActiveProviderName,
   getActiveModel,
-  setActiveProvider: (name: string, model?: string) =>
-    setActiveProvider(name as ProviderName, model),
+  setActiveProvider: (name: string, model?: string) => setActiveProvider(name as ProviderName, model),
   setActiveModel,
   invalidateRegistry,
-  listProviders: (): string[] => ["model-independent"],
+  listProviders: () => [getActiveProviderName()],
   listModels: async (providerId: string): Promise<string[]> =>
-    providerId === "model-independent"
-      ? (await getRegistry()["model-independent"].listModels()).map((m) => m.name || m.id)
+    providerId === getActiveProviderName()
+      ? (await getProvider().listModels()).map((m) => m.name || m.id)
       : [],
   healthCheck: async (providerId: string): Promise<boolean> =>
-    providerId === "model-independent" &&
-    (await getRegistry()["model-independent"].healthCheck()).isHealthy,
+    providerId === getActiveProviderName() && (await getProvider().healthCheck()).isHealthy,
   healthCheckFull: async (providerId: string): Promise<ProviderHealth> =>
-    providerId === "model-independent"
-      ? getRegistry()["model-independent"].healthCheck()
-      : { isHealthy: false, provider: providerId, error: "Provider not enabled" },
+    providerId === getActiveProviderName()
+      ? getProvider().healthCheck()
+      : { isHealthy: false, provider: providerId, error: "Provider not active" },
 };
