@@ -11,7 +11,9 @@ on:
     types: [mirror-mission]
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
+  actions: read
 
 concurrency:
   group: mirror-mission
@@ -28,6 +30,8 @@ jobs:
           python-version: "3.12"
       - name: Install Mirror
         run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+      - name: Install free inference specialist
+        run: python -m pip install --only-binary=:all: "hermes-agent[cli]==0.19.0"
       - name: Materialize mission envelope
         env:
           DISPATCH_MISSION: ${{ toJson(github.event.client_payload.mission) }}
@@ -47,6 +51,8 @@ jobs:
               json.dump(payload, f, indent=2, sort_keys=True)
           PY
       - name: Execute bounded Mirror mission
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: python -m mirror_lab.cli run-mission mission.json > mission-result.json
       - name: Expose bounded result in workflow logs
         run: |
