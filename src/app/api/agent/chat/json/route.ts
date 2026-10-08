@@ -48,6 +48,6 @@ export async function POST(req: Request) {
     }
     const configs = await db.select().from(systemConfig).limit(1);
     if (configs.length) await db.update(systemConfig).set({ totalAgentCycles: sql`${systemConfig.totalAgentCycles} + 1` });
-    return NextResponse.json({ success: true, agentId, provider: aiRegistry.getActiveProvider().name, model: result.activeModel, mode: aiRegistry.getActiveProvider().isLocal ? "local" : "cloud", output: result.output, steps: result.steps, toolCalls: result.trace, inputTokens: result.inputTokens, outputTokens: result.outputTokens });
+    return NextResponse.json({ success: true, agentId, provider: aiRegistry.getActiveProvider().name, model: result.activeModel, mode: "model-independent", output: result.output, steps: result.steps, toolCalls: result.trace, inputTokens: result.inputTokens, outputTokens: result.outputTokens });
   } catch (error:any) { return NextResponse.json({ success: false, error: error?.message || String(error) }, { status: 500 }); }
 }
