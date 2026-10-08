@@ -58,6 +58,40 @@ def _read_text_url(url: str, token: str | None = None) -> str:
     return data.decode("utf-8", "replace")
 
 
+def _resolve_revision(
+    repository: str,
+    revision: str,
+    token: str | None = None,
+) -> str:
+    if len(revision) == 40 and all(ch in "0123456789abcdefABCDEF" for ch in revision):
+        return revision.lower()
+    payload = _read_json_url(
+        f"https://api.github.com/repos/{repository}/git/ref/heads/{revision}",
+        token,
+    )
+    sha = str(payload.get("object", {}).get("sha") or "")
+    if len(sha) != 40:
+        raise AutomateFrontierError("Automate revision did not resolve to a full commit SHA")
+    return sha.lower()
+
+
+def _read_optional_text_url(url: str, token: str | None = None) -> str | None:
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "the-mirror-lab/0.1"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = Request(url, headers=headers)
+    try:
+        with urlopen(req, timeout=20) as response:
+            data = response.read(3_000_001)
+    except HTTPError as exc:
+        if exc.code == 404:
+            return None
+        raise AutomateFrontierError(f"Automate optional read failed: HTTP {exc.code}") from exc
+    except (URLError, OSError, TimeoutError) as exc:
+        raise AutomateFrontierError(f"Automate optional read failed: {exc}") from exc
+    return data.decode("utf-8", "replace")
+
+
 def read_automate_frontier(
     *,
     repository: str = "rynahmed101-sys/automate",
@@ -65,13 +99,10 @@ def read_automate_frontier(
     token: str | None = None,
 ) -> AutomateFrontierSnapshot:
     token = token or os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
-    base = f"https://raw.githubusercontent.com/{repository}/{revision}"
+    resolved_revision = _resolve_revision(repository, revision, token)
+    base = f"https://raw.githubusercontent.com/{repository}/{resolved_revision}"
     ledger = _read_text_url(f"{base}/docs/PROJECT_PHASE_LEDGER.md", token)
-    inventory_raw = None
-    try:
-        inventory_raw = _read_text_url(f"{base}/docs/CAPABILITY_INVENTORY.json", token)
-    except AutomateFrontierError:
-        inventory_raw = None
+    inventory_raw = _read_optional_text_url(f"{base}/docs/CAPABILITY_INVENTORY.json", token)
     inventory = None
     inventory_sha = None
     if inventory_raw is not None:
@@ -83,7 +114,7 @@ def read_automate_frontier(
             inventory = None
     return AutomateFrontierSnapshot(
         repository=repository,
-        revision=revision,
+        revision=resolved_revision,
         ledger=ledger,
         inventory=inventory,
         ledger_sha256=hashlib.sha256(ledger.encode("utf-8")).hexdigest(),
