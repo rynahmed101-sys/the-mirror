@@ -215,8 +215,10 @@ class InferenceEngine:
         unresolved: list[str] = []
         if context.capability_id and not context.source_revision:
             unresolved.append("exact source revision is required before repository mutation")
-        if any(step.requires_generation for step in steps) and "implement_automate_change" in tools:
-            unresolved.append("free-form code synthesis requires a generation provider or a structured patch recipe")
+        if any(step.requires_generation for step in steps):
+            generators = {"hermes_coding_agent", "free_coding_agent", "implement_automate_change"}
+            if not generators.intersection(tools) and not available_transforms:
+                unresolved.append("free-form code synthesis requires a generation provider or a structured patch recipe")
         if context.failures:
             unresolved.append("prior failures are retained as constraints until independently reverified")
 
