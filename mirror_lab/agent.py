@@ -170,7 +170,6 @@ class MirrorAgent:
             "propose_capability",
             "Create an untrusted capability proposal package for Automate.",
             self._propose_capability,
-            mutating=True,
         ))
         self.tools.register(Tool(
             "repair_automate_change",
