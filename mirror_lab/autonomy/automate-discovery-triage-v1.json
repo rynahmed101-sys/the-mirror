@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://automate.physics/schemas/automate-discovery-triage-v1.json",
+  "title": "Automate Discovery Triage (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "proposal_id",
+    "candidate_capability_id",
+    "name",
+    "summary",
+    "status",
+    "reason",
+    "dependencies",
+    "prerequisites",
+    "recommended_action",
+    "canonical_inventory_mutated"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "automate.discovery_triage.v1"
+    },
+    "proposal_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "candidate_capability_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "READY_FOR_INVESTIGATION",
+        "BLOCKED_UNKNOWN_PREREQUISITES",
+        "BLOCKED_INCOMPLETE_PREREQUISITES",
+        "COLLIDES_WITH_CANONICAL_CAPABILITY"
+      ]
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "prerequisites": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "recommended_action": {
+      "type": "string",
+      "minLength": 1
+    },
+    "canonical_inventory_mutated": {
+      "const": false
+    }
+  }
+}

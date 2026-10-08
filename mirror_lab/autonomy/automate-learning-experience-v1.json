@@ -1,0 +1,18 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://automate.physics/schemas/automate-learning-experience-v1.json",
+  "type":"object",
+  "required":["schema_version","experience_id","action_cycle_id","outcome","task","strategy","observation","evidence_refs","provenance"],
+  "properties":{
+    "schema_version":{"const":"automate.learning_experience.v1"},
+    "experience_id":{"type":"string"},
+    "action_cycle_id":{"type":"string"},
+    "outcome":{"enum":["success","failure","unknown","contradiction"]},
+    "task":{"type":"object"},
+    "strategy":{"type":"object"},
+    "observation":{"type":"object"},
+    "evidence_refs":{"type":"array"},
+    "provenance":{"type":"object"}
+  },
+  "additionalProperties":true
+}

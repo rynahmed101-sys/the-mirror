@@ -1,0 +1,24 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://automate.physics/schemas/automate-research-evidence-v1.json",
+  "title":"Automate Research Evidence (v1)","type":"object","additionalProperties":false,
+  "required":["schema_version","request_id","sources"],
+  "properties":{
+    "schema_version":{"const":"automate.research_evidence.v1"},
+    "request_id":{"type":"string","minLength":1,"maxLength":128},
+    "sources":{"type":"array","maxItems":50,"items":{
+      "type":"object","additionalProperties":false,
+      "required":["source_type","locator","title","content_sha256","retrieved_at"],
+      "properties":{
+        "source_type":{"type":"string","enum":["web","paper","github","database","dataset","local"]},
+        "locator":{"type":"string","minLength":1,"maxLength":2000},
+        "title":{"type":"string","minLength":1,"maxLength":500},
+        "content_sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},
+        "retrieved_at":{"type":"string","minLength":1},
+        "query":{"type":["string","null"],"maxLength":2000},
+        "claim":{"type":["string","null"],"maxLength":4000},
+        "notes":{"type":["string","null"],"maxLength":4000}
+      }
+    }}
+  }
+}

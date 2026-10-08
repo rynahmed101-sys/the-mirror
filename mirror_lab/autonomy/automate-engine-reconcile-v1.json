@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://automate.physics/schemas/automate-engine-reconcile-v1.json",
+  "title": "Automate Engine Reconciliation Result (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "state", "main_sha", "engine_sha", "action"],
+  "properties": {
+    "schema_version": {"const": "automate.engine_reconcile.v1"},
+    "state": {"enum": ["ALIGNED", "PR_OPEN", "PR_CREATED", "PR_AUTO_MERGE_REQUESTED", "CONFLICT"]},
+    "main_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "engine_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "branch": {"type": "string"},
+    "reconciliation_head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "pr_url": {"type": "string"},
+    "action": {"type": "string"}
+  }
+}
