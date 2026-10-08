@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import shlex
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
@@ -255,7 +256,10 @@ class MirrorAgent:
 
             results = []
             for command in tests:
-                result = subprocess.run(command, cwd=root, shell=True, text=True, capture_output=True, check=False)
+                argv = shlex.split(command)
+                if not argv or any(token in {";", "&&", "||", "|", ">", ">>", "<"} for token in argv):
+                    raise ValueError("unsafe test command")
+                result = subprocess.run(argv, cwd=root, text=True, capture_output=True, check=False)
                 results.append({
                     "command": command,
                     "status": "passed" if result.returncode == 0 else "failed",
@@ -317,7 +321,9 @@ class MirrorAgent:
                 return {"status": "PATCH_APPLY_FAILED", "base_revision": revision, "error": apply.stderr[-6000:]}
             changed = run("git", "diff", "--name-only", timeout=30)
             paths = [p.strip() for p in changed.stdout.splitlines() if p.strip()]
-            blocked = [p for p in paths if p.startswith(".github/workflows/") or p in {"docs/PROJECT_PHASE_LEDGER.md", "docs/MATH_PHYSICS_ROADMAP.md"}]
+            protected_prefixes = (".github/workflows/", "automate/dev/", "automate/ai/", "automate/backend/", "automate/core/", "schemas/")
+            protected_exact = {"docs/PROJECT_PHASE_LEDGER.md", "docs/CAPABILITY_INVENTORY.json", "docs/MATH_PHYSICS_ROADMAP.md", "SECURITY.md", "AI_INTEGRATION.md", "AUTOMATE_AI.md"}
+            blocked = [p for p in paths if p.startswith(protected_prefixes) or p in protected_exact]
             if blocked:
                 return {"status": "PROTECTED_PATH_REJECTED", "paths": blocked, "base_revision": revision}
             test_results = []
