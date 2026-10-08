@@ -48,7 +48,7 @@ export function buildExternalAgentCapabilities(origin: string) {
     executionModes: {
       externalAsActor: "The external model reasons for itself and uses Mirror tools directly; Ollama is not required for that model's own reasoning.",
       externalControllingConfiguredProvider: "The external model can invoke Mirror endpoints that cause the configured Mirror agent provider to reason and act, then inspect the persisted evidence.",
-      externalAsProvider: "Not yet supported as a synchronous internal provider. This requires a remote inference handoff/response protocol rather than ordinary agent authentication.",
+      externalAsProvider: "Supported through the vendor-neutral remote-http provider when MIRROR_AI_ENDPOINT is configured. Provider messages, tool calls, and bounded responses use the shared AIProvider contract.",
     },
     identityModel: {
       registered: "A persistent external AI identity with one-time mirror_ak_... credential.",
