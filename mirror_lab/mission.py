@@ -29,6 +29,7 @@ def run_mission(path: str | Path, *, output: str | Path | None = None) -> dict[s
         capability_id=(str(payload["capability_id"]) if payload.get("capability_id") else None),
         automate_revision=(str(payload["automate_revision"]) if payload.get("automate_revision") else None),
         task=dict(payload.get("task", {})),
+        authorization_granted=bool(payload.get("authorization_granted", False)),
     )
 
     explicit_calls = payload.get("calls")
