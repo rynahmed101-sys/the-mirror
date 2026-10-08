@@ -33,3 +33,30 @@ def test_workspace_and_git_tools_are_bounded(tmp_path: Path):
     )
     assert write_result.succeeded is True
     assert (tmp_path / "sample.txt").read_text() == "ok"
+
+
+def test_default_tool_registry_exposes_read_only_automate_frontier(tmp_path: Path, monkeypatch):
+    from mirror_lab.automate import AutomateFrontierSnapshot
+
+    snapshot = AutomateFrontierSnapshot(
+        repository="rynahmed101-sys/automate",
+        revision="main",
+        ledger="# ledger",
+        inventory={"capabilities": []},
+        ledger_sha256="a" * 64,
+        inventory_sha256="b" * 64,
+    )
+    monkeypatch.setattr("mirror_lab.builtin_tools.read_automate_frontier", lambda **_: snapshot)
+    registry = build_default_tool_registry(workspace_root=tmp_path)
+    result = registry.invoke(
+        "automate.frontier.read",
+        {},
+        __import__("mirror_lab.tooling", fromlist=["ToolContext"]).ToolContext(
+            cycle_id="cycle_test",
+            mission_id="mission_test",
+            objective="read Automate ledger frontier",
+            specialist=SpecialistName.REASONING,
+        ),
+    )
+    assert result.succeeded
+    assert result.output["authority"] == "AUTOMATE_CANONICAL_READ_ONLY"
