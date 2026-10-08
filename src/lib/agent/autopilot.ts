@@ -26,6 +26,8 @@ const bounded = (value: unknown, min: number, max: number, fallback: number) => 
 };
 
 export const AUTOPILOT_TOOLS: ToolDefinition[] = [
+  { name: "implement_automate_change", description: "Prepare a bounded change against the exact Automate frontier revision. The patch is applied and tested only inside an isolated sandbox. Return the proposed diff and test evidence; never push or certify.", parameters: { type:"object", properties:{ patch:{type:"string"}, tests:{type:"array",items:{type:"string"}} }, required:["patch"] } },
+
   { name: "research_world", description: "Search bounded public scientific/software/model sources. Results are evidence leads with provenance, never proof or certification.", parameters: { type: "object", properties: {
       query:{type:"string"}, providers:{type:"array",items:{type:"string",enum:["crossref","openalex","arxiv","github","huggingface"]}}, limit:{type:"number"}, correlationId:{type:"string"}
     }, required:["query"] } },
@@ -169,7 +171,7 @@ export async function runAutopilot(options: {
   maxCycles?: number;
   maxToolSteps?: number;
   requestSource?: "AGENT" | "SCHEDULED";
-  mode?: "SELF_OBSERVATION" | "DISCOVERY";
+  mode?: "SELF_OBSERVATION" | "DISCOVERY" | "FRONTIER";
   discoveryGrant?: Record<string, unknown>;
 }) {
   const agentId = options.agentId || "mirror-primary";
@@ -194,6 +196,13 @@ export async function runAutopilot(options: {
     const { validateDiscoveryGrant } = await import("../research/discoveryGrant");
     discoveryGrant = validateDiscoveryGrant(discoveryGrant);
   }
+const FRONTIER_PHASES = [
+  { name:"OBSERVE", instruction:"Inspect the supplied capability mission and use repository/research tools to understand the exact target revision, current implementation, prerequisites, and likely failure modes. Do not invent repository facts." },
+  { name:"RESEARCH", instruction:"Research established approaches and mature implementations relevant to the capability. Preserve disagreement and edge cases. Use this to improve the implementation plan." },
+  { name:"IMPLEMENT", instruction:"Produce the smallest useful Automate change as a unified diff against the supplied exact base revision. Use implement_automate_change so the diff is mechanically checked and bounded in an isolated sandbox." },
+  { name:"VERIFY", instruction:"Review sandbox test evidence, challenge assumptions, inspect failures, and repair the patch when needed. Do not declare certification." },
+] as const;
+
   const results: any[] = [];
 
   // One autopilot run is one persistent agent session.
@@ -202,7 +211,7 @@ export async function runAutopilot(options: {
   const [session] = await db.insert(agentSessions).values({ agentId, status: "ACTIVE" }).returning();
 
   for (let i = 0; i < maxCycles; i += 1) {
-    const phases = mode === "DISCOVERY" ? DISCOVERY_PHASES : PHASES;
+    const phases = mode === "DISCOVERY" ? DISCOVERY_PHASES : mode === "FRONTIER" ? FRONTIER_PHASES : PHASES;
     const phase = phases[i % phases.length];
     const cycleStartedAt = Date.now();
 
