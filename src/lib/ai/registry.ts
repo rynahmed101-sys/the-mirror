@@ -1,23 +1,20 @@
-/** THE MIRROR — Ollama-only AI registry.
+/** THE MIRROR — single provider registry.
  *
- * Supports two deployments without two codebases:
- *   OLLAMA_MODE=local  -> localhost Ollama, no key
- *   OLLAMA_MODE=cloud  -> Ollama Cloud, Bearer key
+ * The scientific architecture remains useful with zero neural-model inference.
  */
-
-import { OllamaProvider } from "./ollama";
+import { DeterministicProvider } from "./deterministic";
 import type { AIProvider, ModelInfo, ProviderHealth } from "./provider";
 
-export type ProviderName = "ollama";
-interface ProviderRegistry { ollama: AIProvider; }
+export type ProviderName = "model-independent";
+interface ProviderRegistry {
+  "model-independent": AIProvider;
+}
 
 let registry: ProviderRegistry | null = null;
-let activeModel: string | null = null;
+const ACTIVE_MODEL = "deterministic-cognitive-substrate";
 
 function buildRegistry(): ProviderRegistry {
-  return {
-    ollama: new OllamaProvider(),
-  };
+  return { "model-independent": new DeterministicProvider() };
 }
 
 function getRegistry(): ProviderRegistry {
@@ -27,86 +24,80 @@ function getRegistry(): ProviderRegistry {
 
 export function invalidateRegistry(): void {
   registry = null;
-  activeModel = null;
 }
 
-export function getProvider(name: ProviderName = "ollama"): AIProvider {
-  if (name !== "ollama") {
-    throw new Error("[THE MIRROR] Only Ollama is supported.");
+export function getProvider(name: ProviderName = "model-independent"): AIProvider {
+  if (name !== "model-independent") {
+    throw new Error("[THE MIRROR] Neural/cloud providers are disabled by architecture policy.");
   }
-  return getRegistry().ollama;
+  return getRegistry()["model-independent"];
 }
 
 export function getActiveProviderName(): ProviderName {
-  return "ollama";
+  return "model-independent";
 }
 
-export function getActiveModel(): string | null {
-  if (activeModel) return activeModel;
-  const configured = process.env.OLLAMA_DEFAULT_MODEL;
-  if (configured) return configured;
-  const mode = (process.env.OLLAMA_MODE || "").toLowerCase();
-  const hosted = mode === "cloud" || mode === "online" || mode === "remote" || Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
-  return hosted ? "gpt-oss:20b-cloud" : "llama3.2";
+export function getActiveModel(): string {
+  return ACTIVE_MODEL;
 }
 
 export function setActiveProvider(name: ProviderName, model?: string): void {
-  if (name !== "ollama") {
-    throw new Error("[THE MIRROR] Only Ollama is supported.");
+  if (name !== "model-independent") {
+    throw new Error("[THE MIRROR] Neural/cloud providers are disabled by architecture policy.");
   }
-  if (model) activeModel = model;
+  if (model && model !== ACTIVE_MODEL) {
+    throw new Error("[THE MIRROR] Unknown model-independent model: " + model);
+  }
 }
 
 export function setActiveModel(model: string): void {
-  activeModel = model;
+  if (model !== ACTIVE_MODEL) {
+    throw new Error("[THE MIRROR] Neural/cloud models are not enabled.");
+  }
 }
 
 export interface ProviderStatus {
-  name: "ollama";
-  isLocal: boolean;
-  requiresApiKey: boolean;
+  name: "model-independent";
+  isLocal: true;
+  requiresApiKey: false;
   isActive: true;
   health: ProviderHealth;
 }
 
 export async function listProviders(): Promise<ProviderStatus[]> {
-  const provider = getRegistry().ollama;
+  const provider = getRegistry()["model-independent"];
   return [{
-    name: "ollama",
-    isLocal: provider.isLocal,
-    requiresApiKey: provider.requiresApiKey(),
+    name: "model-independent",
+    isLocal: true,
+    requiresApiKey: false,
     isActive: true,
     health: await provider.healthCheck(),
   }];
 }
 
 export async function listAllModels(): Promise<ModelInfo[]> {
-  return getRegistry().ollama.listModels();
+  return getRegistry()["model-independent"].listModels();
 }
 
 export const aiRegistry = {
   getProvider,
-  getActiveProvider: () => getProvider("ollama"),
+  getActiveProvider: () => getProvider("model-independent"),
   getActiveProviderName,
   getActiveModel,
   setActiveProvider: (name: string, model?: string) =>
     setActiveProvider(name as ProviderName, model),
   setActiveModel,
   invalidateRegistry,
-  listProviders: (): string[] => ["ollama"],
-  listModels: async (providerId: string): Promise<string[]> => {
-    if (providerId !== "ollama") return [];
-    return (await getRegistry().ollama.listModels()).map((m) => m.name || m.id);
-  },
+  listProviders: (): string[] => ["model-independent"],
+  listModels: async (providerId: string): Promise<string[]> =>
+    providerId === "model-independent"
+      ? (await getRegistry()["model-independent"].listModels()).map((m) => m.name || m.id)
+      : [],
   healthCheck: async (providerId: string): Promise<boolean> =>
-    providerId === "ollama" &&
-    (await getRegistry().ollama.healthCheck()).isHealthy,
+    providerId === "model-independent" &&
+    (await getRegistry()["model-independent"].healthCheck()).isHealthy,
   healthCheckFull: async (providerId: string): Promise<ProviderHealth> =>
-    providerId === "ollama"
-      ? getRegistry().ollama.healthCheck()
-      : {
-          isHealthy: false,
-          provider: providerId,
-          error: "Only Ollama is supported",
-        },
+    providerId === "model-independent"
+      ? getRegistry()["model-independent"].healthCheck()
+      : { isHealthy: false, provider: providerId, error: "Provider not enabled" },
 };
