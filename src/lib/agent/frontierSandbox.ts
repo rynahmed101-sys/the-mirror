@@ -96,6 +96,19 @@ export async function runAutomatePatchProbe(input: {
     }
 
     const testResults: Array<Record<string, unknown>> = [];
+    if (requestedTests.length) {
+      const install = await sandbox.runCommand({
+        cmd: "bash",
+        args: ["-lc", "cd " + worktree + " && python -m pip install -e '.[dev]'"],
+      });
+      if (install.exitCode !== 0) {
+        return {
+          status: "ENVIRONMENT_SETUP_FAILED",
+          base_revision: baseRevision,
+          error: (await install.stderr()).slice(-6000),
+        };
+      }
+    }
     for (const command of requestedTests) {
       const test = await sandbox.runCommand({
         cmd: "bash",
