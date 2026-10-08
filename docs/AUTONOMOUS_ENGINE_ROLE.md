@@ -1,16 +1,17 @@
 > **System authority:** The complete cross-repository architecture is maintained in Automate at `docs/AUTONOMOUS_SYSTEM_MASTER_PLAN.md`. This document defines Mirror's implementation role.
 
-# THE MIRROR role: scientific laboratory and verification execution compartment
+# THE MIRROR role: autonomous AI engineering partner, scientific laboratory, and verification worker
 
-THE MIRROR is the autonomous scientific laboratory. It is also a **scientific execution compartment of the Verification & Reconciliation Engine** when a verification task requires real experimentation rather than repository-only reasoning.
+THE MIRROR is the system's persistent AI engineering environment. It is a laboratory, research brain, coding workspace, diagnosis/repair worker, capability-generation partner, and scientific execution compartment of the Verification & Reconciliation Engine.
 
-It is not a passive evidence mailbox, and it is not an authority for Automate.
+It is not merely a passive evidence mailbox. It can perform substantial technical work, including research, implementation design, coding, testing, diagnosis, repair, experiment design, and discovery.
 
 ## What Mirror owns
 
-Mirror owns the machinery for:
+Mirror owns the machinery and intelligence for:
 
-- formalizing hypotheses/models;
+- formalizing hypotheses and computational models;
+- scholarly, scientific, and code research;
 - executable experiment design;
 - deterministic and numerical simulation;
 - perturbation and parameter sweeps;
@@ -22,65 +23,97 @@ Mirror owns the machinery for:
 - anomaly preservation;
 - reproducible experiment manifests;
 - raw observations and experimental provenance;
-- follow-up experiment generation.
+- capability design and implementation proposals;
+- diagnosis of software, mathematical, numerical, provenance, test, CI, and integration failures;
+- bounded repairs and repair proposals;
+- follow-up work and discovery candidates.
 
-Its existing Python laboratory, operator facade, evidence ledger, simulation adapters, analysis and perturbation machinery make it materially richer for these tasks than a generic worker substrate.
+## Capability generation and repair
+
+Mirror may be commissioned to:
+
+1. investigate the next Automate capability;
+2. research existing implementations and methods;
+3. design a capability vertical slice;
+4. implement or prepare implementation changes;
+5. build adversarial and negative tests;
+6. investigate verification failures;
+7. diagnose the smallest justified repair;
+8. produce a repair branch/PR or a bounded worker result;
+9. run scientific experiments required to distinguish competing explanations.
+
+Mirror may work directly on its own repository and may prepare reviewable Git changes for Automate. This is how the system can develop rather than merely observe itself.
+
+The boundary is not "Mirror may not mutate." The boundary is:
+
+**Mirror may mutate implementation surfaces through bounded, attributable, reviewable Git changes; Mirror may not self-certify, self-promote, or bypass Automate's acceptance boundary.**
+
+## Verification relationship
+
+Mirror participates in verification whenever computation, experiment, perturbation, numerical comparison, simulation, or counterexample search materially strengthens the evidence.
+
+A verification request may therefore become:
+
+```
+Automate / Verification Engine
+        ↓
+Chanfana durable request
+        ↓
+Mirror research / code / experiment
+        ↓
+observations + diagnostics + provenance
+        ↓
+Chanfana persistence
+        ↓
+Automate verification + reconciliation
+        ↓
+promotion decision
+```
+
+Mirror can recommend that a claim is supported, contradicted, unresolved, numerically unstable, or requires another experiment. It cannot turn that judgment into an authoritative Automate certification.
 
 ## Backlog-clearing role
 
-Mirror may help clear the current Stage 1A–3A verification backlog when a backlog item needs:
+Mirror is available during the Stage 1A–3A backlog phase, not only after the backlog disappears.
 
-- numerical cross-checking;
+For a capability currently selected by Automate, Mirror may contribute whenever useful:
+
+- implementation research;
+- test-matrix design;
+- numerical cross-checks;
 - convergence/stability investigation;
 - perturbation;
 - independent solver comparison;
 - counterexample search;
-- simulation;
-- anomaly characterization.
+- code repair;
+- documentation and contract preparation.
 
-This does **not** turn backlog clearing into unrestricted scientific discovery.
-
-During the backlog phase, autonomous external-world research and open-ended discovery remain ON HOLD. Existing local laboratory capabilities can be commissioned through bounded verifier jobs when required.
-
-## Verification boundary
-
-The verifier asks:
-
-> What should be checked, what evidence is missing, and what experiment would distinguish competing explanations?
-
-Mirror answers by running the experiment and returning observations.
-
-Mirror does not answer:
-
-> Therefore this capability is authoritative.
-
-That decision remains with Automate.
+Open-ended discovery remains controlled by the Automate operating mode. That is a work-selection rule, not a declaration that Mirror is technically incapable of discovery.
 
 ## Chanfana relationship
 
 Mirror should not recreate durable queues, leases, worker authentication, or cross-repository job persistence.
 
-When work originates from the verifier:
+When work crosses repository boundaries, use shared contracts and Chanfana transport:
 
 ```
-Verification Engine
- → Chanfana durable request
- → Mirror experiment
- → raw observation + diagnostics + provenance
- → Chanfana transport/persistence
- → Verification Engine
+Automate mission
+  → Chanfana job
+  → Mirror execution
+  → Chanfana persistence
+  → Automate reconciliation
 ```
 
-Mirror remains locally useful without Chanfana, preserving its laboratory independence, but autonomous cross-repository jobs should use the shared Chanfana transport/control boundary.
+Mirror remains locally useful without Chanfana so the scientific core stays independently runnable.
 
-## Theory neutrality
+## Scientific neutrality
 
-Established mathematics and physics are optional comparison instruments, controls, limiting cases, or competing models. Disagreement with them is not automatically a defect and not automatically evidence of new science.
+Established mathematics and physics are reference instruments, controls, limiting cases, or competing models. Disagreement with them is not automatically a defect and not automatically evidence of new science.
 
 Unexpected results must first be checked for implementation and numerical causes, then preserved if they survive.
 
 ## Development rule
 
-The `engine` branch is the active laboratory development trunk. `main` is the release surface.
+The `engine` branch is the active development trunk. `main` is the release surface.
 
-Mirror must never mutate Automate's ledger, inventory, rule registry, certification state, or authoritative Git history.
+Mirror must not mutate Automate's canonical ledger, certification state, or authoritative decision directly. Any cross-repository mutation must travel through a bounded, reviewable Git/control path.
