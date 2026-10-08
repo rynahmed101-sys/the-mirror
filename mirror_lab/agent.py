@@ -327,7 +327,12 @@ class MirrorAgent:
         if any(x in q for x in ("experiment", "simulate", "test hypothesis")):
             plan.append("run_manifest")
         if any(x in q for x in ("implement", "build", "code", "repair", "fix", "patch")):
-            plan.append("implement_automate_change" if "repair" not in q else "repair_automate_change")
+            if "hermes_coding_agent" in self.tools.names():
+                plan.append("hermes_coding_agent")
+            elif "free_coding_agent" in self.tools.names():
+                plan.append("free_coding_agent")
+            else:
+                plan.append("implement_automate_change" if "repair" not in q else "repair_automate_change")
         if "propose" in q or "new capability" in q:
             plan.append("propose_capability")
         self.brain.record_event("plan_created", {"mission": mission.objective, "tools": plan})
@@ -354,6 +359,22 @@ class MirrorAgent:
                     {"tool": name, "status": str(result.get("status", "returned"))},
                 )
                 results.append({"tool": name, "result": result})
+                if name in {"hermes_coding_agent", "free_coding_agent"}:
+                    diff = str(result.get("diff") or "")
+                    if result.get("status") == "PROPOSAL_READY" and diff:
+                        apply_result = self.tools.execute(
+                            "implement_automate_change",
+                            {
+                                "base_revision": mission.automate_revision,
+                                "patch": diff,
+                                "tests": list(mission.task.get("verification_commands", []))[:4],
+                            },
+                        )
+                        self.brain.record_event(
+                            "generated_change_applied",
+                            {"provider": name, "status": str(apply_result.get("status", "returned"))},
+                        )
+                        results.append({"tool": "implement_automate_change", "result": apply_result})
             except Exception as exc:
                 self.brain.record_event(
                     "tool_failure",
