@@ -34,8 +34,19 @@ def run_mission(path: str | Path, *, output: str | Path | None = None) -> dict[s
     explicit_calls = payload.get("calls")
     if explicit_calls is None:
         plan = agent.plan(mission)
-        calls = [{"tool": name, "arguments": dict(payload.get("arguments", {}).get(name, {}))}
-                 for name in plan]
+        supplied = dict(payload.get("arguments", {}))
+        calls = []
+        for name in plan:
+            args = dict(supplied.get(name, {}))
+            if name == "propose_capability" and not args:
+                args = {
+                    "id": mission.capability_id or "mirror.generated.capability",
+                    "name": mission.capability_id or "Mirror generated capability",
+                    "summary": objective,
+                    "prerequisites": list(mission.task.get("prerequisites", [])),
+                    "dependencies": list(mission.task.get("dependencies", [])),
+                }
+            calls.append({"tool": name, "arguments": args})
     else:
         if not isinstance(explicit_calls, list):
             raise ValueError("calls must be a list")
