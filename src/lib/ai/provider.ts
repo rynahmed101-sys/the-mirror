@@ -1,8 +1,8 @@
-/**
- * THE MIRROR — AI Provider Abstraction Layer
+/** THE MIRROR — provider-independent AI contract.
  *
- * The intelligence runtime is replaceable; THE MIRROR environment is not.
- * The built-in provider is Ollama, usable in either local or hosted-cloud mode.
+ * The cognitive architecture must remain useful with zero neural-model
+ * inference. A future model can implement this interface, but no provider is
+ * required by the scientific core.
  */
 
 export interface ModelInfo {

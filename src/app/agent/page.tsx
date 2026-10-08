@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { extractCookieToken, verifyAdminSession } from "@/lib/auth";
 import { ensureLunaExternalAgent } from "@/lib/auth/ensureLunaExternalAgent";
-import OllamaResearchChat from "@/components/OllamaResearchChat";
+import MirrorResearchChat from "@/components/MirrorResearchChat";
 
 export default async function AgentPage() {
   const cookieStore = await cookies();
@@ -10,5 +10,5 @@ export default async function AgentPage() {
   if (!session) redirect("/admin");
 
   await ensureLunaExternalAgent();
-  return <OllamaResearchChat />;
+  return <MirrorResearchChat />;
 }
