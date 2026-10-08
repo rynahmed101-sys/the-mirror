@@ -80,7 +80,7 @@ class FreeToolbelt:
             env["HERMES_HOME"] = str(root / ".hermes")
             result = self._run([exe, "-z", mission], root, 300, env=env)
             diff = self._run(["git", "diff", "--binary", "--no-ext-diff"], root, 30, env=env)
-            status = "PROPOSAL_READY" if result["returncode"] == 0 and diff["stdout"] else "NO_DIFF"
+            status = "PROPOSAL_READY" if diff["stdout"] else "NO_DIFF"
             return {
                 "status": status if result["returncode"] == 0 else "AGENT_FAILED",
                 "authority": "UNTRUSTED_MIRROR_PROPOSAL",
