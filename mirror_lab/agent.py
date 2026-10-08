@@ -219,7 +219,7 @@ class MirrorAgent:
         if not patch:
             raise ValueError("patch is required")
         tests = [str(x) for x in args.get("tests", [])][:4]
-        allowed = re.compile(r"^(python -m pytest(?:\\s+.*)?|pytest(?:\\s+.*)?)$")
+        allowed = re.compile(r"^(python -m pytest(?:\s+.*)?|pytest(?:\s+.*)?)$")
         if any(not allowed.fullmatch(t) for t in tests):
             raise ValueError("unsupported test command")
         repo = "https://github.com/rynahmed101-sys/automate.git"
@@ -290,7 +290,7 @@ class MirrorAgent:
         if not patch or not branch.startswith("mirror/") or not title or not body:
             raise ValueError("patch, mirror branch, title, and body are required")
         tests = [str(x) for x in args.get("tests", [])][:4]
-        allowed = re.compile(r"^(python -m pytest(?:\\s+.*)?|pytest(?:\\s+.*)?)$")
+        allowed = re.compile(r"^(python -m pytest(?:\s+.*)?|pytest(?:\s+.*)?)$")
         if any(not allowed.fullmatch(t) for t in tests):
             raise ValueError("unsupported test command")
         root = Path(tempfile.mkdtemp(prefix="mirror-publish-"))
