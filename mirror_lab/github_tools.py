@@ -24,7 +24,12 @@ class GitHubTool:
 
     def _run(self, args: list[str], timeout: int = 120) -> dict[str, Any]:
         env = os.environ.copy()
-        if not env.get("GH_TOKEN") and not env.get("GITHUB_TOKEN"):
+        if self.repository == "rynahmed101-sys/automate":
+            token = env.get("AUTOMATE_GITHUB_TOKEN") or env.get("GH_TOKEN")
+            if not token:
+                raise RuntimeError("AUTOMATE_GITHUB_TOKEN is required for Automate mutation")
+            env["GH_TOKEN"] = token
+        elif not env.get("GH_TOKEN") and not env.get("GITHUB_TOKEN"):
             raise RuntimeError("GitHub Actions token is unavailable")
         completed = subprocess.run(
             args, cwd=self.root, env=env, capture_output=True, text=True,
