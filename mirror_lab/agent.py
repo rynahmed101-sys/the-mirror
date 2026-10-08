@@ -27,6 +27,7 @@ from .research import ResearchTool
 from .reasoning import ReasoningEngine
 from .inference import InferenceEngine
 from .github_tools import GitHubTool
+from .free_tools import FreeToolbelt
 
 
 @dataclass(frozen=True)
@@ -97,6 +98,7 @@ class MirrorAgent:
 
     def _register_default_tools(self) -> None:
         github = GitHubTool(Path.cwd())
+        free = FreeToolbelt(Path.cwd())
         self.tools.register(Tool(
             "github_repo_state",
             "Inspect bounded remote GitHub repository state.",
@@ -118,6 +120,25 @@ class MirrorAgent:
             "github_ci",
             "Read CI state for an exact Git revision.",
             lambda a: github.ci(str(a.get("revision", ""))),
+        ))
+        self.tools.register(Tool(
+            "free_tool_capabilities",
+            "Detect optional free/open research and coding capabilities.",
+            lambda _a: {"status": "OK", "capabilities": free.available()},
+        ))
+        self.tools.register(Tool(
+            "agent_reach_doctor",
+            "Health-check Agent-Reach internet backends when installed.",
+            lambda _a: free.agent_reach_doctor(),
+        ))
+        self.tools.register(Tool(
+            "free_coding_agent",
+            "Run an optional coding agent in an exact temporary Automate checkout and return only an untrusted diff.",
+            lambda a: free.opencode_proposal(
+                revision=str(a.get("revision") or ""),
+                objective=str(a.get("objective") or ""),
+                prompt=str(a.get("prompt") or ""),
+            ),
         ))
         self.tools.register(Tool(
             "research_world",
