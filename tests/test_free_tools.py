@@ -3,7 +3,7 @@ from mirror_lab.free_tools import FreeToolbelt
 
 def test_free_toolbelt_reports_optional_capabilities(tmp_path):
     result = FreeToolbelt(tmp_path).available()
-    assert set(result) == {"agent_reach", "opencode", "goose", "aider"}
+    assert set(result) == {"agent_reach", "opencode", "goose", "aider", "hermes"}
     assert all(isinstance(value, bool) for value in result.values())
 
 
