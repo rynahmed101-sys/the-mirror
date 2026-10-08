@@ -55,7 +55,7 @@ function chooseTool(query: string): ToolCall | null {
 function explain(): string {
   return [
     "Mirror is running in model-independent mode.",
-    "No Ollama runtime, hosted inference service, API key, or model download is required.",
+    "No neural runtime, hosted inference service, API key, or model download is required.",
     "The persistent cognitive substrate and bounded tool system remain available.",
     "Stored evidence, experiments, timeline, research, and time can be queried deterministically.",
     "A future reasoning model can be attached without changing the brain, memory, evidence, or authority boundaries.",
