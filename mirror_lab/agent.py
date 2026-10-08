@@ -117,6 +117,12 @@ class MirrorAgent:
             mutating=True,
         ))
         self.tools.register(Tool(
+            "github_publish_automate_patch",
+            "Apply, verify, commit, push, and open a PR from an exact Automate revision; never merge.",
+            lambda a: self._publish_automate_change(a),
+            mutating=True,
+        ))
+        self.tools.register(Tool(
             "github_ci",
             "Read CI state for an exact Git revision.",
             lambda a: github.ci(str(a.get("revision", ""))),
@@ -273,6 +279,73 @@ class MirrorAgent:
         finally:
             shutil.rmtree(root, ignore_errors=True)
 
+    def _publish_automate_change(self, args: dict[str, Any]) -> dict[str, Any]:
+        if not args.get("authorization_granted"):
+            return {"status": "AUTHORIZATION_DENIED", "error": "mission did not grant GitHub mutation authorization"}
+        revision = self._checked_sha(args.get("base_revision"))
+        patch = str(args.get("patch", ""))
+        branch = str(args.get("branch", "")).strip()
+        title = str(args.get("title", "")).strip()
+        body = str(args.get("body", "")).strip()
+        if not patch or not branch.startswith("mirror/") or not title or not body:
+            raise ValueError("patch, mirror branch, title, and body are required")
+        tests = [str(x) for x in args.get("tests", [])][:4]
+        allowed = re.compile(r"^(python -m pytest(?:\\s+.*)?|pytest(?:\\s+.*)?)$")
+        if any(not allowed.fullmatch(t) for t in tests):
+            raise ValueError("unsupported test command")
+        root = Path(tempfile.mkdtemp(prefix="mirror-publish-"))
+        try:
+            def run(*cmd: str, timeout: int = 180) -> subprocess.CompletedProcess[str]:
+                return subprocess.run(cmd, cwd=root, text=True, capture_output=True, check=False, timeout=min(max(timeout, 1), 300), env=os.environ.copy())
+            repo = "https://github.com/rynahmed101-sys/automate.git"
+            for cmd in (
+                ("git", "init"), ("git", "remote", "add", "origin", repo),
+                ("git", "fetch", "--depth", "1", "origin", revision), ("git", "checkout", "--detach", revision),
+                ("git", "config", "user.name", "Mirror Autonomous Agent"),
+                ("git", "config", "user.email", "mirror-agent@users.noreply.github.com"), ("gh", "auth", "setup-git"),
+            ):
+                result = run(*cmd)
+                if result.returncode:
+                    return {"status": "PUBLISH_PREPARATION_FAILED", "step": cmd, "error": (result.stderr or result.stdout)[-6000:]}
+            patch_path = root / ".mirror-frontier.patch"
+            patch_path.write_text(patch, encoding="utf-8")
+            check = run("git", "apply", "--check", "--whitespace=error", str(patch_path), timeout=30)
+            if check.returncode:
+                return {"status": "PATCH_REJECTED", "base_revision": revision, "error": check.stderr[-6000:]}
+            apply = run("git", "apply", "--whitespace=error", str(patch_path), timeout=30)
+            if apply.returncode:
+                return {"status": "PATCH_APPLY_FAILED", "base_revision": revision, "error": apply.stderr[-6000:]}
+            changed = run("git", "diff", "--name-only", timeout=30)
+            paths = [p.strip() for p in changed.stdout.splitlines() if p.strip()]
+            blocked = [p for p in paths if p.startswith(".github/workflows/") or p in {"docs/PROJECT_PHASE_LEDGER.md", "docs/MATH_PHYSICS_ROADMAP.md"}]
+            if blocked:
+                return {"status": "PROTECTED_PATH_REJECTED", "paths": blocked, "base_revision": revision}
+            test_results = []
+            for command in tests:
+                result = run("bash", "-lc", command, timeout=300)
+                test_results.append({"command": command, "status": "passed" if result.returncode == 0 else "failed", "exit_code": result.returncode, "stdout": result.stdout[-12000:], "stderr": result.stderr[-8000:]})
+                if result.returncode:
+                    return {"status": "PUBLISH_TEST_FAILED", "base_revision": revision, "tests": test_results}
+            if not paths:
+                return {"status": "NO_DIFF", "base_revision": revision}
+            branch_check = run("git", "checkout", "-B", branch, timeout=30)
+            if branch_check.returncode:
+                return {"status": "BRANCH_PREPARATION_FAILED", "error": branch_check.stderr[-6000:]}
+            for cmd in (("git", "add", "--all"), ("git", "commit", "-m", title[:200])):
+                result = run(*cmd, timeout=60)
+                if result.returncode:
+                    return {"status": "COMMIT_FAILED", "step": cmd, "error": (result.stderr or result.stdout)[-6000:]}
+            head = run("git", "rev-parse", "HEAD", timeout=30).stdout.strip()
+            github = GitHubTool(root)
+            push = github.push_branch(branch)
+            if push.get("returncode") != 0:
+                return {"status": "PUSH_FAILED", "head_revision": head, "push": push}
+            pr = github.create_pr(branch, title, body)
+            if pr.get("returncode") != 0:
+                return {"status": "PR_CREATE_FAILED", "head_revision": head, "push": push, "pr": pr}
+            return {"status": "PR_CREATED", "authority": "UNTRUSTED_MIRROR_PROPOSAL", "base_revision": revision, "head_revision": head, "branch": branch, "tests": test_results, "pr": pr}
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
     @staticmethod
     def _propose_capability(args: dict[str, Any]) -> dict[str, Any]:
         required = ("id", "name", "summary")
@@ -375,6 +448,21 @@ class MirrorAgent:
                             {"provider": name, "status": str(apply_result.get("status", "returned"))},
                         )
                         results.append({"tool": "implement_automate_change", "result": apply_result})
+                        if mission.authorization_granted and apply_result.get("status") == "PATCH_VALIDATED":
+                            branch_seed = re.sub(r"[^a-z0-9._/-]+", "-", str(mission.capability_id or "mission").lower()).strip("-/")
+                            branch = f"mirror/{branch_seed[:55]}-{str(mission.automate_revision or "")[:8]}"
+                            capability_label = mission.capability_id or "autonomous change"
+                            publish = self.tools.execute(
+                                "github_publish_automate_patch",
+                                {
+                                    "authorization_granted": True, "base_revision": mission.automate_revision, "patch": diff,
+                                    "tests": list(mission.task.get("verification_commands", []))[:4], "branch": branch,
+                                    "title": f"mirror: {capability_label}"[:200],
+                                    "body": "Autonomous Mirror proposal.\n\n" + f"Base revision: `{mission.automate_revision}`\n" + f"Capability: `{capability_label}`\n\n" + "This PR is untrusted until Automate verification and promotion accepts it.",
+                                },
+                            )
+                            self.brain.record_event("generated_change_published", {"status": str(publish.get("status", "returned")), "branch": branch})
+                            results.append({"tool": "github_publish_automate_patch", "result": publish})
             except Exception as exc:
                 self.brain.record_event(
                     "tool_failure",
