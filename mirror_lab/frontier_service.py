@@ -377,8 +377,7 @@ def run_frontier_job(job: Mapping[str, Any]) -> dict[str, Any]:
             source="automate-frontier",
         )
 
-        system = "
-".join([
+        system = "\n".join([
             "You are Mirror, the autonomous engineering and research partner for Automate.",
             "Work only against the exact Automate revision supplied below.",
             "You may inspect the repository, research established implementations, write code, run bounded tests, and prepare a proposal.",
