@@ -85,6 +85,7 @@ export async function runToolLoop(options: {
   maxToolSteps?: number;
   requestSource?: "AGENT" | "SYSTEM" | "RESEARCHER" | "SCHEDULED" | "OTHER_AGENT";
   discoveryGrant?: Record<string, unknown>;
+  frontierContext?: { repository: string; baseRevision: string; capabilityId: string; task: string };
   onToolCall?: (call: ToolCall, step: number) => Promise<void> | void;
   onToolResult?: (call: ToolCall, result: unknown, step: number) => Promise<void> | void;
 }) {
@@ -129,7 +130,12 @@ export async function runToolLoop(options: {
             discoveryGrant: options.discoveryGrant,
             correlationId: String(options.discoveryGrant.correlation_id || ""),
           }
-        : (call.arguments || {});
+        : call.name === "implement_automate_change" && options.frontierContext
+          ? {
+              ...(call.arguments || {}),
+              __frontierContext: options.frontierContext,
+            }
+          : (call.arguments || {});
       const result = await executeTool(
         call.name,
         toolArguments,
@@ -173,6 +179,7 @@ export async function runAutopilot(options: {
   requestSource?: "AGENT" | "SCHEDULED";
   mode?: "SELF_OBSERVATION" | "DISCOVERY" | "FRONTIER";
   discoveryGrant?: Record<string, unknown>;
+  frontierContext?: { repository: string; baseRevision: string; capabilityId: string; task: string };
 }) {
   const agentId = options.agentId || "mirror-primary";
   const mode = options.mode || "SELF_OBSERVATION";
@@ -245,6 +252,7 @@ const FRONTIER_PHASES = [
         maxToolSteps,
         requestSource: options.requestSource,
         discoveryGrant,
+        frontierContext: options.frontierContext,
       });
 
       await db.insert(rawMessages).values({ agentId, sessionId: session.id, role:"AGENT", content: run.output || "", source:"AGENT" });
