@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://automate.physics/schemas/automate-canonical-bookkeeping-v1.json",
+  "title": "Automate Canonical Bookkeeping Plan (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "capability_id",
+    "promotion_source_merge_sha",
+    "exact_head_ci_run",
+    "security_run",
+    "next_action",
+    "authority_change",
+    "canonical_mutation_performed",
+    "changes"
+  ],
+  "properties": {
+    "schema_version": {"const": "automate.canonical_bookkeeping.v1"},
+    "capability_id": {"type": "string"},
+    "promotion_source_merge_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "exact_head_ci_run": {"type": "integer", "minimum": 1},
+    "security_run": {"type": "integer", "minimum": 1},
+    "next_action": {"type": ["string", "null"]},
+    "authority_change": {"const": "BOOKKEEPING_PR_ONLY"},
+    "canonical_mutation_performed": {"const": false},
+    "changes": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["path","before_sha256","content"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {"enum": ["docs/CAPABILITY_INVENTORY.json","docs/PROJECT_PHASE_LEDGER.md"]},
+          "before_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "content": {"type": "string"}
+        }
+      }
+    }
+  }
+}

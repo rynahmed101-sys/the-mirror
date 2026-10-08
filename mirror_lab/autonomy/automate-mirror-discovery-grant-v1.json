@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://automate.physics/schemas/automate-mirror-discovery-grant-v1.json",
+  "title": "Automate Mirror Discovery Grant (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version","grant_id","authority","issuer","correlation_id",
+    "issued_at","expires_at","max_candidates","allowed_actions",
+    "forbidden_actions","canonical_mutation_allowed"
+  ],
+  "properties": {
+    "schema_version": {"const": "automate.mirror_discovery_grant.v1"},
+    "grant_id": {"type": "string", "pattern": "^dgrant_[0-9a-f]{32}$"},
+    "authority": {"const": "UNTRUSTED_EXPLORATION_PERMISSION"},
+    "issuer": {"const": "automate"},
+    "correlation_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "issued_at": {"type": "string"},
+    "expires_at": {"type": "string"},
+    "max_candidates": {"const": 1},
+    "allowed_actions": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "forbidden_actions": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "canonical_mutation_allowed": {"const": false}
+  }
+}

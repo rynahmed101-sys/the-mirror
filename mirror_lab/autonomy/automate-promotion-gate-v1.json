@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://automate.physics/schemas/automate-promotion-gate-v1.json",
+  "title": "Automate Promotion Gate (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "state",
+    "capability_id",
+    "pr_number",
+    "head_sha",
+    "current_main_sha",
+    "gates",
+    "reasons",
+    "post_merge_action"
+  ],
+  "properties": {
+    "schema_version": {"const": "automate.promotion_gate.v1"},
+    "state": {"enum": ["READY_TO_MERGE", "BLOCKED"]},
+    "capability_id": {"type": ["string", "null"]},
+    "pr_number": {"type": ["integer", "null"]},
+    "head_sha": {"type": ["string", "null"]},
+    "current_main_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "gates": {
+      "type": "object",
+      "additionalProperties": {"type": "boolean"}
+    },
+    "reasons": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "post_merge_action": {"type": ["string", "null"]}
+  }
+}
