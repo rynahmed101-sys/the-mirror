@@ -264,14 +264,14 @@ class InferenceEngine:
 
     def _tool_for(self, action: str, specialist: SpecialistName, tools: tuple[str, ...]) -> str | None:
         aliases = {
-            "research_world": ("research_world", "research.search"),
+            "research_world": ("agent_reach_doctor", "research_world", "research.search"),
             "inspect_failure": ("github_ci", "workspace.read", "diagnostic"),
             "inspect_repository": ("workspace.read", "github.read"),
             "inspect_git_state": ("github.read", "git.status"),
             "test_change": ("run_tests", "python.run"),
             "test_repair": ("run_tests", "python.run"),
-            "synthesize_change": ("implement_automate_change", "workspace.write"),
-            "synthesize_repair": ("repair_automate_change", "workspace.write"),
+            "synthesize_change": ("free_coding_agent", "implement_automate_change", "workspace.write"),
+            "synthesize_repair": ("free_coding_agent", "repair_automate_change", "workspace.write"),
             "prepare_proposal": ("propose_capability", "github.pr"),
             "prepare_capability_proposal": ("propose_capability", "github.pr"),
             "run_manifest": ("run_manifest", "experiment.run"),
