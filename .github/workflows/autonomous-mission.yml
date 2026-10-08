@@ -1,0 +1,63 @@
+name: Mirror Autonomous Mission
+
+on:
+  workflow_dispatch:
+    inputs:
+      mission_json:
+        description: "JSON mission envelope"
+        required: true
+        type: string
+  repository_dispatch:
+    types: [mirror-mission]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirror-mission
+  cancel-in-progress: false
+
+jobs:
+  mission:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Mirror
+        run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+      - name: Materialize mission envelope
+        env:
+          DISPATCH_MISSION: ${{ toJson(github.event.client_payload.mission) }}
+          MANUAL_MISSION: ${{ inputs.mission_json }}
+        run: |
+          python - <<'PY'
+          import json, os
+          raw = os.environ.get("MANUAL_MISSION") or os.environ.get("DISPATCH_MISSION") or ""
+          if not raw or raw == "null":
+              raise SystemExit("mission payload is required")
+          payload = json.loads(raw)
+          if not isinstance(payload, dict):
+              raise SystemExit("mission must be a JSON object")
+          if not payload.get("objective"):
+              raise SystemExit("mission objective is required")
+          with open("mission.json", "w", encoding="utf-8") as f:
+              json.dump(payload, f, indent=2, sort_keys=True)
+          PY
+      - name: Execute bounded Mirror mission
+        run: python -m mirror_lab.cli run-mission mission.json > mission-result.json
+      - name: Expose bounded result in workflow logs
+        run: |
+          echo "MIRROR_RESULT_BEGIN"
+          cat mission-result.json
+          echo "MIRROR_RESULT_END"
+      - name: Upload untrusted mission result
+        uses: actions/upload-artifact@v4
+        with:
+          name: mirror-mission-result
+          path: |
+            mission-result.json
+            .mirror/brain.sqlite3
+          if-no-files-found: error

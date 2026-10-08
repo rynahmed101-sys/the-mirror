@@ -3,6 +3,7 @@ import json
 
 from .examples import demo_model, run_demo
 from .manifest import ExperimentManifest
+from .mission import run_mission
 from .operator import LabOperator
 from .registry import ModelRegistry
 
@@ -22,7 +23,7 @@ def main():
         prog="mirror",
         description="THE MIRROR exploratory mathematics and physics laboratory",
     )
-    parser.add_argument("command", choices=["demo", "run-manifest"])
+    parser.add_argument("command", choices=["demo", "run-manifest", "run-mission"])
     parser.add_argument("manifest", nargs="?")
     args = parser.parse_args()
 
@@ -31,7 +32,11 @@ def main():
         return
 
     if not args.manifest:
-        parser.error("run-manifest requires a JSON manifest path")
+        parser.error(f"{args.command} requires a JSON input path")
+
+    if args.command == "run-mission":
+        print(json.dumps(run_mission(args.manifest), indent=2, sort_keys=True, default=str))
+        return
 
     registry = ModelRegistry()
     registry.register(demo_model())
