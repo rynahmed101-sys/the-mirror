@@ -47,6 +47,23 @@ class WorkspaceTool:
         if not command or any(not isinstance(item, str) or not item for item in command):
             raise ValueError("command must be a non-empty argv list")
         timeout_seconds = min(max(timeout_seconds, 1), 300)
+        allowed = False
+        if command[:3] == ["python", "-m", "pytest"]:
+            targets = command[3:]
+            allowed = bool(targets) and all(
+                item.startswith("tests/")
+                and ".." not in Path(item).parts
+                and not item.startswith("-")
+                for item in targets
+            )
+        elif command[:3] == ["python", "-m", "compileall"]:
+            allowed = len(command) == 4 and command[3] in {".", "mirror_lab"}
+        elif command[:2] == ["git", "status"]:
+            allowed = True
+        elif command[:2] == ["git", "diff"]:
+            allowed = True
+        if not allowed:
+            raise ValueError("workspace command is outside the bounded local verification allowlist")
         completed = subprocess.run(
             command,
             cwd=self.root,
