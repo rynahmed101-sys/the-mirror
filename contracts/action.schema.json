@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Mirror Action Proposal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "action_id",
+    "cycle_id",
+    "objective",
+    "specialist",
+    "bounded",
+    "self_certified"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "mirror.action.v1"
+    },
+    "action_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cycle_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1
+    },
+    "specialist": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tool": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "bounded": {
+      "const": true
+    },
+    "authorization_required": {
+      "type": "boolean"
+    },
+    "self_certified": {
+      "const": false
+    }
+  }
+}

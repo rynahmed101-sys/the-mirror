@@ -118,6 +118,7 @@ class ChanfanaFrontierClient:
         if not self.token:
             raise FrontierTransportError("MIRROR_FRONTIER_JOB_TOKEN is required")
         self._open = opener or urlopen
+        self._max_response_bytes = FrontierLimits().max_response_bytes
 
     def _request(
         self,
@@ -135,7 +136,9 @@ class ChanfanaFrontierClient:
         request = Request(self.base_url + path, headers=headers, data=body, method=method)
         try:
             with self._open(request, timeout=timeout) as response:
-                raw = response.read()
+                raw = response.read(self._max_response_bytes + 1)
+                if len(raw) > self._max_response_bytes:
+                    raise FrontierTransportError("frontier response exceeded bounded response size")
         except (HTTPError, URLError, TimeoutError, OSError) as exc:
             raise FrontierTransportError(f"frontier transport failed: {exc}") from exc
         try:

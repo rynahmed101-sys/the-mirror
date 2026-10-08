@@ -22,8 +22,8 @@ class _Response:
     def __exit__(self, *_):
         return False
 
-    def read(self):
-        return self.data.read()
+    def read(self, limit=0):
+        return self.data.read(limit) if limit else self.data.read()
 
 
 def _request() -> FrontierRequest:

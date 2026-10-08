@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .brain import Belief, Decision, Goal, MemoryKind, MirrorBrain, Recall
+from .builtin_tools import build_default_tool_registry
 from .cycle import CognitiveCycle, CycleResult
 from .tooling import ToolRegistry, ToolSpec
 from .reasoning import (
@@ -30,6 +31,7 @@ from .reasoning import (
 class MirrorAIConfig:
     state_dir: Path = Path(".mirror_state")
     name: str = "Mirror AI"
+    workspace_root: Path | None = None
 
 
 class MirrorAI:
@@ -40,7 +42,8 @@ class MirrorAI:
         self.name = cfg.name
         self.brain = MirrorBrain(cfg.state_dir / "brain.sqlite3")
         self.reasoning = ReasoningEngine(self.brain)
-        self.tools = ToolRegistry()
+        workspace_root = cfg.workspace_root or Path.cwd()
+        self.tools = build_default_tool_registry(workspace_root=workspace_root)
         self.cycle = CognitiveCycle(self.brain, self.reasoning, self.tools)
 
     def close(self) -> None:
@@ -111,7 +114,7 @@ class MirrorAI:
         *,
         mission: str | None = None,
         capability_id: str | None = None,
-        available_tools: Iterable[str] = (),
+        available_tools: Iterable[str] | None = None,
         input_value=None,
         authorization_granted: bool = False,
         source_revision: str | None = None,

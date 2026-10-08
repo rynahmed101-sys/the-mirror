@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .automate import read_automate_frontier
 from .frontier import frontier_tool_spec
 from .git_tools import GitTool
 from .reasoning import SpecialistName
@@ -19,6 +20,16 @@ def build_default_tool_registry(
     frontier_client: Any | None = None,
 ) -> ToolRegistry:
     workspace = WorkspaceTool(workspace_root)
+
+    def read_frontier(value: Any, _context: Any) -> dict[str, Any]:
+        snapshot = read_automate_frontier(
+            repository=str(value.get("repository") or "rynahmed101-sys/automate"),
+            revision=str(value.get("revision") or "main"),
+        )
+        return {
+            "authority": snapshot.authority,
+            "snapshot": snapshot.__dict__,
+        }
     research = ResearchTool()
     registry = ToolRegistry()
 
@@ -33,6 +44,15 @@ def build_default_tool_registry(
             ),
             description="Search bounded scholarly and implementation sources.",
             timeout_seconds=60.0,
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="automate.frontier.read",
+            specialist=SpecialistName.REASONING,
+            handler=read_frontier,
+            description="Read Automate's canonical ledger and inventory without mutation.",
+            timeout_seconds=30.0,
         )
     )
     registry.register(
