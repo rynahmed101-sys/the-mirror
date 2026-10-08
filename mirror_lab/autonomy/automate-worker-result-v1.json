@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://automate.physics/schemas/automate-worker-result-v1.json",
+  "title": "Automate Autonomous Worker Result (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version","request_id","status","changes","tests","unresolved"],
+  "properties": {
+    "schema_version": {"const":"automate.worker_result.v1"},
+    "request_id": {"type":"string","minLength":8,"maxLength":128},
+    "status": {"type":"string","enum":["rejected","proposed","submitted","failed"]},
+    "branch": {"type":["string","null"]},
+    "pr_number": {"type":["integer","null"],"minimum":1},
+    "changes": {
+      "type":"array","maxItems":100,
+      "items":{
+        "type":"object","additionalProperties":false,
+        "required":["operation","path","expected_sha"],
+        "properties":{
+          "operation":{"type":"string","enum":["create","update"]},
+          "path":{"type":"string","minLength":1,"maxLength":500},
+          "expected_sha":{"type":["string","null"],"pattern":"^[0-9a-f]{40}$"},
+          "content":{"type":["string","null"],"maxLength":200000},
+          "summary":{"type":["string","null"],"maxLength":1000}
+        }
+      }
+    },
+    "tests": {
+      "type":"array",
+      "items":{
+        "type":"object","additionalProperties":false,
+        "required":["command","status"],
+        "properties":{
+          "command":{"type":"string","maxLength":1000},
+          "status":{"type":"string","enum":["passed","failed","skipped","not_run"]},
+          "detail":{"type":["string","null"],"maxLength":2000}
+        }
+      }
+    },
+    "unresolved":{"type":"array","items":{"type":"string","maxLength":2000}},
+    "claims":{
+      "type":"array",
+      "items":{
+        "type":"object","additionalProperties":false,
+        "required":["claim","supported"],
+        "properties":{
+          "claim":{"type":"string","maxLength":2000},
+          "supported":{"type":"boolean"},
+          "evidence":{"type":["string","null"],"maxLength":2000}
+        }
+      }
+    }
+  }
+}
