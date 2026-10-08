@@ -20,6 +20,16 @@ def build_default_tool_registry(
     frontier_client: Any | None = None,
 ) -> ToolRegistry:
     workspace = WorkspaceTool(workspace_root)
+
+    def read_frontier(value: Any, _context: Any) -> dict[str, Any]:
+        snapshot = read_automate_frontier(
+            repository=str(value.get("repository") or "rynahmed101-sys/automate"),
+            revision=str(value.get("revision") or "main"),
+        )
+        return {
+            "authority": snapshot.authority,
+            "snapshot": snapshot.__dict__,
+        }
     research = ResearchTool()
     registry = ToolRegistry()
 
@@ -40,16 +50,7 @@ def build_default_tool_registry(
         ToolSpec(
             name="automate.frontier.read",
             specialist=SpecialistName.REASONING,
-            handler=lambda value, context: {
-                "authority": read_automate_frontier(
-                    repository=str(value.get("repository") or "rynahmed101-sys/automate"),
-                    revision=str(value.get("revision") or "main"),
-                ).authority,
-                "snapshot": read_automate_frontier(
-                    repository=str(value.get("repository") or "rynahmed101-sys/automate"),
-                    revision=str(value.get("revision") or "main"),
-                ).__dict__,
-            },
+            handler=read_frontier,
             description="Read Automate's canonical ledger and inventory without mutation.",
             timeout_seconds=30.0,
         )
