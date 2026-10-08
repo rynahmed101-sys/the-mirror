@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Mirror Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "evidence_id",
+    "content",
+    "source",
+    "classification",
+    "confidence",
+    "authority"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "mirror.evidence.v1"
+    },
+    "evidence_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1
+    },
+    "classification": {
+      "enum": [
+        "OBSERVED",
+        "INFERRED",
+        "HYPOTHESIZED",
+        "PROPOSED",
+        "VERIFIED",
+        "CERTIFIED"
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "authority": {
+      "type": "string",
+      "minLength": 1
+    },
+    "content_sha256": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}
