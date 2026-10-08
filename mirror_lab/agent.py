@@ -139,7 +139,6 @@ class MirrorAgent:
                     objective=str(a.get("objective") or ""),
                     prompt=str(a.get("prompt") or ""),
                 ),
-                mutating=True,
             ))
         self.tools.register(Tool(
             "research_world",
