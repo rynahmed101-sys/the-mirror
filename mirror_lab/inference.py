@@ -19,6 +19,7 @@ from typing import Any, Iterable, Mapping
 from .brain import MemoryKind, MirrorBrain
 from .reasoning import ReasoningEngine, SpecialistName
 from .knowledge import search as search_knowledge
+from .recipes import TRANSFORMS
 
 
 @dataclass(frozen=True)
@@ -168,6 +169,7 @@ class InferenceEngine:
     def infer(self, context: InferenceContext, available_tools: Iterable[str]) -> InferencePlan:
         tokens = _tokens(context.objective + " " + " ".join(map(str, context.task.values())))
         knowledge = search_knowledge(context.objective + " " + " ".join(map(str, context.task.values())))
+        available_transforms = tuple(sorted(TRANSFORMS))
         matched = [
             rule for rule in self.rules
             if tokens.intersection(rule.triggers)
