@@ -126,20 +126,22 @@ class MirrorAgent:
             "Detect optional free/open research and coding capabilities.",
             lambda _a: {"status": "OK", "capabilities": free.available()},
         ))
-        self.tools.register(Tool(
-            "agent_reach_doctor",
-            "Health-check Agent-Reach internet backends when installed.",
-            lambda _a: free.agent_reach_doctor(),
-        ))
-        self.tools.register(Tool(
-            "free_coding_agent",
-            "Run an optional coding agent in an exact temporary Automate checkout and return only an untrusted diff.",
-            lambda a: free.opencode_proposal(
-                revision=str(a.get("revision") or ""),
-                objective=str(a.get("objective") or ""),
-                prompt=str(a.get("prompt") or ""),
-            ),
-        ))
+        if free.available().get("agent_reach"):
+            self.tools.register(Tool(
+                "agent_reach_doctor",
+                "Health-check Agent-Reach internet backends when installed.",
+                lambda _a: free.agent_reach_doctor(),
+            ))
+        if free.available().get("opencode"):
+            self.tools.register(Tool(
+                "free_coding_agent",
+                "Run an optional coding agent in an exact temporary Automate checkout and return only an untrusted diff.",
+                lambda a: free.opencode_proposal(
+                    revision=str(a.get("revision") or ""),
+                    objective=str(a.get("objective") or ""),
+                    prompt=str(a.get("prompt") or ""),
+                ),
+            ))
         self.tools.register(Tool(
             "research_world",
             "Search bounded scientific/software/model sources with provenance.",
@@ -332,6 +334,9 @@ class MirrorAgent:
             args = dict(call.get("arguments", {}))
             if name in {"implement_automate_change", "repair_automate_change"}:
                 args.setdefault("base_revision", mission.automate_revision)
+            if name == "free_coding_agent":
+                args.setdefault("revision", mission.automate_revision)
+                args.setdefault("objective", mission.objective)
             try:
                 result = self.tools.execute(name, args)
                 self.brain.record_event(
