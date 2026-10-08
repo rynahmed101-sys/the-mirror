@@ -20,7 +20,8 @@ export function buildExternalAgentCapabilities(origin: string) {
     { method: "POST", path: "/api/agent/chat", purpose: "Run the native Mirror tool loop with streaming event output.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 300 },
     { method: "POST", path: "/api/agent/chat/json", purpose: "Run the native Mirror tool loop and receive one machine-readable JSON response.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 300 },
     { method: "POST", path: "/api/agent/run-step", purpose: "Run one bounded autonomous research cycle.", authentication: "registered_or_guest", mutatesState: true, maxDurationSeconds: 300 },
-    { method: "POST", path: "/api/agent/provider-test", purpose: "Execute one bounded completion against the configured Mirror Ollama runtime.", authentication: "registered_or_guest", mutatesState: false },
+    { method: "POST", path: "/api/internal/frontier", purpose: "Execute one bounded Automate capability-generation or repair commission in the isolated frontier worker.", authentication: "registered_agent", mutatesState: true, maxDurationSeconds: 300 },
+    { method: "POST", path: "/api/agent/provider-test", purpose: "Execute one bounded completion against the configured Mirror reasoning provider.", authentication: "registered_or_guest", mutatesState: false },
     { method: "POST", path: "/api/v1/sessions", purpose: "Start a persistent agent session with { action: START_SESSION }.", authentication: "registered_or_guest", mutatesState: true },
     { method: "GET", path: "/api/v1/events", purpose: "Read the caller append-only event stream.", authentication: "registered_or_guest", mutatesState: false },
     { method: "GET", path: "/api/v1/observations", purpose: "Read the caller raw observations and derived analysis.", authentication: "registered_or_guest", mutatesState: false },
@@ -40,13 +41,13 @@ export function buildExternalAgentCapabilities(origin: string) {
     description: "Machine-facing interface for AI agents operating inside THE MIRROR.",
     roleModel: {
       environment: "THE MIRROR is the persistent experimental environment and evidence store.",
-      builtInInference: "Ollama is the current internal inference provider used by Mirror-controlled agent loops.",
+      builtInInference: "Mirror-controlled agent loops use the provider selected by deployment policy; the default remains deterministic and a vendor-neutral remote provider may be enabled.",
       externalAgent: "A registered or temporary external model can act directly as an independent Mirror actor/researcher.",
       controller: "A controller credential remains reserved for human/admin operations and controller-only blind/internal laboratory functions.",
     },
     executionModes: {
       externalAsActor: "The external model reasons for itself and uses Mirror tools directly; Ollama is not required for that model's own reasoning.",
-      externalControllingOllama: "The external model can invoke Mirror endpoints that cause the built-in Ollama-backed agent loop to reason and act, then inspect the persisted evidence.",
+      externalControllingConfiguredProvider: "The external model can invoke Mirror endpoints that cause the configured Mirror agent provider to reason and act, then inspect the persisted evidence.",
       externalAsProvider: "Not yet supported as a synchronous internal provider. This requires a remote inference handoff/response protocol rather than ordinary agent authentication.",
     },
     identityModel: {
