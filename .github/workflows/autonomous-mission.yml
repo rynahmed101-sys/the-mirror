@@ -53,6 +53,8 @@ jobs:
       - name: Execute bounded Mirror mission
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          AUTOMATE_GITHUB_TOKEN: ${{ secrets.AUTOMATE_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTOMATE_GITHUB_TOKEN }}
         run: python -m mirror_lab.cli run-mission mission.json > mission-result.json
       - name: Expose bounded result in workflow logs
         run: |
