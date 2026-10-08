@@ -252,7 +252,7 @@ class MirrorAgent:
             plan.append("research_world")
         if any(x in q for x in ("experiment", "simulate", "test hypothesis")):
             plan.append("run_manifest")
-        if any(x in q for x in ("implement", "build", "capability", "repair", "fix")):
+        if any(x in q for x in ("implement", "build", "code", "repair", "fix", "patch")):
             plan.append("implement_automate_change" if "repair" not in q else "repair_automate_change")
         if "propose" in q or "new capability" in q:
             plan.append("propose_capability")
