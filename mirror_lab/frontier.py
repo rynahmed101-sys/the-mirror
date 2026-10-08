@@ -136,7 +136,7 @@ class ChanfanaFrontierClient:
         request = Request(self.base_url + path, headers=headers, data=body, method=method)
         try:
             with self._open(request, timeout=timeout) as response:
-                raw = response.read(self._max_response_bytes)
+                raw = response.read(self._max_response_bytes + 1)
                 if len(raw) > self._max_response_bytes:
                     raise FrontierTransportError("frontier response exceeded bounded response size")
         except (HTTPError, URLError, TimeoutError, OSError) as exc:
