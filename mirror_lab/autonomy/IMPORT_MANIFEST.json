@@ -1,0 +1,9 @@
+{
+  "schema_version": "mirror.autonomy.import.v1",
+  "source_repository": "rynahmed101-sys/automate",
+  "source_revision": "c8079fd72e38e3c8ba4923a1ebb08b30bff05c0b",
+  "destination": "mirror_lab/autonomy",
+  "role": "experimental_autonomous_development_control_machinery",
+  "automate_core_mutation_authority": false,
+  "integrated_into_mirror_runtime": false
+}
