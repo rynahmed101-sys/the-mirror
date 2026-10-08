@@ -2,9 +2,9 @@ name: Mirror Engine CI
 
 on:
   push:
-    branches: [engine, main]
+    branches: [engine]
   pull_request:
-    branches: [engine, main]
+    branches: [engine]
     types: [opened, synchronize, reopened]
   workflow_dispatch:
 
