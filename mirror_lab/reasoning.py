@@ -588,7 +588,7 @@ class ReasoningEngine:
             SpecialistName.SCIENTIFIC: {"math", "physics", "equation", "derive", "calculus", "tensor", "proof"},
             SpecialistName.DIAGNOSTIC: {"failure", "failed", "error", "timeout", "broken", "regression", "repair"},
             SpecialistName.EXPERIMENT: {"experiment", "simulation", "sweep", "perturb", "benchmark", "trajectory"},
-            SpecialistName.REASONING: {"reason", "decompose", "hypothesis", "contradiction", "plan", "constraint"},
+            SpecialistName.REASONING: {"reason", "decompose", "hypothesis", "contradiction", "plan", "constraint", "ledger", "frontier", "automate"},
         }
         for specialist, words in keywords.items():
             scores[specialist] = len(tokens & words)
