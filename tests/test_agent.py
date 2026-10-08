@@ -1,0 +1,27 @@
+from mirror_lab.agent import MirrorAgent, Mission
+
+
+def test_toolbelt_is_executable_and_explicit():
+    agent = MirrorAgent()
+    names = agent.tools.names()
+    assert "research_world" in names
+    assert "implement_automate_change" in names
+    assert "repair_automate_change" in names
+    assert "propose_capability" in names
+
+
+def test_planner_selects_research_then_capability_work():
+    agent = MirrorAgent()
+    plan = agent.plan(Mission("research approaches and implement a new capability"))
+    assert plan[0] == "list_tools"
+    assert "research_world" in plan
+    assert "implement_automate_change" in plan
+
+
+def test_capability_proposal_is_untrusted():
+    result = MirrorAgent().tools.execute(
+        "propose_capability",
+        {"id": "demo.x", "name": "Demo", "summary": "candidate"},
+    )
+    assert result["status"] == "CANDIDATE"
+    assert result["proposal"]["authority"] == "UNTRUSTED_MIRROR_PROPOSAL"
