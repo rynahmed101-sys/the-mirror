@@ -8,6 +8,7 @@ from typing import Any
 from .automate import read_automate_frontier
 from .frontier import frontier_tool_spec
 from .git_tools import GitTool
+from .github_tools import GitHubTool
 from .reasoning import SpecialistName
 from .research import ResearchTool
 from .tooling import ToolContext, ToolRegistry, ToolSpec
@@ -106,6 +107,7 @@ def build_default_tool_registry(
         )
     )
     git = GitTool(workspace_root)
+    github = GitHubTool(workspace_root)
     registry.register(
         ToolSpec(
             name="git.status",
@@ -144,6 +146,50 @@ def build_default_tool_registry(
             timeout_seconds=30.0,
             authorization_required=True,
             mutating=True,
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="github.repo_state",
+            specialist=SpecialistName.GITHUB,
+            handler=lambda value, context: github.repo_state(),
+            description="Inspect bounded remote repository state.",
+            timeout_seconds=30.0,
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="github.push_branch",
+            specialist=SpecialistName.GITHUB,
+            handler=lambda value, context: github.push_branch(str(value.get("branch") or "")),
+            description="Push only a Mirror-owned branch.",
+            timeout_seconds=180.0,
+            authorization_required=True,
+            mutating=True,
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="github.create_pr",
+            specialist=SpecialistName.GITHUB,
+            handler=lambda value, context: github.create_pr(
+                str(value.get("branch") or ""),
+                str(value.get("title") or ""),
+                str(value.get("body") or ""),
+            ),
+            description="Open a reviewable PR from a Mirror-owned branch; never merge it.",
+            timeout_seconds=120.0,
+            authorization_required=True,
+            mutating=True,
+        )
+    )
+    registry.register(
+        ToolSpec(
+            name="github.ci",
+            specialist=SpecialistName.GITHUB,
+            handler=lambda value, context: github.ci(str(value.get("revision") or "")),
+            description="Read CI status for an exact Git revision.",
+            timeout_seconds=60.0,
         )
     )
     if frontier_client is not None:

@@ -1,10 +1,9 @@
 import argparse
 import json
 
-from .frontier_service import serve as serve_frontier
-
 from .examples import demo_model, run_demo
 from .manifest import ExperimentManifest
+from .mission import run_mission
 from .operator import LabOperator
 from .registry import ModelRegistry
 
@@ -24,20 +23,20 @@ def main():
         prog="mirror",
         description="THE MIRROR exploratory mathematics and physics laboratory",
     )
-    parser.add_argument("command", choices=["demo", "run-manifest", "frontier-server"])
+    parser.add_argument("command", choices=["demo", "run-manifest", "run-mission"])
     parser.add_argument("manifest", nargs="?")
     args = parser.parse_args()
-
-    if args.command == "frontier-server":
-        serve_frontier()
-        return
 
     if args.command == "demo":
         _print_result(run_demo())
         return
 
     if not args.manifest:
-        parser.error("run-manifest requires a JSON manifest path")
+        parser.error(f"{args.command} requires a JSON input path")
+
+    if args.command == "run-mission":
+        print(json.dumps(run_mission(args.manifest), indent=2, sort_keys=True, default=str))
+        return
 
     registry = ModelRegistry()
     registry.register(demo_model())
