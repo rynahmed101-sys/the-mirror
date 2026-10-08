@@ -64,7 +64,7 @@ class InferencePlan:
 DEFAULT_KNOWLEDGE: tuple[KnowledgeRule, ...] = (
     KnowledgeRule(
         "repository-change",
-        ("implement", "build", "code", "patch", "capability"),
+        ("implement", "build", "code", "patch"),
         ("a repository change is required", "the change must be tested before proposal"),
         ("inspect_repository", "research_relevant_patterns", "synthesize_change", "test_change", "prepare_proposal"),
         100,
