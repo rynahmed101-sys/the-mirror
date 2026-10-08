@@ -132,6 +132,16 @@ class MirrorAgent:
                 "Health-check Agent-Reach internet backends when installed.",
                 lambda _a: free.agent_reach_doctor(),
             ))
+        if free.available().get("hermes"):
+            self.tools.register(Tool(
+                "hermes_coding_agent",
+                "Run the optional Hermes free-tier coding agent in an exact temporary Automate checkout and return only an untrusted diff.",
+                lambda a: free.hermes_proposal(
+                    revision=str(a.get("revision") or ""),
+                    objective=str(a.get("objective") or ""),
+                    prompt=str(a.get("prompt") or ""),
+                ),
+            ))
         if free.available().get("opencode"):
             self.tools.register(Tool(
                 "free_coding_agent",
@@ -334,7 +344,7 @@ class MirrorAgent:
             args = dict(call.get("arguments", {}))
             if name in {"implement_automate_change", "repair_automate_change"}:
                 args.setdefault("base_revision", mission.automate_revision)
-            if name == "free_coding_agent":
+            if name in {"free_coding_agent", "hermes_coding_agent"}:
                 args.setdefault("revision", mission.automate_revision)
                 args.setdefault("objective", mission.objective)
             try:
