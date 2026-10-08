@@ -186,6 +186,11 @@ class InferenceEngine:
             conclusions.append("no deterministic knowledge rule matched the mission")
             step_names = ["inspect_context", "research_world", "propose_next_action"]
 
+        for item in knowledge:
+            for procedure in item.procedure:
+                if procedure not in step_names:
+                    step_names.append(procedure)
+
         tools = tuple(dict.fromkeys(str(x) for x in available_tools if x))
         steps: list[InferenceStep] = []
         for index, name in enumerate(step_names, 1):
@@ -220,11 +225,6 @@ class InferenceEngine:
             + min(0.25, len(context.memories) * 0.02)
             + (0.15 if context.task else 0),
         )
-        for item in knowledge:
-            for procedure in item.procedure:
-                if procedure not in step_names:
-                    step_names.append(procedure)
-
         plan = InferencePlan(
             plan_id="infer-" + hashlib.sha256(
                 (context.objective + "|" + str(context.capability_id) + "|" + str(context.source_revision)).encode()
