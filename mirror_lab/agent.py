@@ -129,7 +129,6 @@ class MirrorAgent:
                     objective=str(a.get("objective") or ""),
                     prompt=str(a.get("prompt") or ""),
                 ),
-                mutating=True,
             ))
         if free.available().get("opencode"):
             self.tools.register(Tool(
@@ -425,7 +424,7 @@ class MirrorAgent:
                 results.append({"tool": name, "result": result})
                 if name in {"hermes_coding_agent", "free_coding_agent"}:
                     diff = str(result.get("diff") or "")
-                    if result.get("status") == "PROPOSAL_READY" and diff:
+                    if result.get("status") == "PROPOSAL_READY" and diff and mission.authorization_granted:
                         apply_result = self.tools.execute(
                             "implement_automate_change",
                             {
