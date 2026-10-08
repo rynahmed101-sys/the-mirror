@@ -21,8 +21,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from .brain import MirrorBrain
 from .operator import LabOperator
 from .research import ResearchTool
+from .reasoning import ReasoningEngine
 
 
 @dataclass(frozen=True)
@@ -80,9 +82,12 @@ class MirrorAgent:
         operator: LabOperator | None = None,
         research: ResearchTool | None = None,
         registry: ToolRegistry | None = None,
+        brain: MirrorBrain | None = None,
     ) -> None:
         self.operator = operator
         self.research = research or ResearchTool()
+        self.brain = brain or MirrorBrain(Path(os.environ.get("MIRROR_BRAIN_PATH", ".mirror/brain.sqlite3")))
+        self.reasoning = ReasoningEngine(self.brain)
         self.tools = registry or ToolRegistry()
         self._register_default_tools()
 
@@ -232,7 +237,17 @@ class MirrorAgent:
         exact same tool registry and cannot bypass its executor.
         """
         q = mission.objective.lower()
+        self.reasoning.start_mission(
+            mission.capability_id or "mirror.mission",
+            mission.objective,
+            assumptions=[str(x) for x in mission.task.get("assumptions", [])],
+        )
         plan: list[str] = ["list_tools"]
+        specialist = self.reasoning.route_specialist(mission.objective)
+        self.brain.record_event(
+            "planner_route",
+            {"specialist": specialist.value, "objective": mission.objective},
+        )
         if any(x in q for x in ("research", "literature", "paper", "approach", "reference")):
             plan.append("research_world")
         if any(x in q for x in ("experiment", "simulate", "test hypothesis")):
@@ -241,6 +256,7 @@ class MirrorAgent:
             plan.append("implement_automate_change" if "repair" not in q else "repair_automate_change")
         if "propose" in q or "new capability" in q:
             plan.append("propose_capability")
+        self.brain.record_event("plan_created", {"mission": mission.objective, "tools": plan})
         return plan
 
     def execute_plan(self, mission: Mission, calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -251,5 +267,26 @@ class MirrorAgent:
             args = dict(call.get("arguments", {}))
             if name in {"implement_automate_change", "repair_automate_change"}:
                 args.setdefault("base_revision", mission.automate_revision)
-            results.append({"tool": name, "result": self.tools.execute(name, args)})
+            try:
+                result = self.tools.execute(name, args)
+                self.brain.record_event(
+                    "tool_result",
+                    {"tool": name, "status": str(result.get("status", "returned"))},
+                )
+                results.append({"tool": name, "result": result})
+            except Exception as exc:
+                self.brain.record_event(
+                    "tool_failure",
+                    {"tool": name, "error": str(exc)[:2000]},
+                )
+                results.append({"tool": name, "result": {"status": "TOOL_FAILED", "error": str(exc)}})
+                self.reasoning.record_failure(
+                    name,
+                    input_state=json.dumps(args, sort_keys=True),
+                    classification="tool_failure",
+                    evidence=[str(exc)],
+                    likely_cause="tool execution raised an exception",
+                    confidence=0.8,
+                )
+                break
         return results
